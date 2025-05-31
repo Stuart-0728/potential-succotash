@@ -1,0 +1,141 @@
+{% extends 'base.html' %}
+
+{% block title %}学生列表 - 重庆师范大学师能素质协会{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <h2>学生管理</h2>
+        </div>
+        <div class="col-md-4 text-end">
+            <a href="{{ url_for('admin.export_students') }}" class="btn btn-success">
+                <i class="fas fa-file-excel me-2"></i>导出Excel
+            </a>
+        </div>
+    </div>
+
+    <div class="card mb-4">
+        <div class="card-body">
+            <form method="GET" action="{{ url_for('admin.students') }}" class="row g-3">
+                <div class="col-md-10">
+                    <input type="text" class="form-control" name="search" placeholder="搜索姓名、学号、学院或专业..." value="{{ search }}">
+                </div>
+                <div class="col-md-2">
+                    <button type="submit" class="btn btn-primary w-100">搜索</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>用户名</th>
+                            <th>姓名</th>
+                            <th>学号</th>
+                            <th>年级</th>
+                            <th>专业</th>
+                            <th>学院</th>
+                            <th>联系方式</th>
+                            <th>注册时间</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for user in students.items %}
+                            <tr>
+                                <td>{{ user.username }}</td>
+                                <td>{{ user.student_info.real_name }}</td>
+                                <td>{{ user.student_info.student_id }}</td>
+                                <td>{{ user.student_info.grade }}</td>
+                                <td>{{ user.student_info.major }}</td>
+                                <td>{{ user.student_info.college }}</td>
+                                <td>
+                                    <small>
+                                        <div><i class="fas fa-phone me-1"></i>{{ user.student_info.phone }}</div>
+                                        <div><i class="fab fa-qq me-1"></i>{{ user.student_info.qq }}</div>
+                                    </small>
+                                </td>
+                                <td>{{ user.created_at.strftime('%Y-%m-%d') }}</td>
+                                <td>
+                                    <a href="#" class="btn btn-sm btn-danger" onclick="confirmDelete({{ user.id }}, '{{ user.username }}', '{{ user.student_info.real_name }}', '{{ user.student_info.student_id }}'); return false;">
+                                        <i class="fas fa-trash-alt"></i> 删除
+                                    </a>
+                                </td>
+                            </tr>
+                        {% else %}
+                            <tr>
+                                <td colspan="9" class="text-center">暂无学生信息</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- 分页 -->
+            {% if students.pages > 1 %}
+                <nav aria-label="Page navigation">
+                    <ul class="pagination justify-content-center">
+                        {% if students.has_prev %}
+                            <li class="page-item">
+                                <a class="page-link" href="{{ url_for('admin.students', page=students.prev_num, search=search) }}">上一页</a>
+                            </li>
+                        {% else %}
+                            <li class="page-item disabled">
+                                <span class="page-link">上一页</span>
+                            </li>
+                        {% endif %}
+
+                        {% for page_num in students.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+                            {% if page_num %}
+                                {% if page_num == students.page %}
+                                    <li class="page-item active">
+                                        <span class="page-link">{{ page_num }}</span>
+                                    </li>
+                                {% else %}
+                                    <li class="page-item">
+                                        <a class="page-link" href="{{ url_for('admin.students', page=page_num, search=search) }}">{{ page_num }}</a>
+                                    </li>
+                                {% endif %}
+                            {% else %}
+                                <li class="page-item disabled">
+                                    <span class="page-link">...</span>
+                                </li>
+                            {% endif %}
+                        {% endfor %}
+
+                        {% if students.has_next %}
+                            <li class="page-item">
+                                <a class="page-link" href="{{ url_for('admin.students', page=students.next_num, search=search) }}">下一页</a>
+                            </li>
+                        {% else %}
+                            <li class="page-item disabled">
+                                <span class="page-link">下一页</span>
+                            </li>
+                        {% endif %}
+                    </ul>
+                </nav>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- 删除确认表单 -->
+<form id="deleteForm" method="post" style="display: none;">
+</form>
+
+<script>
+function confirmDelete(userId, username, realName, studentId) {
+    if (confirm(`确定要删除以下用户吗？此操作不可撤销。\n\n用户名：${username}\n姓名：${realName}\n学号：${studentId}\n\n删除用户将同时删除该用户的所有报名记录和个人信息。`)) {
+        // 设置表单action并提交
+        const form = document.getElementById('deleteForm');
+        form.action = "{{ url_for('admin.delete_student', id=0) }}".replace('0', userId);
+        form.submit();
+    }
+}
+</script>
+{% endblock %}

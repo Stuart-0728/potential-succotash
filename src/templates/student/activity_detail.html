@@ -1,0 +1,86 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ activity.title }} - 重庆师范大学师能素质协会{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{{ url_for('main.index') }}">首页</a></li>
+            <li class="breadcrumb-item"><a href="{{ url_for('student.activities') }}">活动列表</a></li>
+            <li class="breadcrumb-item active" aria-current="page">{{ activity.title }}</li>
+        </ol>
+    </nav>
+
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+            <h4 class="mb-0">{{ activity.title }}</h4>
+            <span class="badge {% if activity.status == 'active' %}bg-success{% elif activity.status == 'completed' %}bg-secondary{% else %}bg-danger{% endif %}">
+                {% if activity.status == 'active' %}进行中{% elif activity.status == 'completed' %}已结束{% else %}已取消{% endif %}
+            </span>
+        </div>
+        <div class="card-body">
+            <div class="row mb-4">
+                <div class="col-md-6">
+                    <p><i class="bi bi-geo-alt-fill text-primary"></i> <strong>活动地点：</strong>{{ activity.location }}</p>
+                    <p><i class="bi bi-calendar-event-fill text-primary"></i> <strong>活动时间：</strong>{{ activity.start_time.strftime('%Y-%m-%d %H:%M') }} 至 {{ activity.end_time.strftime('%Y-%m-%d %H:%M') }}</p>
+                    <p><i class="bi bi-clock-fill text-primary"></i> <strong>报名截止：</strong>{{ activity.registration_deadline.strftime('%Y-%m-%d %H:%M') }}</p>
+                </div>
+                <div class="col-md-6">
+                    <p><i class="bi bi-people-fill text-primary"></i> <strong>参与人数：</strong>
+                        {% if activity.max_participants > 0 %}
+                            {{ activity.registrations.filter_by(status='registered').count() }}/{{ activity.max_participants }}
+                        {% else %}
+                            {{ activity.registrations.filter_by(status='registered').count() }} (不限)
+                        {% endif %}
+                    </p>
+                    <p><i class="bi bi-person-fill text-primary"></i> <strong>发布者：</strong>管理员</p>
+                    <p><i class="bi bi-calendar-plus-fill text-primary"></i> <strong>发布时间：</strong>{{ activity.created_at.strftime('%Y-%m-%d %H:%M') }}</p>
+                </div>
+            </div>
+
+            <div class="mb-4">
+                <h5 class="border-bottom pb-2">活动描述</h5>
+                <div class="activity-description">
+                    {{ activity.description|safe }}
+                </div>
+            </div>
+
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    {% if registration %}
+                        {% if registration.status == 'registered' %}
+                            <span class="badge bg-success">已报名</span>
+                            {% if activity.start_time > now %}
+                                <form method="post" action="{{ url_for('student.cancel_registration', id=activity.id) }}" class="d-inline">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('确定要取消报名吗？')">
+                                        取消报名
+                                    </button>
+                                </form>
+                            {% endif %}
+                        {% elif registration.status == 'cancelled' %}
+                            <span class="badge bg-secondary">已取消报名</span>
+                            {% if can_register %}
+                                <form method="post" action="{{ url_for('student.register_activity', id=activity.id) }}" class="d-inline">
+                                    <button type="submit" class="btn btn-sm btn-primary">重新报名</button>
+                                </form>
+                            {% endif %}
+                        {% endif %}
+                    {% elif can_register %}
+                        <form method="post" action="{{ url_for('student.register_activity', id=activity.id) }}">
+                            <button type="submit" class="btn btn-primary">立即报名</button>
+                        </form>
+                    {% elif activity.status == 'active' and activity.registration_deadline >= now %}
+                        {% if activity.max_participants > 0 and activity.registrations.filter_by(status='registered').count() >= activity.max_participants %}
+                            <button class="btn btn-secondary" disabled>名额已满</button>
+                        {% endif %}
+                    {% else %}
+                        <button class="btn btn-secondary" disabled>报名已截止</button>
+                    {% endif %}
+                </div>
+                <a href="{{ url_for('student.activities') }}" class="btn btn-outline-secondary">返回活动列表</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

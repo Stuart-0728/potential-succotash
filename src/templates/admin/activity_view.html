@@ -1,0 +1,83 @@
+{% extends 'base.html' %}
+
+{% block title %}活动详情 - {{ activity.title }} - 重庆师范大学师能素质协会{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{{ url_for('admin.dashboard') }}">管理面板</a></li>
+            <li class="breadcrumb-item"><a href="{{ url_for('admin.activities') }}">活动管理</a></li>
+            <li class="breadcrumb-item active" aria-current="page">活动详情</li>
+        </ol>
+    </nav>
+
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+            <h4 class="mb-0">{{ activity.title }}</h4>
+            <span class="badge {% if activity.status == 'active' %}bg-success{% elif activity.status == 'completed' %}bg-secondary{% else %}bg-danger{% endif %}">
+                {% if activity.status == 'active' %}进行中{% elif activity.status == 'completed' %}已结束{% else %}已取消{% endif %}
+            </span>
+        </div>
+        <div class="card-body">
+            <div class="row mb-4">
+                <div class="col-md-6">
+                    <p><i class="bi bi-geo-alt-fill text-primary"></i> <strong>活动地点：</strong>{{ activity.location }}</p>
+                    <p><i class="bi bi-calendar-event-fill text-primary"></i> <strong>活动时间：</strong>{{ activity.start_time.strftime('%Y-%m-%d %H:%M') }} 至 {{ activity.end_time.strftime('%Y-%m-%d %H:%M') }}</p>
+                    <p><i class="bi bi-clock-fill text-primary"></i> <strong>报名截止：</strong>{{ activity.registration_deadline.strftime('%Y-%m-%d %H:%M') }}</p>
+                </div>
+                <div class="col-md-6">
+                    <p><i class="bi bi-people-fill text-primary"></i> <strong>参与人数：</strong>
+                        {% if activity.max_participants > 0 %}
+                            {{ registration_count }}/{{ activity.max_participants }}
+                        {% else %}
+                            {{ registration_count }} (不限)
+                        {% endif %}
+                    </p>
+                    <p><i class="bi bi-person-fill text-primary"></i> <strong>发布者：</strong>{{ creator.username if creator else '未知' }}</p>
+                    <p><i class="bi bi-calendar-plus-fill text-primary"></i> <strong>发布时间：</strong>{{ activity.created_at.strftime('%Y-%m-%d %H:%M') }}</p>
+                </div>
+            </div>
+
+            <div class="mb-4">
+                <h5 class="border-bottom pb-2">活动描述</h5>
+                <div class="activity-description">
+                    {{ activity.description|safe }}
+                </div>
+            </div>
+
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <a href="{{ url_for('admin.edit_activity', id=activity.id) }}" class="btn btn-primary">
+                        <i class="fas fa-edit me-1"></i>编辑活动
+                    </a>
+                    <a href="{{ url_for('admin.activity_registrations', id=activity.id) }}" class="btn btn-info">
+                        <i class="fas fa-users me-1"></i>查看报名情况
+                    </a>
+                    <form action="{{ url_for('admin.delete_activity', id=activity.id) }}" method="post" id="deleteActivityForm" style="display:inline;">
+                        <button type="button" class="btn btn-danger" onclick="confirmDelete()">
+                            <i class="fas fa-trash-alt me-1"></i>删除活动
+                        </button>
+                    </form>
+                </div>
+                <a href="{{ url_for('admin.activities') }}" class="btn btn-outline-secondary">返回活动列表</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function confirmDelete() {
+    var message = "您确定要删除活动"{{ activity.title }}"吗？";
+    {% if activity.registrations.count() > 0 %}
+        message += "\n\n警告：该活动已有 {{ activity.registrations.count() }} 人报名，删除后将标记为已取消而非彻底删除。";
+    {% else %}
+        message += "\n\n警告：此操作不可撤销，活动将被永久删除。";
+    {% endif %}
+    
+    if (window.confirm(message)) {
+        document.getElementById('deleteActivityForm').submit();
+    }
+}
+</script>
+{% endblock %}
