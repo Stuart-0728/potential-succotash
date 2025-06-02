@@ -1,0 +1,192 @@
+{% extends 'base.html' %}
+
+{% block title %}统计分析 - 重庆师范大学师能素质协会{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <h2 class="mb-3">统计分析</h2>
+            <div class="card">
+                <div class="card-body">
+                    <p class="card-text">查看活动报名和学生参与的统计数据。</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">活动报名统计</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="registrationChart" width="400" height="300"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">学生参与度</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="participationChart" width="400" height="300"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">月度活动统计</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="monthlyChart" width="800" height="300"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@3.7.1/dist/chart.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // 初始化图表
+    initializeCharts();
+});
+
+function initializeCharts() {
+    try {
+        // 获取统计数据
+        fetch('/api/statistics')
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('网络响应异常');
+                }
+                return response.json();
+            })
+            .then(data => {
+                // 活动报名统计图表
+                const registrationCtx = document.getElementById('registrationChart').getContext('2d');
+                new Chart(registrationCtx, {
+                    type: 'pie',
+                    data: {
+                        labels: data.registration_stats.labels,
+                        datasets: [{
+                            data: data.registration_stats.data,
+                            backgroundColor: [
+                                'rgba(54, 162, 235, 0.7)',
+                                'rgba(255, 99, 132, 0.7)',
+                                'rgba(255, 206, 86, 0.7)',
+                                'rgba(75, 192, 192, 0.7)',
+                                'rgba(153, 102, 255, 0.7)'
+                            ],
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            legend: {
+                                position: 'bottom',
+                            },
+                            title: {
+                                display: true,
+                                text: '活动报名分布'
+                            }
+                        }
+                    }
+                });
+
+                // 学生参与度图表
+                const participationCtx = document.getElementById('participationChart').getContext('2d');
+                new Chart(participationCtx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: data.participation_stats.labels,
+                        datasets: [{
+                            data: data.participation_stats.data,
+                            backgroundColor: [
+                                'rgba(54, 162, 235, 0.7)',
+                                'rgba(255, 99, 132, 0.7)',
+                                'rgba(255, 206, 86, 0.7)',
+                                'rgba(75, 192, 192, 0.7)'
+                            ],
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            legend: {
+                                position: 'bottom',
+                            },
+                            title: {
+                                display: true,
+                                text: '学生参与度分布'
+                            }
+                        }
+                    }
+                });
+
+                // 月度活动统计图表
+                const monthlyCtx = document.getElementById('monthlyChart').getContext('2d');
+                new Chart(monthlyCtx, {
+                    type: 'bar',
+                    data: {
+                        labels: data.monthly_stats.labels,
+                        datasets: [{
+                            label: '活动数量',
+                            data: data.monthly_stats.activities,
+                            backgroundColor: 'rgba(54, 162, 235, 0.7)',
+                            borderColor: 'rgba(54, 162, 235, 1)',
+                            borderWidth: 1
+                        }, {
+                            label: '报名人数',
+                            data: data.monthly_stats.registrations,
+                            backgroundColor: 'rgba(255, 99, 132, 0.7)',
+                            borderColor: 'rgba(255, 99, 132, 1)',
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        scales: {
+                            y: {
+                                beginAtZero: true
+                            }
+                        },
+                        plugins: {
+                            legend: {
+                                position: 'top',
+                            },
+                            title: {
+                                display: true,
+                                text: '月度活动与报名统计'
+                            }
+                        }
+                    }
+                });
+            })
+            .catch(error => {
+                console.error('获取统计数据失败:', error);
+                document.querySelectorAll('.card-body canvas').forEach(canvas => {
+                    const parent = canvas.parentElement;
+                    const errorMsg = document.createElement('div');
+                    errorMsg.className = 'alert alert-danger';
+                    errorMsg.textContent = '加载统计数据失败，请刷新页面重试';
+                    parent.replaceChild(errorMsg, canvas);
+                });
+            });
+    } catch (error) {
+        console.error('初始化图表失败:', error);
+    }
+}
+</script>
+{% endblock %}

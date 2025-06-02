@@ -1,0 +1,149 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ activity.title }} - 活动详情 - 重庆师范大学师能素质协会{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h2 class="mb-0">{{ activity.title }}</h2>
+                    <span class="badge {% if activity.status == 'active' %}bg-success{% elif activity.status == 'completed' %}bg-secondary{% else %}bg-danger{% endif %}">
+                        {% if activity.status == 'active' %}进行中{% elif activity.status == 'completed' %}已结束{% else %}已取消{% endif %}
+                    </span>
+                </div>
+                <div class="card-body">
+                    <div class="mb-4">
+                        <h5>活动详情</h5>
+                        <p class="card-text">{{ activity.description | safe }}</p>
+                    </div>
+                    
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <h5>活动信息</h5>
+                            <ul class="list-group list-group-flush">
+                                <li class="list-group-item"><i class="fas fa-map-marker-alt me-2"></i> <strong>地点：</strong>{{ activity.location }}</li>
+                                <li class="list-group-item"><i class="fas fa-calendar-alt me-2"></i> <strong>开始时间：</strong>{{ activity.start_time.strftime('%Y-%m-%d %H:%M') }}</li>
+                                <li class="list-group-item"><i class="fas fa-calendar-check me-2"></i> <strong>结束时间：</strong>{{ activity.end_time.strftime('%Y-%m-%d %H:%M') }}</li>
+                                <li class="list-group-item"><i class="fas fa-clock me-2"></i> <strong>报名截止：</strong>{{ activity.registration_deadline.strftime('%Y-%m-%d %H:%M') }}</li>
+                                {% if activity.max_participants > 0 %}
+                                <li class="list-group-item"><i class="fas fa-users me-2"></i> <strong>人数限制：</strong>{{ activity.max_participants }}人</li>
+                                {% endif %}
+                            </ul>
+                        </div>
+                        <div class="col-md-6">
+                            <h5>报名状态</h5>
+                            <div class="card">
+                                <div class="card-body">
+                                    {% if is_student %}
+                                        {% if registration and registration.status == 'registered' %}
+                                            <div class="alert alert-success">
+                                                <i class="fas fa-check-circle me-2"></i> 您已成功报名此活动
+                                                <p class="small mb-0">报名时间：{{ registration.register_time.strftime('%Y-%m-%d %H:%M') }}</p>
+                                            </div>
+                                            
+                                            {% if activity.start_time > now %}
+                                                <form action="{{ url_for('student.cancel_registration', id=activity.id) }}" method="post" onsubmit="return confirm('确定要取消报名吗？');">
+                                                    <button type="submit" class="btn btn-outline-danger w-100">
+                                                        <i class="fas fa-times-circle me-2"></i> 取消报名
+                                                    </button>
+                                                </form>
+                                            {% endif %}
+                                        {% elif can_register %}
+                                            <div class="alert alert-info">
+                                                <i class="fas fa-info-circle me-2"></i> 此活动正在接受报名
+                                                <p class="small mb-0">截止时间：{{ activity.registration_deadline.strftime('%Y-%m-%d %H:%M') }}</p>
+                                            </div>
+                                            
+                                            <form action="{{ url_for('student.register_activity', id=activity.id) }}" method="post">
+                                                <button type="submit" class="btn btn-primary w-100">
+                                                    <i class="fas fa-user-plus me-2"></i> 立即报名
+                                                </button>
+                                            </form>
+                                        {% else %}
+                                            {% if activity.registration_deadline < now %}
+                                                <div class="alert alert-secondary">
+                                                    <i class="fas fa-ban me-2"></i> 报名已截止
+                                                </div>
+                                            {% elif activity.max_participants > 0 and activity.registrations|length >= activity.max_participants %}
+                                                <div class="alert alert-warning">
+                                                    <i class="fas fa-exclamation-triangle me-2"></i> 报名人数已满
+                                                </div>
+                                            {% elif registration and registration.status == 'cancelled' %}
+                                                <div class="alert alert-warning">
+                                                    <i class="fas fa-exclamation-triangle me-2"></i> 您已取消报名
+                                                    <p class="small mb-0">可重新报名</p>
+                                                </div>
+                                                
+                                                <form action="{{ url_for('student.register_activity', id=activity.id) }}" method="post">
+                                                    <button type="submit" class="btn btn-outline-primary w-100">
+                                                        <i class="fas fa-redo me-2"></i> 重新报名
+                                                    </button>
+                                                </form>
+                                            {% endif %}
+                                        {% endif %}
+                                    {% elif current_user.is_authenticated %}
+                                        <div class="alert alert-info">
+                                            <i class="fas fa-info-circle me-2"></i> 您当前不是学生账号，无法报名活动
+                                        </div>
+                                    {% else %}
+                                        <div class="alert alert-info">
+                                            <i class="fas fa-info-circle me-2"></i> 登录学生账号后可报名参加活动
+                                        </div>
+                                        <a href="{{ url_for('auth.login', next=url_for('main.activity_detail', id=activity.id)) }}" class="btn btn-outline-primary w-100">
+                                            <i class="fas fa-sign-in-alt me-2"></i> 登录报名
+                                        </a>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-footer">
+                    <a href="{{ url_for('main.index') }}" class="btn btn-secondary">
+                        <i class="fas fa-arrow-left me-2"></i> 返回首页
+                    </a>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-4">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">活动须知</h5>
+                </div>
+                <div class="card-body">
+                    <ul class="list-group list-group-flush">
+                        <li class="list-group-item">
+                            <i class="fas fa-info-circle me-2 text-primary"></i> 请准时参加活动
+                        </li>
+                        <li class="list-group-item">
+                            <i class="fas fa-info-circle me-2 text-primary"></i> 活动开始前请提前到场
+                        </li>
+                        <li class="list-group-item">
+                            <i class="fas fa-info-circle me-2 text-primary"></i> 如需取消报名，请提前操作
+                        </li>
+                        <li class="list-group-item">
+                            <i class="fas fa-info-circle me-2 text-primary"></i> 活动开始后将无法取消报名
+                        </li>
+                    </ul>
+                </div>
+            </div>
+            
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">联系我们</h5>
+                </div>
+                <div class="card-body">
+                    <p>如有任何问题，请联系我们：</p>
+                    <ul class="list-unstyled">
+                        <li><i class="fas fa-envelope me-2"></i> shinengsuzhi@cqnu.edu.cn</li>
+                        <li><i class="fas fa-phone me-2"></i> 023-12345678</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
