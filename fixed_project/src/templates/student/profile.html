@@ -1,0 +1,153 @@
+{% extends 'base.html' %}
+
+{% block title %}个人资料 - 重庆师范大学师能素质协会{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-3">
+            <div class="card mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">个人中心</h5>
+                </div>
+                <div class="list-group list-group-flush">
+                    <a href="{{ url_for('student.dashboard') }}" class="list-group-item list-group-item-action">
+                        <i class="fas fa-tachometer-alt me-2"></i>我的面板
+                    </a>
+                    <a href="{{ url_for('student.my_activities') }}" class="list-group-item list-group-item-action">
+                        <i class="fas fa-calendar-check me-2"></i>我的活动
+                    </a>
+                    <a href="{{ url_for('student.profile') }}" class="list-group-item list-group-item-action active">
+                        <i class="fas fa-user me-2"></i>个人资料
+                    </a>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-9">
+            <div class="card">
+                <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">个人资料</h5>
+                    <a href="{{ url_for('student.edit_profile') }}" class="btn btn-light btn-sm">
+                        <i class="fas fa-edit me-1"></i>编辑资料
+                    </a>
+                </div>
+                <div class="card-body">
+                    <div class="row mb-4">
+                        <div class="col-md-4 text-center">
+                            <div class="avatar-circle mb-3">
+                                <span class="avatar-text">{{ current_user.username[0]|upper }}</span>
+                            </div>
+                            <h5>{{ current_user.username }}</h5>
+                            <p class="text-muted">{{ current_user.email }}</p>
+                        </div>
+                        <div class="col-md-8">
+                            <table class="table">
+                                <tbody>
+                                    <tr>
+                                        <th style="width: 30%">姓名</th>
+                                        <td>{{ current_user.student_info.real_name }}</td>
+                                    </tr>
+                                    <tr>
+                                        <th>学号</th>
+                                        <td>{{ current_user.student_info.student_id }}</td>
+                                    </tr>
+                                    <tr>
+                                        <th>年级</th>
+                                        <td>{{ current_user.student_info.grade }}</td>
+                                    </tr>
+                                    <tr>
+                                        <th>专业</th>
+                                        <td>{{ current_user.student_info.major }}</td>
+                                    </tr>
+                                    <tr>
+                                        <th>学院</th>
+                                        <td>{{ current_user.student_info.college }}</td>
+                                    </tr>
+                                    <tr>
+                                        <th>手机号</th>
+                                        <td>{{ current_user.student_info.phone }}</td>
+                                    </tr>
+                                    <tr>
+                                        <th>QQ号</th>
+                                        <td>{{ current_user.student_info.qq }}</td>
+                                    </tr>
+                                    <tr>
+                                        <th>注册时间</th>
+                                        <td>{{ current_user.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                                    </tr>
+                                    <tr>
+                                        <th>最后登录</th>
+                                        <td>{{ current_user.last_login.strftime('%Y-%m-%d %H:%M') if current_user.last_login else '未记录' }}</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    
+                    <hr>
+                    
+                    <div class="row">
+                        <div class="col-md-12">
+                            <h5 class="text-danger">危险操作</h5>
+                            <p>注销账号将删除您的所有个人信息和活动报名记录，此操作不可撤销。</p>
+                            <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#deactivateAccountModal">
+                                <i class="fas fa-user-slash me-2"></i>注销我的账号
+                            </button>
+                            
+                            <!-- 注销账号确认模态框 -->
+                            <div class="modal fade" id="deactivateAccountModal" tabindex="-1" aria-labelledby="deactivateAccountModalLabel" aria-hidden="true">
+                                <div class="modal-dialog modal-dialog-centered">
+                                    <div class="modal-content">
+                                        <div class="modal-header">
+                                            <h5 class="modal-title" id="deactivateAccountModalLabel">确认注销账号</h5>
+                                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                        </div>
+                                        <div class="modal-body">
+                                            <div class="alert alert-danger">
+                                                <i class="fas fa-exclamation-triangle me-2"></i>
+                                                <strong>警告：</strong> 注销账号将永久删除您的所有个人信息和活动报名记录，此操作不可撤销！
+                                            </div>
+                                            <p>请输入您的用户名 <strong>{{ current_user.username }}</strong> 以确认注销：</p>
+                                            <form id="deleteAccountForm" action="{{ url_for('student.delete_account') }}" method="post">
+                                                <div class="mb-3">
+                                                    <input type="text" class="form-control" id="confirmUsername" name="confirm_username" required>
+                                                </div>
+                                            </form>
+                                        </div>
+                                        <div class="modal-footer">
+                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                                            <button type="submit" form="deleteAccountForm" class="btn btn-danger">确认注销</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block styles %}
+<style>
+    .avatar-circle {
+        width: 100px;
+        height: 100px;
+        background-color: #007bff;
+        border-radius: 50%;
+        margin: 0 auto;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .avatar-text {
+        color: white;
+        font-size: 42px;
+        font-weight: bold;
+    }
+</style>
+{% endblock %}

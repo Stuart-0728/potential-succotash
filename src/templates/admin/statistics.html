@@ -1,0 +1,329 @@
+{% extends 'base.html' %}
+
+{% block title %}统计分析 - 重庆师范大学师能素质协会{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{{ url_for('admin.dashboard') }}">管理面板</a></li>
+            <li class="breadcrumb-item active" aria-current="page">统计分析</li>
+        </ol>
+    </nav>
+
+    <div class="row">
+        <div class="col-md-12 mb-4">
+            <div class="card shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">活动统计</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="card mb-3">
+                                <div class="card-body">
+                                    <h6 class="card-title text-muted">活动状态分布</h6>
+                                    <div class="chart-container" style="position: relative; height:250px;">
+                                        <canvas id="activityStatusChart"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card mb-3">
+                                <div class="card-body">
+                                    <h6 class="card-title text-muted">活动数据概览</h6>
+                                    <table class="table table-sm">
+                                        <tbody>
+                                            <tr>
+                                                <th>总活动数</th>
+                                                <td>{{ total_activities|default(0) }}</td>
+                                            </tr>
+                                            <tr>
+                                                <th>进行中活动</th>
+                                                <td>{{ active_activities|default(0) }}</td>
+                                            </tr>
+                                            <tr>
+                                                <th>已结束活动</th>
+                                                <td>{{ completed_activities|default(0) }}</td>
+                                            </tr>
+                                            <tr>
+                                                <th>已取消活动</th>
+                                                <td>{{ cancelled_activities|default(0) }}</td>
+                                            </tr>
+                                            <tr>
+                                                <th>平均每活动报名人数</th>
+                                                <td>{{ avg_registrations_per_activity|default(0)|round(1) }}</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-12 mb-4">
+            <div class="card shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">报名统计</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-8">
+                            <div class="card mb-3">
+                                <div class="card-body">
+                                    <h6 class="card-title text-muted">报名趋势 (近30天)</h6>
+                                    <div class="chart-container" style="position: relative; height:250px;">
+                                        <canvas id="registrationChart"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="card mb-3">
+                                <div class="card-body">
+                                    <h6 class="card-title text-muted">报名数据概览</h6>
+                                    <table class="table table-sm">
+                                        <tbody>
+                                            <tr>
+                                                <th>总报名人次</th>
+                                                <td>{{ total_registrations|default(0) }}</td>
+                                            </tr>
+                                            <tr>
+                                                <th>有效报名人次</th>
+                                                <td>{{ active_registrations|default(0) }}</td>
+                                            </tr>
+                                            <tr>
+                                                <th>已取消报名人次</th>
+                                                <td>{{ cancelled_registrations|default(0) }}</td>
+                                            </tr>
+                                            <tr>
+                                                <th>报名率最高活动</th>
+                                                <td>{{ most_popular_activity.title if most_popular_activity else '无数据' }}</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-12 mb-4">
+            <div class="card shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">学生统计</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="card mb-3">
+                                <div class="card-body">
+                                    <h6 class="card-title text-muted">学院分布</h6>
+                                    <div class="chart-container" style="position: relative; height:300px;">
+                                        <canvas id="collegeChart"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card mb-3">
+                                <div class="card-body">
+                                    <h6 class="card-title text-muted">年级分布</h6>
+                                    <div class="chart-container" style="position: relative; height:300px;">
+                                        <canvas id="gradeChart"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-12">
+                            <div class="card">
+                                <div class="card-body">
+                                    <h6 class="card-title text-muted">学生数据概览</h6>
+                                    <table class="table table-sm">
+                                        <tbody>
+                                            <tr>
+                                                <th>注册学生总数</th>
+                                                <td>{{ total_students|default(0) }}</td>
+                                            </tr>
+                                            <tr>
+                                                <th>活跃学生数 (近30天)</th>
+                                                <td>{{ active_students|default(0) }}</td>
+                                            </tr>
+                                            <tr>
+                                                <th>平均每学生参与活动数</th>
+                                                <td>{{ avg_activities_per_student|default(0)|round(1) }}</td>
+                                            </tr>
+                                            <tr>
+                                                <th>最活跃学院</th>
+                                                <td>{{ most_active_college|default('无数据') }}</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@3.7.1/dist/chart.min.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // 初始化图表
+        try {
+            // 活动状态图表
+            const activityStatusChart = document.getElementById('activityStatusChart');
+            if (activityStatusChart) {
+                new Chart(activityStatusChart, {
+                    type: 'pie',
+                    data: {
+                        labels: ['进行中', '已结束', '已取消'],
+                        datasets: [{
+                            data: [
+                                {{ active_activities|default(0) }}, 
+                                {{ completed_activities|default(0) }}, 
+                                {{ cancelled_activities|default(0) }}
+                            ],
+                            backgroundColor: [
+                                'rgba(76, 175, 80, 0.7)',
+                                'rgba(33, 150, 243, 0.7)',
+                                'rgba(244, 67, 54, 0.7)'
+                            ],
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false
+                    }
+                });
+            }
+
+            // 报名趋势图表
+            const registrationChart = document.getElementById('registrationChart');
+            if (registrationChart) {
+                // 生成近30天的日期标签
+                const labels = [];
+                const data = [];
+                const today = new Date();
+                
+                for (let i = 29; i >= 0; i--) {
+                    const date = new Date();
+                    date.setDate(today.getDate() - i);
+                    labels.push(date.getMonth() + 1 + '/' + date.getDate());
+                    data.push(Math.floor(Math.random() * 10)); // 示例数据，实际应从后端获取
+                }
+                
+                new Chart(registrationChart, {
+                    type: 'line',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: '每日报名人数',
+                            data: data,
+                            backgroundColor: 'rgba(30, 136, 229, 0.2)',
+                            borderColor: 'rgba(30, 136, 229, 1)',
+                            borderWidth: 2,
+                            tension: 0.3,
+                            pointRadius: 3
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                ticks: {
+                                    precision: 0
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+
+            // 学院分布图表
+            const collegeChart = document.getElementById('collegeChart');
+            if (collegeChart) {
+                new Chart(collegeChart, {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['教育学院', '文学院', '数学与统计学院', '物理与电子工程学院', '化学学院', '生命科学学院', '地理与旅游学院', '计算机与信息科学学院', '外国语学院', '美术学院'],
+                        datasets: [{
+                            data: [25, 20, 15, 10, 8, 7, 5, 4, 3, 3],
+                            backgroundColor: [
+                                'rgba(255, 99, 132, 0.7)',
+                                'rgba(54, 162, 235, 0.7)',
+                                'rgba(255, 206, 86, 0.7)',
+                                'rgba(75, 192, 192, 0.7)',
+                                'rgba(153, 102, 255, 0.7)',
+                                'rgba(255, 159, 64, 0.7)',
+                                'rgba(199, 199, 199, 0.7)',
+                                'rgba(83, 102, 255, 0.7)',
+                                'rgba(40, 159, 64, 0.7)',
+                                'rgba(210, 199, 199, 0.7)'
+                            ],
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                position: 'right'
+                            }
+                        }
+                    }
+                });
+            }
+
+            // 年级分布图表
+            const gradeChart = document.getElementById('gradeChart');
+            if (gradeChart) {
+                new Chart(gradeChart, {
+                    type: 'bar',
+                    data: {
+                        labels: ['大一', '大二', '大三', '大四', '研究生'],
+                        datasets: [{
+                            label: '学生人数',
+                            data: [30, 25, 20, 15, 10],
+                            backgroundColor: 'rgba(54, 162, 235, 0.7)',
+                            borderColor: 'rgba(54, 162, 235, 1)',
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                ticks: {
+                                    precision: 0
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+        } catch (error) {
+            console.error('图表初始化失败:', error);
+        }
+    });
+</script>
+{% endblock %}
