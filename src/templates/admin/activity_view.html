@@ -53,9 +53,7 @@
                     </a>
                     <a href="{{ url_for('admin.activity_registrations', id=activity.id) }}" class="btn btn-info">
                         <i class="fas fa-users me-1"></i>查看报名情况
-                    </a>
-                    <form action="{{ url_for('admin.delete_activity', id=activity.id) }}" method="post" id="deleteActivityForm" style="display:inline;">
-                        <button type="button" class="btn btn-danger" onclick="confirmDelete()">
+                    </a>                    <form action="{{ url_for(\'admin.permanent_delete_activity\', id=activity.id) }}" method="post" id="deleteActivityForm" style="display:inline;">                        <button type="button" class="btn btn-danger" onclick="confirmDelete()">
                             <i class="fas fa-trash-alt me-1"></i>删除活动
                         </button>
                     </form>
@@ -68,16 +66,10 @@
 
 <script>
 function confirmDelete() {
-    var message = "您确定要删除活动"{{ activity.title }}"吗？";
-    {% if activity.registrations.count() > 0 %}
-        message += "\n\n警告：该活动已有 {{ activity.registrations.count() }} 人报名，删除后将标记为已取消而非彻底删除。";
-    {% else %}
-        message += "\n\n警告：此操作不可撤销，活动将被永久删除。";
-    {% endif %}
+    var message = "您确定要永久删除活动" + "{{ activity.title }}" + "吗？此操作不可撤销。";
     
     if (window.confirm(message)) {
-        document.getElementById('deleteActivityForm').submit();
+        document.getElementById(\'deleteActivityForm\').submit();
     }
-}
-</script>
+}/script>
 {% endblock %}

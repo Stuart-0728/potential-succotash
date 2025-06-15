@@ -164,7 +164,21 @@ def edit_activity(id):
 def view_activity(id):
     try:
         activity = Activity.query.get_or_404(id)
-        return render_template('admin/activity_view.html', activity=activity)
+        registrations = Registration.query.filter_by(activity_id=activity.id).all()
+        participants = []
+        for reg in registrations:
+            user = User.query.get(reg.user_id)
+            student_info = StudentInfo.query.filter_by(user_id=user.id).first()
+            participants.append({
+                'username': user.username,
+                'real_name': student_info.real_name if student_info else 'N/A',
+                'student_id': student_info.student_id if student_info else 'N/A',
+                'college': student_info.college if student_info else 'N/A',
+                'grade': student_info.grade if student_info else 'N/A',
+                'register_time': reg.register_time
+            })
+        creator = User.query.get(activity.created_by)
+        return render_template('admin/activity_view.html', activity=activity, participants=participants, creator=creator)
     except Exception as e:
         logger.error(f"Error viewing activity: {e}")
         flash('查看活动详情时出错', 'danger')
@@ -673,3 +687,43 @@ def update_registration_status(id):
         logger.error(f"Error updating registration status: {e}")
         flash('更新报名状态时出错', 'danger')
         return redirect(url_for('admin.dashboard'))
+
+
+@admin_bp.route('/activity/<int:id>/permanent_delete', methods=['POST'])
+@admin_required
+def permanent_delete_activity(id):
+    try:
+        activity = Activity.query.get_or_404(id)
+        db.session.delete(activity)
+        db.session.commit()
+        log_action('permanent_delete_activity', f'永久删除活动: {activity.title}')
+        flash('活动已永久删除', 'success')
+        return redirect(url_for('admin.activities'))
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error permanently deleting activity: {e}")
+        flash('永久删除活动时出错', 'danger')
+        return redirect(url_for('admin.activities'))
+
+
+
+
+@admin_bp.route('/activity/<int:id>/permanent_delete', methods=['POST'])
+@admin_required
+def permanent_delete_activity(id):
+    try:
+        activity = Activity.query.get_or_404(id)
+        # 删除所有关联的报名记录
+        Registration.query.filter_by(activity_id=activity.id).delete()
+        db.session.delete(activity)
+        db.session.commit()
+        log_action('permanent_delete_activity', f'永久删除活动: {activity.title}')
+        flash('活动已永久删除', 'success')
+        return redirect(url_for('admin.activities'))
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error permanently deleting activity: {e}")
+        flash('永久删除活动时出错', 'danger')
+        return redirect(url_for('admin.activities'))
+
+
