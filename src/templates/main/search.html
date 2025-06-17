@@ -44,7 +44,7 @@
                                 <div class="card-footer bg-transparent">
                                     {% if current_user.is_authenticated %}
                                         {% if current_user.role.name == 'Admin' %}
-                                            <a href="{{ url_for('admin.view_activity', id=activity.id) }}" class="btn btn-sm btn-primary">查看详情</a>
+                                            <a href="{{ url_for('admin.edit_activity', id=activity.id) }}" class="btn btn-sm btn-primary">查看详情</a>
                                         {% else %}
                                             <a href="{{ url_for('student.activity_detail', id=activity.id) }}" class="btn btn-sm btn-primary">查看详情</a>
                                         {% endif %}
