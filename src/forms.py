@@ -21,7 +21,7 @@ class ActivityForm(FlaskForm):
         ('completed', '已结束'),
         ('cancelled', '已取消')
     ], validators=[DataRequired()])
-    tags = SelectMultipleField('活动标签', choices=[], coerce=int)
+    tags = SelectMultipleField('活动标签', coerce=int, default=[])  # 添加默认空列表
     submit = SubmitField('保存')
 
 class SearchForm(FlaskForm):

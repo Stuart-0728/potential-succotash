@@ -90,6 +90,8 @@ def create_activity():
         # 创建表单并设置标签选项
         form = ActivityForm()
         form.tags.choices = tag_choices
+        if not form.tags.data:  # 确保 tags.data 不为 None
+            form.tags.data = []
 
         if request.method == 'POST' and form.validate_on_submit():
             try:
@@ -101,13 +103,14 @@ def create_activity():
                     start_time=form.start_time.data,
                     end_time=form.end_time.data,
                     registration_deadline=form.registration_deadline.data,
-                    max_participants=form.max_participants.data,
+                    max_participants=form.max_participants.data or 0,
                     status=form.status.data,
                     created_by=current_user.id
                 )
                 
-                # 添加标签 - 使用更安全的方式
-                if form.tags.data:
+                # 添加标签
+                activity.tags = []  # 清空现有标签
+                if form.tags.data:  # 检查是否有选择的标签
                     for tag_id in form.tags.data:
                         tag = Tag.query.get(tag_id)
                         if tag:
