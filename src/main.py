@@ -16,6 +16,7 @@ from src.routes.checkin import checkin_bp
 import logging
 from datetime import datetime
 import os
+from werkzeug.security import generate_password_hash
 
 # 配置日志
 logging.basicConfig(level=logging.INFO, 
@@ -87,7 +88,6 @@ with app.app_context():
     try:
         db.create_all()
         logger.info("数据库表初始化完成")
-        
         # 检查是否需要创建默认角色
         if Role.query.count() == 0:
             admin_role = Role(name='admin', description='管理员')
@@ -96,6 +96,18 @@ with app.app_context():
             db.session.add(student_role)
             db.session.commit()
             logger.info("默认角色已创建")
+        # 自动创建初始管理员账号
+        if User.query.filter_by(username='stuart').first() is None:
+            admin_role = Role.query.filter_by(name='admin').first()
+            user = User(
+                username='stuart',
+                email='admin@cqnu.edu.cn',
+                password_hash=generate_password_hash('LYXspassword123'),
+                role=admin_role
+            )
+            db.session.add(user)
+            db.session.commit()
+            logger.info("初始管理员账号已创建：stuart / LYXspassword123")
     except Exception as e:
         logger.error(f"数据库初始化错误: {str(e)}")
 
