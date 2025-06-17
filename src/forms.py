@@ -24,10 +24,6 @@ class ActivityForm(FlaskForm):
     tags = SelectMultipleField('活动标签', choices=[], coerce=int)
     submit = SubmitField('保存')
 
-    def __init__(self, *args, **kwargs):
-        super(ActivityForm, self).__init__(*args, **kwargs)
-        self.tags.choices = [(tag.id, tag.name) for tag in Tag.query.order_by(Tag.name).all()]
-
 class SearchForm(FlaskForm):
     query = StringField('搜索', validators=[Optional(), Length(max=100)])
     category = SelectField('类别', choices=[

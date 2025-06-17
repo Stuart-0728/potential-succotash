@@ -77,49 +77,56 @@ def activities(status='all'):
 @admin_bp.route('/activity/create', methods=['GET', 'POST'])
 @admin_required
 def create_activity():
-    form = ActivityForm()
-    
-    if request.method == 'POST' and form.validate_on_submit():
-        try:
-            # 创建新活动
-            activity = Activity(
-                title=form.title.data,
-                description=form.description.data,
-                location=form.location.data,
-                start_time=form.start_time.data,
-                end_time=form.end_time.data,
-                registration_deadline=form.registration_deadline.data,
-                max_participants=form.max_participants.data,
-                status=form.status.data,
-                created_by=current_user.id
-            )
-            
-            # 添加标签
-            for tag_id in form.tags.data:
-                tag = Tag.query.get(tag_id)
-                if tag:
-                    activity.tags.append(tag)
-            
-            # 处理海报上传
-            if form.poster.data:
-                poster = form.poster.data
-                filename = secure_filename(poster.filename)
-                poster.save(os.path.join(current_app.config['UPLOAD_FOLDER'], filename))
-                activity.poster_url = url_for('static', filename=f'uploads/posters/{filename}')
-            
-            db.session.add(activity)
-            db.session.commit()
-            
-            flash('活动创建成功', 'success')
-            log_action('create_activity', f'创建活动: {activity.title}')
-            return redirect(url_for('admin.activity_view', id=activity.id))
+    try:
+        form = ActivityForm()
+        # 动态加载标签选项
+        form.tags.choices = [(tag.id, tag.name) for tag in Tag.query.order_by(Tag.name).all()]
         
-        except Exception as e:
-            db.session.rollback()
-            logger.error(f"Error creating activity: {e}")
-            flash('创建活动失败', 'danger')
-    
-    return render_template('admin/activity_form.html', form=form, title='创建新活动')
+        if request.method == 'POST' and form.validate_on_submit():
+            try:
+                # 创建新活动
+                activity = Activity(
+                    title=form.title.data,
+                    description=form.description.data,
+                    location=form.location.data,
+                    start_time=form.start_time.data,
+                    end_time=form.end_time.data,
+                    registration_deadline=form.registration_deadline.data,
+                    max_participants=form.max_participants.data,
+                    status=form.status.data,
+                    created_by=current_user.id
+                )
+                
+                # 添加标签
+                for tag_id in form.tags.data:
+                    tag = Tag.query.get(tag_id)
+                    if tag:
+                        activity.tags.append(tag)
+                
+                # 处理海报上传
+                if form.poster.data:
+                    poster = form.poster.data
+                    filename = secure_filename(poster.filename)
+                    poster.save(os.path.join(current_app.config['UPLOAD_FOLDER'], filename))
+                    activity.poster_url = url_for('static', filename=f'uploads/posters/{filename}')
+                
+                db.session.add(activity)
+                db.session.commit()
+                
+                flash('活动创建成功', 'success')
+                log_action('create_activity', f'创建活动: {activity.title}')
+                return redirect(url_for('admin.activity_view', id=activity.id))
+            
+            except Exception as e:
+                db.session.rollback()
+                logger.error(f"Error creating activity: {e}")
+                flash('创建活动失败', 'danger')
+        
+        return render_template('admin/activity_form.html', form=form, title='创建新活动')
+    except Exception as e:
+        logger.error(f"Error in create_activity view: {e}")
+        flash('加载创建活动页面时出错', 'danger')
+        return redirect(url_for('admin.dashboard'))
 
 @admin_bp.route('/activity/<int:id>/edit', methods=['GET', 'POST'])
 @admin_required
