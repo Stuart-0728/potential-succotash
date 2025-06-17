@@ -34,17 +34,29 @@ class User(db.Model, UserMixin):
 class StudentInfo(db.Model):
     __tablename__ = 'student_info'
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'))
-    real_name = db.Column(db.String(64))
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), unique=True)
     student_id = db.Column(db.String(20), unique=True)
+    real_name = db.Column(db.String(50))
+    gender = db.Column(db.String(10))
     grade = db.Column(db.String(20))
-    major = db.Column(db.String(64))
-    college = db.Column(db.String(64))
+    college = db.Column(db.String(100))
+    major = db.Column(db.String(100))
     phone = db.Column(db.String(20))
-    qq = db.Column(db.String(20))
+    points = db.Column(db.Integer, default=0)  # 添加积分字段
+    points_history = db.relationship('PointsHistory', backref='student', lazy='dynamic')
 
     def __repr__(self):
         return f'<StudentInfo {self.real_name}>'
+
+# 积分变更历史表
+class PointsHistory(db.Model):
+    __tablename__ = 'points_history'
+    id = db.Column(db.Integer, primary_key=True)
+    student_id = db.Column(db.Integer, db.ForeignKey('student_info.id'))
+    points = db.Column(db.Integer)
+    reason = db.Column(db.String(200))
+    activity_id = db.Column(db.Integer, db.ForeignKey('activities.id'), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 # 活动表
 class Activity(db.Model):
@@ -57,10 +69,11 @@ class Activity(db.Model):
     end_time = db.Column(db.DateTime)
     registration_deadline = db.Column(db.DateTime)
     max_participants = db.Column(db.Integer, default=0)  # 0表示不限制人数
-    created_by = db.Column(db.Integer, db.ForeignKey('users.id'))
-    created_at = db.Column(db.DateTime, default=datetime.now)
-    updated_at = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now)
     status = db.Column(db.String(20), default='active')  # active, cancelled, completed
+    is_featured = db.Column(db.Boolean, default=False)  # 是否为重点活动
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'))
+    updated_at = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now)
     registrations = db.relationship('Registration', backref='activity', lazy='dynamic')
     
     def __repr__(self):
@@ -105,3 +118,45 @@ class SystemLog(db.Model):
     
     def __repr__(self):
         return f'<SystemLog {self.action}>'
+
+# 活动评价表
+class ActivityReview(db.Model):
+    __tablename__ = 'activity_reviews'
+    id = db.Column(db.Integer, primary_key=True)
+    activity_id = db.Column(db.Integer, db.ForeignKey('activities.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    rating = db.Column(db.Integer, nullable=False)  # 1-5星
+    content_quality = db.Column(db.Integer)  # 1-5分
+    organization = db.Column(db.Integer)  # 1-5分
+    facility = db.Column(db.Integer)  # 1-5分
+    review = db.Column(db.Text, nullable=False)
+    is_anonymous = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # 关联
+    activity = db.relationship('Activity', backref=db.backref('reviews', lazy='dynamic'))
+    user = db.relationship('User', backref=db.backref('reviews', lazy='dynamic'))
+
+    @property
+    def reviewer_name(self):
+        """获取评价者显示名称"""
+        if self.is_anonymous:
+            return "匿名用户"
+        student_info = StudentInfo.query.filter_by(user_id=self.user_id).first()
+        return student_info.real_name if student_info else self.user.username
+
+# 活动标签关联表
+activity_tags = db.Table('activity_tags',
+    db.Column('activity_id', db.Integer, db.ForeignKey('activities.id'), primary_key=True),
+    db.Column('tag_id', db.Integer, db.ForeignKey('tags.id'), primary_key=True)
+)
+
+class Tag(db.Model):
+    __tablename__ = 'tags'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(50), unique=True, nullable=False)
+    color = db.Column(db.String(20), default='primary')  # Bootstrap 颜色类名
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    activities = db.relationship('Activity', secondary=activity_tags,
+                               backref=db.backref('tags', lazy='dynamic'))

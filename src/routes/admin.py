@@ -1,6 +1,6 @@
-from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify, send_file
+from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify, send_file, current_app
 from flask_login import login_required, current_user
-from src.models import User, Activity, Registration, StudentInfo, db
+from src.models import User, Activity, Registration, StudentInfo, db, Tag
 from src.routes.utils import admin_required, log_action
 from datetime import datetime, timedelta
 import pandas as pd
@@ -9,6 +9,9 @@ import logging
 import json
 from sqlalchemy import func, desc, and_
 from src.forms import ActivityForm, SearchForm
+import os
+import shutil
+from werkzeug.utils import secure_filename
 
 admin_bp = Blueprint('admin', __name__)
 logger = logging.getLogger(__name__)
@@ -91,32 +94,32 @@ def create_activity():
                 created_by=current_user.id
             )
             
+            # 添加标签
+            for tag_id in form.tags.data:
+                tag = Tag.query.get(tag_id)
+                if tag:
+                    activity.tags.append(tag)
+            
             # 处理海报上传
             if form.poster.data:
                 poster = form.poster.data
-                # 保存文件
-                import os
-                from werkzeug.utils import secure_filename
                 filename = secure_filename(poster.filename)
-                # 确保上传目录存在
-                upload_dir = os.path.join('src/static/uploads/posters')
-                os.makedirs(upload_dir, exist_ok=True)
-                poster_path = os.path.join(upload_dir, filename)
-                poster.save(poster_path)
-                activity.poster = 'uploads/posters/' + filename
+                poster.save(os.path.join(current_app.config['UPLOAD_FOLDER'], filename))
+                activity.poster_url = url_for('static', filename=f'uploads/posters/{filename}')
             
             db.session.add(activity)
             db.session.commit()
             
-            log_action('create_activity', f'创建活动: {activity.title}')
             flash('活动创建成功', 'success')
-            return redirect(url_for('admin.activities'))
+            log_action('create_activity', f'创建活动: {activity.title}')
+            return redirect(url_for('admin.activity_view', id=activity.id))
+        
         except Exception as e:
             db.session.rollback()
             logger.error(f"Error creating activity: {e}")
-            flash(f'创建活动时出错: {str(e)}', 'danger')
+            flash('创建活动失败', 'danger')
     
-    return render_template('admin/activity_form.html', form=form, activity=None)
+    return render_template('admin/activity_form.html', form=form, title='创建新活动')
 
 @admin_bp.route('/activity/<int:id>/edit', methods=['GET', 'POST'])
 @admin_required
@@ -161,10 +164,33 @@ def edit_activity(id):
 
 @admin_bp.route('/activity/<int:id>/view')
 @admin_required
-def view_activity(id):
+def activity_view(id):
     try:
         activity = Activity.query.get_or_404(id)
-        return render_template('admin/activity_view.html', activity=activity)
+        # 获取创建者信息
+        creator = User.query.get(activity.created_by)
+        
+        # 获取报名人数
+        registration_count = Registration.query.filter_by(activity_id=id).count()
+        
+        # 获取报名学生列表
+        registrations = Registration.query.filter_by(activity_id=id).join(
+            User, Registration.user_id == User.id
+        ).join(
+            StudentInfo, User.id == StudentInfo.user_id
+        ).add_columns(
+            StudentInfo.real_name,
+            StudentInfo.student_id,
+            StudentInfo.grade,
+            StudentInfo.college,
+            StudentInfo.major
+        ).all()
+
+        return render_template('admin/activity_view.html', 
+                             activity=activity, 
+                             creator=creator, 
+                             registration_count=registration_count,
+                             registrations=registrations)
     except Exception as e:
         logger.error(f"Error viewing activity: {e}")
         flash('查看活动详情时出错', 'danger')
@@ -175,20 +201,26 @@ def view_activity(id):
 def delete_activity(id):
     try:
         activity = Activity.query.get_or_404(id)
+        force_delete = request.args.get('force', 'false').lower() == 'true'
         
-        # 如果有人报名，则标记为已取消而不是删除
-        if Registration.query.filter_by(activity_id=activity.id).count() > 0:
-            activity.status = 'cancelled'
-            db.session.commit()
-            log_action('cancel_activity', f'取消活动: {activity.title}')
-            flash('活动已标记为已取消', 'success')
-        else:
+        # 如果是从活动详情页面删除，或者没有人报名，则直接删除
+        if force_delete or Registration.query.filter_by(activity_id=activity.id).count() == 0:
             db.session.delete(activity)
             db.session.commit()
             log_action('delete_activity', f'删除活动: {activity.title}')
             flash('活动已删除', 'success')
+        else:
+            # 如果是从活动列表页面删除且有人报名，则标记为已取消
+            activity.status = 'cancelled'
+            db.session.commit()
+            log_action('cancel_activity', f'取消活动: {activity.title}')
+            flash('活动已标记为已取消', 'success')
         
-        return redirect(url_for('admin.activities'))
+        # 根据来源页面返回
+        referer = request.headers.get('Referer', '')
+        if 'activity/view' in referer:
+            return redirect(url_for('admin.activities'))
+        return redirect(request.referrer or url_for('admin.activities'))
     except Exception as e:
         db.session.rollback()
         logger.error(f"Error deleting activity: {e}")
@@ -636,19 +668,177 @@ def export_students():
         flash('导出学生信息时出错', 'danger')
         return redirect(url_for('admin.students'))
 
-# 添加备份功能的占位路由，避免模板中的链接报错
-@admin_bp.route('/backup')
+@admin_bp.route('/backup', methods=['GET'])
 @admin_required
-def backup():
-    flash('数据备份功能正在开发中', 'info')
-    return redirect(url_for('admin.dashboard'))
+def backup_system():
+    try:
+        # 获取备份目录中的备份文件列表
+        backup_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'backups')
+        if not os.path.exists(backup_dir):
+            os.makedirs(backup_dir)
+        
+        backups = []
+        for filename in os.listdir(backup_dir):
+            if filename.endswith('.json'):
+                filepath = os.path.join(backup_dir, filename)
+                backup_time = datetime.fromtimestamp(os.path.getctime(filepath))
+                backups.append({
+                    'name': filename,
+                    'created_at': backup_time.strftime('%Y-%m-%d %H:%M:%S'),
+                    'size': f"{os.path.getsize(filepath) / 1024:.1f} KB"
+                })
+        
+        backups.sort(key=lambda x: x['created_at'], reverse=True)
+        current_time = datetime.now().strftime('%Y%m%d_%H%M%S')
+        
+        return render_template('admin/backup.html', 
+                             backups=backups, 
+                             current_time=current_time)
+    except Exception as e:
+        logger.error(f"Error in backup system page: {e}")
+        flash('加载备份页面时出错', 'danger')
+        return redirect(url_for('admin.dashboard'))
 
-# 添加系统日志功能的占位路由，避免模板中的链接报错
-@admin_bp.route('/system_logs')
+@admin_bp.route('/backup/create', methods=['POST'])
 @admin_required
-def system_logs():
-    flash('系统日志功能正在开发中', 'info')
-    return redirect(url_for('admin.dashboard'))
+def create_backup():
+    try:
+        backup_name = request.form.get('backup_name', f"backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}")
+        include_users = 'include_users' in request.form
+        include_activities = 'include_activities' in request.form
+        include_registrations = 'include_registrations' in request.form
+        
+        # 创建备份数据
+        backup_data = {
+            'created_at': datetime.now().isoformat(),
+            'created_by': current_user.id,
+            'data': {}
+        }
+        
+        if include_users:
+            users = User.query.all()
+            backup_data['data']['users'] = [
+                {c.name: getattr(user, c.name) for c in User.__table__.columns}
+                for user in users
+            ]
+            
+            student_info = StudentInfo.query.all()
+            backup_data['data']['student_info'] = [
+                {c.name: getattr(info, c.name) for c in StudentInfo.__table__.columns}
+                for info in student_info
+            ]
+        
+        if include_activities:
+            activities = Activity.query.all()
+            backup_data['data']['activities'] = [
+                {c.name: getattr(activity, c.name) for c in Activity.__table__.columns}
+                for activity in activities
+            ]
+        
+        if include_registrations:
+            registrations = Registration.query.all()
+            backup_data['data']['registrations'] = [
+                {c.name: getattr(reg, c.name) for c in Registration.__table__.columns}
+                for reg in registrations
+            ]
+        
+        # 保存备份文件
+        backup_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'backups')
+        if not os.path.exists(backup_dir):
+            os.makedirs(backup_dir)
+        
+        filename = secure_filename(f"{backup_name}.json")
+        filepath = os.path.join(backup_dir, filename)
+        
+        with open(filepath, 'w', encoding='utf-8') as f:
+            json.dump(backup_data, f, ensure_ascii=False, indent=2)
+        
+        flash('备份创建成功', 'success')
+        log_action('create_backup', f'创建系统备份: {filename}')
+        return redirect(url_for('admin.backup_system'))
+    
+    except Exception as e:
+        logger.error(f"Error creating backup: {e}")
+        flash('创建备份失败', 'danger')
+        return redirect(url_for('admin.backup_system'))
+
+@admin_bp.route('/backup/import', methods=['POST'])
+@admin_required
+def import_backup():
+    try:
+        if 'backup_file' not in request.files:
+            flash('请选择备份文件', 'warning')
+            return redirect(url_for('admin.backup_system'))
+        
+        file = request.files['backup_file']
+        if file.filename == '':
+            flash('未选择文件', 'warning')
+            return redirect(url_for('admin.backup_system'))
+        
+        if not file.filename.endswith('.json'):
+            flash('请上传.json格式的备份文件', 'warning')
+            return redirect(url_for('admin.backup_system'))
+        
+        # 读取备份数据
+        backup_data = json.load(file)
+        
+        # 开始数据导入
+        if 'data' in backup_data:
+            # 删除现有数据
+            if 'registrations' in backup_data['data']:
+                Registration.query.delete()
+            
+            if 'activities' in backup_data['data']:
+                Activity.query.delete()
+            
+            if 'student_info' in backup_data['data']:
+                StudentInfo.query.delete()
+            
+            if 'users' in backup_data['data']:
+                User.query.delete()
+            
+            # 导入备份数据
+            if 'users' in backup_data['data']:
+                for user_data in backup_data['data']['users']:
+                    user = User()
+                    for key, value in user_data.items():
+                        setattr(user, key, value)
+                    db.session.add(user)
+            
+            if 'student_info' in backup_data['data']:
+                for info_data in backup_data['data']['student_info']:
+                    info = StudentInfo()
+                    for key, value in info_data.items():
+                        setattr(info, key, value)
+                    db.session.add(info)
+            
+            if 'activities' in backup_data['data']:
+                for activity_data in backup_data['data']['activities']:
+                    activity = Activity()
+                    for key, value in activity_data.items():
+                        setattr(activity, key, value)
+                    db.session.add(activity)
+            
+            if 'registrations' in backup_data['data']:
+                for reg_data in backup_data['data']['registrations']:
+                    reg = Registration()
+                    for key, value in reg_data.items():
+                        setattr(reg, key, value)
+                    db.session.add(reg)
+            
+            db.session.commit()
+            flash('备份数据导入成功', 'success')
+            log_action('import_backup', '导入系统备份数据')
+        else:
+            flash('无效的备份文件格式', 'danger')
+        
+        return redirect(url_for('admin.backup_system'))
+    
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error importing backup: {e}")
+        flash('导入备份失败', 'danger')
+        return redirect(url_for('admin.backup_system'))
 
 # 添加更新报名状态的路由
 @admin_bp.route('/registration/<int:id>/update_status', methods=['POST'])
@@ -673,3 +863,131 @@ def update_registration_status(id):
         logger.error(f"Error updating registration status: {e}")
         flash('更新报名状态时出错', 'danger')
         return redirect(url_for('admin.dashboard'))
+
+@admin_bp.route('/activity/<int:id>/checkin', methods=['POST'])
+@admin_required
+def activity_checkin(id):
+    try:
+        activity = Activity.query.get_or_404(id)
+        student_id = request.form.get('student_id')
+        
+        if not student_id:
+            return jsonify({'success': False, 'message': '请提供学生ID'})
+        
+        registration = Registration.query.filter_by(
+            activity_id=activity.id,
+            user_id=student_id,
+            status='registered'
+        ).first()
+        
+        if not registration:
+            return jsonify({'success': False, 'message': '未找到该学生的报名记录'})
+        
+        # 更新签到状态
+        registration.status = 'checked_in'
+        registration.check_in_time = datetime.utcnow()
+        
+        # 添加积分奖励
+        points = 20 if activity.is_featured else 10  # 重点活动给20分，普通活动给10分
+        student_info = StudentInfo.query.filter_by(user_id=student_id).first()
+        if student_info:
+            if add_points(student_info.id, points, f"参与活动：{activity.title}", activity.id):
+                db.session.commit()
+                return jsonify({
+                    'success': True, 
+                    'message': f'签到成功！获得 {points} 积分',
+                    'points': points
+                })
+        
+        return jsonify({'success': False, 'message': '签到失败，请重试'})
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error in activity checkin: {e}")
+        return jsonify({'success': False, 'message': '签到时出错'})
+
+@admin_bp.route('/tags')
+@admin_required
+def manage_tags():
+    tags = Tag.query.order_by(Tag.created_at.desc()).all()
+    return render_template('admin/tags.html', tags=tags)
+
+@admin_bp.route('/tags/create', methods=['POST'])
+@admin_required
+def create_tag():
+    try:
+        name = request.form.get('name', '').strip()
+        color = request.form.get('color', 'primary')
+        
+        if not name:
+            flash('标签名称不能为空', 'danger')
+            return redirect(url_for('admin.manage_tags'))
+        
+        # 检查是否已存在
+        if Tag.query.filter_by(name=name).first():
+            flash('标签已存在', 'warning')
+            return redirect(url_for('admin.manage_tags'))
+        
+        tag = Tag(name=name, color=color)
+        db.session.add(tag)
+        db.session.commit()
+        
+        flash('标签创建成功', 'success')
+        log_action('create_tag', f'创建标签: {name}')
+        return redirect(url_for('admin.manage_tags'))
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error creating tag: {e}")
+        flash('创建标签失败', 'danger')
+        return redirect(url_for('admin.manage_tags'))
+
+@admin_bp.route('/tags/<int:id>/edit', methods=['POST'])
+@admin_required
+def edit_tag(id):
+    try:
+        tag = Tag.query.get_or_404(id)
+        name = request.form.get('name', '').strip()
+        color = request.form.get('color', 'primary')
+        
+        if not name:
+            flash('标签名称不能为空', 'danger')
+            return redirect(url_for('admin.manage_tags'))
+        
+        # 检查新名称是否与其他标签重复
+        existing_tag = Tag.query.filter(Tag.name == name, Tag.id != id).first()
+        if existing_tag:
+            flash('标签名称已存在', 'warning')
+            return redirect(url_for('admin.manage_tags'))
+        
+        tag.name = name
+        tag.color = color
+        db.session.commit()
+        
+        flash('标签更新成功', 'success')
+        log_action('edit_tag', f'编辑标签: {name}')
+        return redirect(url_for('admin.manage_tags'))
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error editing tag: {e}")
+        flash('更新标签失败', 'danger')
+        return redirect(url_for('admin.manage_tags'))
+
+@admin_bp.route('/tags/<int:id>/delete', methods=['POST'])
+@admin_required
+def delete_tag(id):
+    try:
+        tag = Tag.query.get_or_404(id)
+        name = tag.name
+        
+        # 从所有相关活动中移除标签
+        for activity in tag.activities:
+            activity.tags.remove(tag)
+        
+        db.session.delete(tag)
+        db.session.commit()
+        
+        log_action('delete_tag', f'删除标签: {name}')
+        return jsonify({'success': True})
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error deleting tag: {e}")
+        return jsonify({'success': False, 'message': '删除标签失败'})

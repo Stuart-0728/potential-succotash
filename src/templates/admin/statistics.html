@@ -55,48 +55,7 @@
 
 {% block scripts %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@3.7.1/dist/chart.min.js"></script>
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    // 初始化图表
-    initializeCharts();
-});
-
-function initializeCharts() {
-    try {
-        // 获取统计数据
-        fetch('/api/statistics')
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error('网络响应异常');
-                }
-                return response.json();
-            })
-            .then(data => {
-                // 活动报名统计图表
-                const registrationCtx = document.getElementById('registrationChart').getContext('2d');
-                new Chart(registrationCtx, {
-                    type: 'pie',
-                    data: {
-                        labels: data.registration_stats.labels,
-                        datasets: [{
-                            data: data.registration_stats.data,
-                            backgroundColor: [
-                                'rgba(54, 162, 235, 0.7)',
-                                'rgba(255, 99, 132, 0.7)',
-                                'rgba(255, 206, 86, 0.7)',
-                                'rgba(75, 192, 192, 0.7)',
-                                'rgba(153, 102, 255, 0.7)'
-                            ],
-                            borderWidth: 1
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        plugins: {
-                            legend: {
-                                position: 'bottom',
-                            },
-                            title: {
+<script src="{{ url_for('static', filename='js/statistics.js') }}"></script>
                                 display: true,
                                 text: '活动报名分布'
                             }

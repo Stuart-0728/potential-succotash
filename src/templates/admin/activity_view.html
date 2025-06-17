@@ -46,6 +46,38 @@
                 </div>
             </div>
 
+            <div class="mb-4">
+                <h5 class="border-bottom pb-2">参与人员列表</h5>
+                {% if registrations %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>姓名</th>
+                                <th>学号</th>
+                                <th>年级</th>
+                                <th>学院</th>
+                                <th>专业</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for registration in registrations %}
+                            <tr>
+                                <td>{{ registration.real_name }}</td>
+                                <td>{{ registration.student_id }}</td>
+                                <td>{{ registration.grade }}</td>
+                                <td>{{ registration.college }}</td>
+                                <td>{{ registration.major }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-muted">暂无报名人员</p>
+                {% endif %}
+            </div>
+
             <div class="d-flex justify-content-between align-items-center">
                 <div>
                     <a href="{{ url_for('admin.edit_activity', id=activity.id) }}" class="btn btn-primary">
@@ -54,9 +86,9 @@
                     <a href="{{ url_for('admin.activity_registrations', id=activity.id) }}" class="btn btn-info">
                         <i class="fas fa-users me-1"></i>查看报名情况
                     </a>
-                    <form action="{{ url_for('admin.delete_activity', id=activity.id) }}" method="post" id="deleteActivityForm" style="display:inline;">
+                    <form action="{{ url_for('admin.delete_activity', id=activity.id, force=true) }}" method="post" id="deleteActivityForm" style="display:inline;">
                         <button type="button" class="btn btn-danger" onclick="confirmDelete()">
-                            <i class="fas fa-trash-alt me-1"></i>删除活动
+                            <i class="fas fa-trash-alt me-1"></i>永久删除活动
                         </button>
                     </form>
                 </div>

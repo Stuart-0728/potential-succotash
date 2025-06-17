@@ -82,5 +82,94 @@
             </div>
         </div>
     </div>
+
+    <div class="card mt-4">
+        <div class="card-header bg-light">
+            <h5 class="mb-0">活动评价</h5>
+        </div>
+        <div class="card-body">
+            {% if activity.status == 'completed' and current_user_registration and current_user_registration.status == 'checked_in' %}
+                {% if not current_user_review %}
+                    <div class="text-center py-3">
+                        <p class="mb-3">参与过活动？分享你的体验吧！</p>
+                        <a href="{{ url_for('student.review_activity', activity_id=activity.id) }}" class="btn btn-primary">
+                            <i class="fas fa-star me-1"></i>写评价
+                        </a>
+                    </div>
+                {% endif %}
+            {% endif %}
+
+            {% if reviews %}
+                <div class="review-summary mb-4">
+                    <div class="row align-items-center">
+                        <div class="col-md-3 text-center">
+                            <h2 class="display-4 text-primary mb-0">{{ average_rating|round(1) }}</h2>
+                            <div class="text-warning mb-2">
+                                {% for i in range(5) %}
+                                    {% if i < average_rating|round(0, 'floor') %}
+                                        <i class="fas fa-star"></i>
+                                    {% elif i < average_rating %}
+                                        <i class="fas fa-star-half-alt"></i>
+                                    {% else %}
+                                        <i class="far fa-star"></i>
+                                    {% endif %}
+                                {% endfor %}
+                            </div>
+                            <small class="text-muted">{{ reviews|length }} 条评价</small>
+                        </div>
+                        <div class="col-md-9">
+                            <div class="row">
+                                <div class="col-md-4">
+                                    <p class="mb-1">内容质量</p>
+                                    <div class="progress" style="height: 5px;">
+                                        <div class="progress-bar bg-success" style="width: {{ (avg_content_quality/5*100)|round }}%"></div>
+                                    </div>
+                                    <small class="text-muted">{{ avg_content_quality|round(1) }}/5</small>
+                                </div>
+                                <div class="col-md-4">
+                                    <p class="mb-1">组织安排</p>
+                                    <div class="progress" style="height: 5px;">
+                                        <div class="progress-bar bg-success" style="width: {{ (avg_organization/5*100)|round }}%"></div>
+                                    </div>
+                                    <small class="text-muted">{{ avg_organization|round(1) }}/5</small>
+                                </div>
+                                <div class="col-md-4">
+                                    <p class="mb-1">场地设施</p>
+                                    <div class="progress" style="height: 5px;">
+                                        <div class="progress-bar bg-success" style="width: {{ (avg_facility/5*100)|round }}%"></div>
+                                    </div>
+                                    <small class="text-muted">{{ avg_facility|round(1) }}/5</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="review-list">
+                    {% for review in reviews %}
+                        <div class="review-item border-bottom pb-3 mb-3">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div>
+                                    <h6 class="mb-1">{{ review.reviewer_name }}</h6>
+                                    <div class="text-warning mb-2">
+                                        {% for i in range(review.rating) %}
+                                            <i class="fas fa-star"></i>
+                                        {% endfor %}
+                                        {% for i in range(5 - review.rating) %}
+                                            <i class="far fa-star"></i>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                                <small class="text-muted">{{ review.created_at.strftime('%Y-%m-%d %H:%M') }}</small>
+                            </div>
+                            <p class="mb-0">{{ review.review }}</p>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <p class="text-center text-muted py-3">暂无评价</p>
+            {% endif %}
+        </div>
+    </div>
 </div>
 {% endblock %}

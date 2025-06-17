@@ -1,7 +1,8 @@
 from flask_wtf import FlaskForm
-from wtforms import StringField, TextAreaField, DateTimeField, IntegerField, SelectField, FileField, SubmitField
+from wtforms import StringField, TextAreaField, DateTimeField, IntegerField, SelectField, FileField, SubmitField, SelectMultipleField
 from wtforms.validators import DataRequired, Length, Optional, NumberRange
 from flask_wtf.file import FileAllowed
+from .models import Tag  # Import the Tag model
 
 class ActivityForm(FlaskForm):
     title = StringField('活动标题', validators=[DataRequired(), Length(min=2, max=100)])
@@ -20,7 +21,12 @@ class ActivityForm(FlaskForm):
         ('completed', '已结束'),
         ('cancelled', '已取消')
     ], validators=[DataRequired()])
+    tags = SelectMultipleField('活动标签', choices=[], coerce=int)
     submit = SubmitField('保存')
+
+    def __init__(self, *args, **kwargs):
+        super(ActivityForm, self).__init__(*args, **kwargs)
+        self.tags.choices = [(tag.id, tag.name) for tag in Tag.query.order_by(Tag.name).all()]
 
 class SearchForm(FlaskForm):
     query = StringField('搜索', validators=[Optional(), Length(max=100)])

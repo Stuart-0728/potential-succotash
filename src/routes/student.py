@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify
 from flask_login import login_required, current_user
-from src.models import db, Activity, Registration, User, StudentInfo
+from src.models import db, Activity, Registration, User, StudentInfo, PointsHistory, ActivityReview
 from datetime import datetime, timedelta
 import logging
 
@@ -28,106 +28,37 @@ def student_required(func):
 @student_required
 def dashboard():
     try:
-        # 获取学生已报名的活动
-        registered_activities = Activity.query.join(
-            Registration, Activity.id == Registration.activity_id
+        student_info = StudentInfo.query.filter_by(user_id=current_user.id).first()
+        if not student_info:
+            flash('请先完善个人信息', 'warning')
+            return redirect(url_for('student.edit_profile'))
+        
+        # 获取推荐活动
+        recommended_activities = get_recommended_activities(current_user.id)
+        
+        # 获取活动统计
+        total_activities = Registration.query.filter_by(user_id=current_user.id).count()
+        ongoing_activities = Registration.query.join(
+            Activity, Registration.activity_id == Activity.id
         ).filter(
             Registration.user_id == current_user.id,
-            Registration.status == 'registered'  # 确保只获取有效报名
-        ).all()
+            Activity.status == 'active'
+        ).count()
         
-        # 获取即将开始的活动（未报名）
-        upcoming_activities = Activity.query.filter(
-            Activity.status == 'active',
-            Activity.registration_deadline >= datetime.now()
-        ).outerjoin(
-            Registration, (Activity.id == Registration.activity_id) & (Registration.user_id == current_user.id)
-        ).filter(
-            (Registration.id == None) | (Registration.status == 'cancelled')
-        ).order_by(
-            Activity.registration_deadline
-        ).limit(5).all()
-        
-        # 获取学生通知
-        notifications = []
-        
-        # 即将开始的已报名活动通知
-        upcoming_registered = Activity.query.join(
-            Registration, Activity.id == Registration.activity_id
+        # 获取即将开始的活动
+        upcoming_registrations = Registration.query.join(
+            Activity, Registration.activity_id == Activity.id
         ).filter(
             Registration.user_id == current_user.id,
-            Registration.status == 'registered',
-            Activity.start_time > datetime.now(),
-            Activity.start_time <= datetime.now() + timedelta(days=3)
-        ).all()
+            Activity.start_time > datetime.now()
+        ).count()
         
-        for activity in upcoming_registered:
-            time_diff = activity.start_time - datetime.now()
-            days = time_diff.days
-            hours = time_diff.seconds // 3600
-            
-            if days > 0:
-                time_text = f"{days}天{hours}小时"
-            else:
-                time_text = f"{hours}小时"
-                
-            notifications.append({
-                'type': 'upcoming',
-                'message': f'您报名的活动"{activity.title}"将在{time_text}后开始',
-                'time': datetime.now(),
-                'link': url_for('student.activity_detail', id=activity.id)
-            })
-        
-        # 即将截止报名的活动通知
-        closing_soon = Activity.query.filter(
-            Activity.status == 'active',
-            Activity.registration_deadline > datetime.now(),
-            Activity.registration_deadline <= datetime.now() + timedelta(days=1)
-        ).outerjoin(
-            Registration, (Activity.id == Registration.activity_id) & (Registration.user_id == current_user.id)
-        ).filter(
-            (Registration.id == None) | (Registration.status == 'cancelled')
-        ).all()
-        
-        for activity in closing_soon:
-            time_diff = activity.registration_deadline - datetime.now()
-            hours = time_diff.seconds // 3600
-            minutes = (time_diff.seconds % 3600) // 60
-            
-            if hours > 0:
-                time_text = f"{hours}小时{minutes}分钟"
-            else:
-                time_text = f"{minutes}分钟"
-                
-            notifications.append({
-                'type': 'closing',
-                'message': f'活动"{activity.title}"将在{time_text}后截止报名',
-                'time': datetime.now(),
-                'link': url_for('student.activity_detail', id=activity.id)
-            })
-        
-        # 最新活动通知
-        new_activities = Activity.query.filter(
-            Activity.status == 'active',
-            Activity.created_at >= datetime.now() - timedelta(days=3)
-        ).order_by(Activity.created_at.desc()).limit(3).all()
-        
-        for activity in new_activities:
-            notifications.append({
-                'type': 'new',
-                'message': f'新活动发布："{activity.title}"',
-                'time': activity.created_at,
-                'link': url_for('student.activity_detail', id=activity.id)
-            })
-        
-        # 按时间排序通知
-        notifications.sort(key=lambda x: x['time'], reverse=True)
-        
-        return render_template('student/dashboard.html', 
-                              registered_activities=registered_activities,
-                              upcoming_activities=upcoming_activities,
-                              notifications=notifications,
-                              now=datetime.now())
+        return render_template('student/dashboard.html',
+                             student_info=student_info,
+                             recommended_activities=recommended_activities,
+                             total_activities=total_activities,
+                             ongoing_activities=ongoing_activities,
+                             upcoming_activities=upcoming_registrations)
     except Exception as e:
         logger.error(f"Error in student dashboard: {e}")
         flash('加载面板时发生错误', 'danger')
@@ -181,33 +112,47 @@ def activity_detail(id):
     try:
         activity = Activity.query.get_or_404(id)
         
-        # 检查用户是否已报名
-        registration = Registration.query.filter_by(
-            user_id=current_user.id,
-            activity_id=activity.id
+        # 获取当前用户的报名信息
+        current_user_registration = Registration.query.filter_by(
+            activity_id=id,
+            user_id=current_user.id
         ).first()
         
-        # 检查是否可以报名
-        can_register = (
-            activity.status == 'active' and
-            activity.registration_deadline >= datetime.now() and
-            (not registration or registration.status == 'cancelled')
-        )
+        # 获取当前用户的评价
+        current_user_review = ActivityReview.query.filter_by(
+            activity_id=id,
+            user_id=current_user.id
+        ).first()
         
-        # 检查是否已达到人数上限
-        if can_register and activity.max_participants > 0:
-            current_participants = Registration.query.filter_by(
-                activity_id=activity.id,
-                status='registered'
-            ).count()
-            if current_participants >= activity.max_participants:
-                can_register = False
+        # 获取所有评价
+        reviews = ActivityReview.query.filter_by(activity_id=id).order_by(ActivityReview.created_at.desc()).all()
         
-        return render_template('student/activity_detail.html', 
-                              activity=activity,
-                              registration=registration,
-                              can_register=can_register,
-                              now=datetime.now())
+        # 计算平均评分
+        if reviews:
+            average_rating = sum(review.rating for review in reviews) / len(reviews)
+            avg_content_quality = sum(review.content_quality for review in reviews) / len(reviews)
+            avg_organization = sum(review.organization for review in reviews) / len(reviews)
+            avg_facility = sum(review.facility for review in reviews) / len(reviews)
+        else:
+            average_rating = avg_content_quality = avg_organization = avg_facility = 0
+        
+        # 获取创建者信息
+        creator = User.query.get(activity.created_by)
+        
+        # 获取已报名人数
+        registered_count = Registration.query.filter_by(activity_id=id, status='registered').count()
+        
+        return render_template('student/activity_detail.html',
+                             activity=activity,
+                             current_user_registration=current_user_registration,
+                             current_user_review=current_user_review,
+                             creator=creator,
+                             registered_count=registered_count,
+                             reviews=reviews,
+                             average_rating=average_rating,
+                             avg_content_quality=avg_content_quality,
+                             avg_organization=avg_organization,
+                             avg_facility=avg_facility)
     except Exception as e:
         logger.error(f"Error in activity detail: {e}")
         flash('加载活动详情时发生错误', 'danger')
@@ -457,3 +402,189 @@ def delete_account():
         db.session.rollback()
         flash('账号注销过程中发生错误，请稍后再试', 'danger')
         return redirect(url_for('student.profile'))
+
+@student_bp.route('/points')
+@login_required
+def points():
+    try:
+        student_info = StudentInfo.query.filter_by(user_id=current_user.id).first()
+        if not student_info:
+            flash('请先完善个人信息', 'warning')
+            return redirect(url_for('student.edit_profile'))
+        
+        points_history = PointsHistory.query.filter_by(student_id=student_info.id)\
+            .order_by(PointsHistory.created_at.desc()).all()
+        
+        return render_template('student/points.html', 
+                             student_info=student_info,
+                             points_history=points_history)
+    except Exception as e:
+        logger.error(f"Error in student points page: {e}")
+        flash('加载积分信息时出错', 'danger')
+        return redirect(url_for('student.dashboard'))
+
+def add_points(student_id, points, reason, activity_id=None):
+    """添加积分的工具函数"""
+    try:
+        student = StudentInfo.query.get(student_id)
+        if student:
+            student.points += points
+            
+            history = PointsHistory(
+                student_id=student_id,
+                points=points,
+                reason=reason,
+                activity_id=activity_id
+            )
+            
+            db.session.add(history)
+            db.session.commit()
+            return True
+    except Exception as e:
+        logger.error(f"Error adding points: {e}")
+        db.session.rollback()
+        return False
+
+@student_bp.route('/activity/<int:activity_id>/review', methods=['GET', 'POST'])
+@login_required
+def review_activity(activity_id):
+    try:
+        # 检查活动是否存在且已结束
+        activity = Activity.query.get_or_404(activity_id)
+        if activity.status != 'completed':
+            flash('只能评价已结束的活动', 'warning')
+            return redirect(url_for('student.activity_detail', id=activity_id))
+        
+        # 检查是否已参加活动
+        registration = Registration.query.filter_by(
+            activity_id=activity_id,
+            user_id=current_user.id,
+            status='checked_in'
+        ).first()
+        
+        if not registration:
+            flash('只有参加过活动的学生才能评价', 'warning')
+            return redirect(url_for('student.activity_detail', id=activity_id))
+        
+        # 检查是否已评价过
+        existing_review = ActivityReview.query.filter_by(
+            activity_id=activity_id,
+            user_id=current_user.id
+        ).first()
+        
+        if existing_review:
+            flash('你已经评价过这个活动了', 'info')
+            return redirect(url_for('student.activity_detail', id=activity_id))
+        
+        return render_template('student/review.html', activity=activity)
+    except Exception as e:
+        logger.error(f"Error in review activity page: {e}")
+        flash('加载评价页面时出错', 'danger')
+        return redirect(url_for('student.my_activities'))
+
+@student_bp.route('/activity/<int:activity_id>/submit-review', methods=['POST'])
+@login_required
+def submit_review(activity_id):
+    try:
+        # 验证表单数据
+        rating = request.form.get('rating', type=int)
+        content_quality = request.form.get('content_quality', type=int)
+        organization = request.form.get('organization', type=int)
+        facility = request.form.get('facility', type=int)
+        review_text = request.form.get('review', '').strip()
+        is_anonymous = 'anonymous' in request.form
+        
+        if not all([rating, review_text]) or not (1 <= rating <= 5):
+            flash('请填写完整的评价信息', 'warning')
+            return redirect(url_for('student.review_activity', activity_id=activity_id))
+        
+        # 创建评价记录
+        review = ActivityReview(
+            activity_id=activity_id,
+            user_id=current_user.id,
+            rating=rating,
+            content_quality=content_quality,
+            organization=organization,
+            facility=facility,
+            review=review_text,
+            is_anonymous=is_anonymous
+        )
+        
+        db.session.add(review)
+        # 添加积分奖励
+        student_info = StudentInfo.query.filter_by(user_id=current_user.id).first()
+        if student_info:
+            add_points(student_info.id, 5, "提交活动评价")
+        
+        db.session.commit()
+        flash('评价提交成功！获得5积分奖励', 'success')
+        log_action('submit_review', f'提交活动评价: {activity_id}')
+        
+        return redirect(url_for('student.activity_detail', id=activity_id))
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error submitting review: {e}")
+        flash('提交评价时出错', 'danger')
+        return redirect(url_for('student.review_activity', activity_id=activity_id))
+
+def get_recommended_activities(user_id, limit=6):
+    """基于用户的历史参与记录和兴趣推荐活动"""
+    try:
+        # 获取用户信息
+        student_info = StudentInfo.query.filter_by(user_id=user_id).first()
+        if not student_info:
+            return Activity.query.filter_by(status='active').order_by(Activity.created_at.desc()).limit(limit).all()
+        
+        # 获取用户历史参与的活动
+        participated_activities = Activity.query.join(
+            Registration, Activity.id == Registration.activity_id
+        ).filter(
+            Registration.user_id == user_id
+        ).all()
+        
+        # 如果用户没有参与过任何活动，返回最新活动
+        if not participated_activities:
+            return Activity.query.filter_by(status='active').order_by(Activity.created_at.desc()).limit(limit).all()
+        
+        # 获取用户评价过的活动
+        reviewed_activities = Activity.query.join(
+            ActivityReview, Activity.id == ActivityReview.activity_id
+        ).filter(
+            ActivityReview.user_id == user_id,
+            ActivityReview.rating >= 4  # 只考虑用户评价较高的活动
+        ).all()
+        
+        # 构建推荐查询
+        recommended = Activity.query.filter(
+            Activity.status == 'active',
+            Activity.id.notin_([a.id for a in participated_activities])  # 排除已参加的活动
+        )
+        
+        # 如果有高评分活动，优先推荐类似活动
+        if reviewed_activities:
+            # 这里可以根据活动标题、描述等进行相似度匹配
+            # 这是一个简化的实现，实际中可以使用更复杂的相似度算法
+            liked_keywords = set()
+            for activity in reviewed_activities:
+                liked_keywords.update(activity.title.split())
+                liked_keywords.update(activity.description.split())
+            
+            recommended = recommended.filter(
+                db.or_(
+                    *[Activity.title.ilike(f'%{keyword}%') for keyword in liked_keywords],
+                    *[Activity.description.ilike(f'%{keyword}%') for keyword in liked_keywords]
+                )
+            )
+        
+        # 根据用户所在学院和专业推荐
+        recommended = recommended.order_by(
+            # 优先推荐用户所在学院的活动
+            db.case([(Activity.college == student_info.college, 1)], else_=2),
+            # 其次考虑活动开始时间
+            Activity.start_time.asc()
+        )
+        
+        return recommended.limit(limit).all()
+    except Exception as e:
+        logger.error(f"Error in getting recommended activities: {e}")
+        return []

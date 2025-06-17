@@ -192,10 +192,93 @@ def terms():
 
 @main_bp.route('/search')
 def search():
-    """搜索页面，用于处理从导航栏搜索表单提交的请求"""
     try:
-        # 直接返回一个可爱的500错误页面，不执行任何查询逻辑
-        return render_template('500.html', error_message="搜索功能正在维护中，请稍后再试~"), 500
+        query = request.args.get('q', '')
+        status = request.args.get('status', 'all')
+        start_date = request.args.get('start_date', '')
+        end_date = request.args.get('end_date', '')
+        sort_by = request.args.get('sort', 'relevance')
+        
+        if not query and not any([status != 'all', start_date, end_date]):
+            return render_template('main/search.html', 
+                                query=query, 
+                                activities=[],
+                                status=status,
+                                start_date=start_date,
+                                end_date=end_date,
+                                sort_by=sort_by)
+        
+        # 构建基础查询
+        activities_query = Activity.query
+        
+        # 关键词搜索
+        if query:
+            activities_query = activities_query.filter(
+                db.or_(
+                    Activity.title.ilike(f'%{query}%'),
+                    Activity.description.ilike(f'%{query}%'),
+                    Activity.location.ilike(f'%{query}%')
+                )
+            )
+        
+        # 状态筛选
+        if status != 'all':
+            activities_query = activities_query.filter(Activity.status == status)
+        
+        # 日期筛选
+        if start_date:
+            try:
+                start_datetime = datetime.strptime(start_date, '%Y-%m-%d')
+                activities_query = activities_query.filter(Activity.start_time >= start_datetime)
+            except ValueError:
+                pass
+        
+        if end_date:
+            try:
+                end_datetime = datetime.strptime(end_date, '%Y-%m-%d')
+                activities_query = activities_query.filter(Activity.start_time <= end_datetime)
+            except ValueError:
+                pass
+        
+        # 排序
+        if sort_by == 'date_asc':
+            activities_query = activities_query.order_by(Activity.start_time.asc())
+        elif sort_by == 'date_desc':
+            activities_query = activities_query.order_by(Activity.start_time.desc())
+        elif sort_by == 'popularity':
+            activities_query = activities_query.outerjoin(
+                Registration, Activity.id == Registration.activity_id
+            ).group_by(Activity.id).order_by(
+                db.func.count(Registration.id).desc()
+            )
+        else:  # relevance (default)
+            if query:
+                # 根据匹配程度排序（标题匹配优先级最高）
+                activities_query = activities_query.order_by(
+                    db.case([
+                        (Activity.title.ilike(f'{query}%'), 1),
+                        (Activity.title.ilike(f'%{query}%'), 2)
+                    ], else_=3),
+                    Activity.start_time.desc()
+                )
+            else:
+                activities_query = activities_query.order_by(Activity.start_time.desc())
+        
+        # 执行查询
+        activities = activities_query.all()
+        
+        # 记录搜索词
+        if query and len(query.strip()) > 0:
+            log_action('search', f'搜索活动: {query}')
+        
+        return render_template('main/search.html',
+                             query=query,
+                             activities=activities,
+                             status=status,
+                             start_date=start_date,
+                             end_date=end_date,
+                             sort_by=sort_by,
+                             total=len(activities))
     except Exception as e:
         logger.error(f"Error in search: {e}")
         # 如果渲染500页面也出错，则返回简单的错误信息
