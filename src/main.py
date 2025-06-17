@@ -246,5 +246,44 @@ def initialize_database():
 def about():
     return render_template('main/about.html')
 
+# --- 自动修正所有角色名为小写，并修正用户指向 ---
+# 1. 合并 admin/Admin，student/Student 角色，只保留小写
+admin_role = Role.query.filter(Role.name.ilike('admin')).first()
+if not admin_role:
+    admin_role = Role(name='admin', description='管理员')
+    db.session.add(admin_role)
+    db.session.commit()
+else:
+    admin_role.name = 'admin'
+    db.session.commit()
+# 删除其它 admin 名称但 id 不同的角色
+Role.query.filter(Role.name.ilike('admin'), Role.id != admin_role.id).delete()
+db.session.commit()
+
+student_role = Role.query.filter(Role.name.ilike('student')).first()
+if not student_role:
+    student_role = Role(name='student', description='学生')
+    db.session.add(student_role)
+    db.session.commit()
+else:
+    student_role.name = 'student'
+    db.session.commit()
+Role.query.filter(Role.name.ilike('student'), Role.id != student_role.id).delete()
+db.session.commit()
+
+# 2. 修正所有用户的 role_id 指向唯一小写角色
+for user in User.query.all():
+    if user.role and user.role.name.lower() == 'admin' and user.role_id != admin_role.id:
+        user.role_id = admin_role.id
+    elif user.role and user.role.name.lower() == 'student' and user.role_id != student_role.id:
+        user.role_id = student_role.id
+db.session.commit()
+# 3. 再次确保 stuart 账号为 admin
+stuart = User.query.filter_by(username='stuart').first()
+if stuart and stuart.role_id != admin_role.id:
+    stuart.role_id = admin_role.id
+    db.session.commit()
+# --- END ---
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)), debug=False)
