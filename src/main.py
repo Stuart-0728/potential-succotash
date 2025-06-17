@@ -82,6 +82,23 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db.init_app(app)
 migrate = Migrate(app, db)
 
+# 确保数据库表存在
+with app.app_context():
+    try:
+        db.create_all()
+        logger.info("数据库表初始化完成")
+        
+        # 检查是否需要创建默认角色
+        if Role.query.count() == 0:
+            admin_role = Role(name='admin', description='管理员')
+            student_role = Role(name='student', description='学生')
+            db.session.add(admin_role)
+            db.session.add(student_role)
+            db.session.commit()
+            logger.info("默认角色已创建")
+    except Exception as e:
+        logger.error(f"数据库初始化错误: {str(e)}")
+
 # 初始化登录管理器
 login_manager = LoginManager()
 login_manager.init_app(app)

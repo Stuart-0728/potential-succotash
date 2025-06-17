@@ -87,6 +87,7 @@ class Registration(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'))
     activity_id = db.Column(db.Integer, db.ForeignKey('activities.id'))
     register_time = db.Column(db.DateTime, default=datetime.now)
+    check_in_time = db.Column(db.DateTime, nullable=True)  # 签到时间
     status = db.Column(db.String(20), default='registered')  # registered, cancelled, attended
     remark = db.Column(db.Text)
     
@@ -150,11 +151,14 @@ class ActivityReview(db.Model):
 class Tag(db.Model):
     __tablename__ = 'tags'
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(32), unique=True, nullable=False)
-    description = db.Column(db.String(128))
-    color = db.Column(db.String(32), default='primary')  # 标签颜色：primary, success, danger等
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)  # 修复：添加 created_at 字段
-    activities = db.relationship('ActivityTag', back_populates='tag')
+    name = db.Column(db.String(64), unique=True, index=True)
+    description = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.now)
+    color = db.Column(db.String(20), default='primary')  # 默认使用 Bootstrap 的 primary 颜色
+    activities = db.relationship('Activity', secondary='activity_tags', back_populates='tags')
+
+    def __repr__(self):
+        return f'<Tag {self.name}>'
 
 # 活动-标签多对多关联表
 class ActivityTag(db.Model):
