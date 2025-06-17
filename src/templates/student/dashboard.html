@@ -23,6 +23,12 @@
                         <a href="{{ url_for('student.my_activities') }}" class="btn btn-outline-secondary">
                             <i class="fas fa-list me-1"></i>我的活动
                         </a>
+                        <a href="{{ url_for('student.points') }}" class="btn btn-outline-success">
+                            <i class="fas fa-star me-1"></i>我的积分
+                        </a>
+                        <a href="#" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#logoutModal">
+                            <i class="fas fa-sign-out-alt me-1"></i>注销账号
+                        </a>
                     </div>
                 </div>
             </div>
@@ -172,5 +178,24 @@
             </div>
         </div>
     </div>
+</div>
+
+<!-- 注销模态框 -->
+<div class="modal fade" id="logoutModal" tabindex="-1" aria-labelledby="logoutModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="logoutModalLabel">确认注销</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        确定要注销并退出当前账号吗？此操作不可撤销。
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+        <a href="{{ url_for('auth.logout') }}" class="btn btn-danger">确认注销</a>
+      </div>
+    </div>
+  </div>
 </div>
 {% endblock %}

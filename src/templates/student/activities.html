@@ -53,6 +53,10 @@
                                 <div>
                                     {% if activity.id in registered_activity_ids %}
                                         <span class="badge bg-info me-2">已报名</span>
+                                    {% elif activity.status == 'active' and activity.registration_deadline >= now %}
+                                        <form method="post" action="{{ url_for('student.register_activity', id=activity.id) }}" class="d-inline">
+                                            <button type="submit" class="btn btn-sm btn-primary">立即报名</button>
+                                        </form>
                                     {% endif %}
                                     <a href="{{ url_for('student.activity_detail', id=activity.id) }}" class="btn btn-sm btn-outline-primary">查看详情</a>
                                 </div>

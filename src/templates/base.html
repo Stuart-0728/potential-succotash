@@ -40,6 +40,9 @@
                             <li class="nav-item">
                                 <a class="nav-link" href="{{ url_for('admin.statistics') }}">数据统计</a>
                             </li>
+                            <li class="nav-item">
+                                <a class="nav-link" href="{{ url_for('admin.tags') }}">标签管理</a>
+                            </li>
                         {% else %}
                             <li class="nav-item">
                                 <a class="nav-link" href="{{ url_for('student.dashboard') }}">我的面板</a>
@@ -49,6 +52,9 @@
                             </li>
                             <li class="nav-item">
                                 <a class="nav-link" href="{{ url_for('student.my_activities') }}">我的活动</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" href="{{ url_for('student.points') }}">我的积分</a>
                             </li>
                         {% endif %}
                     {% else %}

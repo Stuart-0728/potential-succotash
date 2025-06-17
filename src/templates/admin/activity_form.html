@@ -122,6 +122,12 @@
                 </div>
               </div>
             </div>
+            
+            <div class="mb-3">
+              {{ form.tags.label(class="form-label") }}
+              {{ form.tags(class="form-select", multiple=true) }}
+              <div class="form-text">可多选，活动可关联多个标签</div>
+            </div>
           </div>
           
           <div class="col-md-4">

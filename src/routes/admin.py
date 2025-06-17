@@ -131,6 +131,12 @@ def edit_activity(id):
         if request.method == 'POST' and form.validate_on_submit():
             try:
                 form.populate_obj(activity)
+                # 处理标签
+                activity.tags.clear()
+                for tag_id in form.tags.data:
+                    tag = Tag.query.get(tag_id)
+                    if tag:
+                        activity.tags.append(tag)
                 
                 # 处理海报上传
                 if form.poster.data:
