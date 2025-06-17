@@ -121,4 +121,55 @@ function initializeCharts() {
                 canvas.getContext('2d').fillText('加载数据失败，请刷新页面重试', 10, 30);
             });
         });
+    // 扩展统计：标签热度和积分分布
+    fetch('/api/statistics_ext')
+        .then(response => response.json())
+        .then(ext => {
+            // 标签热度
+            const tagHeatCtx = document.getElementById('tagHeatChart').getContext('2d');
+            new Chart(tagHeatCtx, {
+                type: 'bar',
+                data: {
+                    labels: ext.tag_heat.labels,
+                    datasets: [{
+                        label: '活动数',
+                        data: ext.tag_heat.data,
+                        backgroundColor: 'rgba(255, 206, 86, 0.7)',
+                        borderColor: 'rgba(255, 206, 86, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { display: false },
+                        title: { display: true, text: '标签热度（按活动数）' }
+                    },
+                    scales: { y: { beginAtZero: true } }
+                }
+            });
+            // 积分分布
+            const pointsDistCtx = document.getElementById('pointsDistChart').getContext('2d');
+            new Chart(pointsDistCtx, {
+                type: 'bar',
+                data: {
+                    labels: ext.points_dist.labels,
+                    datasets: [{
+                        label: '学生数',
+                        data: ext.points_dist.data,
+                        backgroundColor: 'rgba(54, 162, 235, 0.7)',
+                        borderColor: 'rgba(54, 162, 235, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { display: false },
+                        title: { display: true, text: '积分分布' }
+                    },
+                    scales: { y: { beginAtZero: true } }
+                }
+            });
+        });
 }

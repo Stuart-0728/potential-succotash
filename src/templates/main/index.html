@@ -136,7 +136,7 @@
                     <a href="{{ url_for('student.activity_detail', id=activity.id) }}" class="list-group-item list-group-item-action">
                         <div class="d-flex w-100 justify-content-between">
                             <h5 class="mb-1">{{ activity.title }}</h5>
-                            <small class="text-muted">{{ activity.registrations.count() }} 人已报名</small>
+                            <small class="text-muted">{{ activity.registrations.count() if activity.registrations else 0 }} 人已报名</small>
                         </div>
                         <p class="mb-1">{{ activity.description|truncate(80) }}</p>
                         <small class="text-muted">

@@ -50,6 +50,29 @@
             </div>
         </div>
     </div>
+
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">标签热度</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="tagHeatChart" width="400" height="300"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">积分分布</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="pointsDistChart" width="400" height="300"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 {% endblock %}
 
@@ -128,6 +151,65 @@
                             title: {
                                 display: true,
                                 text: '月度活动与报名统计'
+                            }
+                        }
+                    }
+                });
+
+                // 标签热度图表
+                const tagHeatCtx = document.getElementById('tagHeatChart').getContext('2d');
+                new Chart(tagHeatCtx, {
+                    type: 'heatmap',
+                    data: {
+                        labels: data.tag_heat_stats.labels,
+                        datasets: [{
+                            label: '标签热度',
+                            data: data.tag_heat_stats.data,
+                            backgroundColor: 'rgba(255, 206, 86, 0.7)',
+                            borderColor: 'rgba(255, 206, 86, 1)',
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            legend: {
+                                position: 'top',
+                            },
+                            title: {
+                                display: true,
+                                text: '标签热度分布'
+                            }
+                        }
+                    }
+                });
+
+                // 积分分布图表
+                const pointsDistCtx = document.getElementById('pointsDistChart').getContext('2d');
+                new Chart(pointsDistCtx, {
+                    type: 'pie',
+                    data: {
+                        labels: data.points_dist_stats.labels,
+                        datasets: [{
+                            data: data.points_dist_stats.data,
+                            backgroundColor: [
+                                'rgba(75, 192, 192, 0.7)',
+                                'rgba(153, 102, 255, 0.7)',
+                                'rgba(255, 159, 64, 0.7)',
+                                'rgba(255, 99, 132, 0.7)'
+                            ],
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            legend: {
+                                position: 'bottom',
+                            },
+                            title: {
+                                display: true,
+                                text: '积分分布'
                             }
                         }
                     }

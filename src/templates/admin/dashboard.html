@@ -129,7 +129,7 @@
                                             <span class="badge bg-danger">已取消</span>
                                         {% endif %}
                                     </td>
-                                    <td>{{ activity.registrations.count() }}</td>
+                                    <td>{{ activity.registrations.count() if activity.registrations else 0 }}</td>
                                     <td>
                                         <div class="btn-group btn-group-sm">
                                             <a href="{{ url_for('admin.activity_registrations', id=activity.id) }}" class="btn btn-outline-primary">

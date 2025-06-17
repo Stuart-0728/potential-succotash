@@ -526,7 +526,8 @@ def activity_registrations(id):
             StudentInfo.college,
             StudentInfo.major,
             StudentInfo.phone,
-            StudentInfo.points  # 新增积分字段
+            StudentInfo.points,  # 新增积分
+            Registration.check_in_time  # 新增签到时间
         ).all()
         
         # 统计报名状态
@@ -586,7 +587,10 @@ def export_activity_registrations(id):
                 '专业': reg.major,
                 '手机号': reg.phone,
                 '报名时间': reg.register_time.strftime('%Y-%m-%d %H:%M:%S'),
-                '状态': '已报名' if reg.status == 'registered' else '已取消' if reg.status == 'cancelled' else '已参加'
+                '状态': '已报名' if reg.status == 'registered' else '已取消' if reg.status == 'cancelled' else '已参加',
+                '积分': reg.points,
+                '签到状态': '已签到' if reg.check_in_time else '未签到',
+                '签到时间': reg.check_in_time.strftime('%Y-%m-%d %H:%M:%S') if reg.check_in_time else ''
             })
         
         df = pd.DataFrame(data)
@@ -998,3 +1002,50 @@ def delete_tag(id):
         db.session.rollback()
         logger.error(f"Error deleting tag: {e}")
         return jsonify({'success': False, 'message': '删除标签失败'})
+
+@admin_bp.route('/api/statistics_ext')
+@admin_required
+def api_statistics_ext():
+    try:
+        # 标签热度
+        from src.models import Tag, Activity
+        tag_stats = db.session.query(
+            Tag.name, func.count(Activity.id)
+        ).outerjoin(Activity.tags).group_by(Tag.id).all()
+        tag_heat = {
+            'labels': [t[0] for t in tag_stats],
+            'data': [t[1] for t in tag_stats]
+        }
+        # 积分分布
+        from src.models import StudentInfo
+        points_bins = [0, 10, 30, 50, 100, 200, 500, 1000]
+        bin_labels = [f'{points_bins[i]}-{points_bins[i+1]-1}' for i in range(len(points_bins)-1)] + [f'{points_bins[-1]}+']
+        bin_counts = [0]*(len(points_bins))
+        for stu in StudentInfo.query.all():
+            for i, b in enumerate(points_bins):
+                if i == len(points_bins)-1:
+                    if stu.points >= b:
+                        bin_counts[i] += 1
+                elif b <= stu.points < points_bins[i+1]:
+                    bin_counts[i] += 1
+                    break
+        points_dist = {
+            'labels': bin_labels,
+            'data': bin_counts
+        }
+        return jsonify({'tag_heat': tag_heat, 'points_dist': points_dist})
+    except Exception as e:
+        logger.error(f"Error in api_statistics_ext: {e}")
+        return jsonify({'error': '获取扩展统计数据失败'}), 500
+
+@admin_bp.route('/activity/<int:id>/reviews')
+@admin_required
+def activity_reviews(id):
+    from src.models import Activity, ActivityReview
+    activity = Activity.query.get_or_404(id)
+    reviews = ActivityReview.query.filter_by(activity_id=id).order_by(ActivityReview.created_at.desc()).all()
+    if reviews:
+        average_rating = sum(r.rating for r in reviews) / len(reviews)
+    else:
+        average_rating = 0
+    return render_template('admin/activity_reviews.html', activity=activity, reviews=reviews, average_rating=average_rating)

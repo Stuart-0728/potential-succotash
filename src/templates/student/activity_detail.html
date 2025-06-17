@@ -29,9 +29,9 @@
                 <div class="col-md-6">
                     <p><i class="bi bi-people-fill text-primary"></i> <strong>参与人数：</strong>
                         {% if activity.max_participants > 0 %}
-                            {{ activity.registrations.filter_by(status='registered').count() }}/{{ activity.max_participants }}
+                            {{ activity.registrations.filter_by(status='registered').count() if activity.registrations and activity.registrations.filter_by else 0 }}/{{ activity.max_participants }}
                         {% else %}
-                            {{ activity.registrations.filter_by(status='registered').count() }} (不限)
+                            {{ activity.registrations.filter_by(status='registered').count() if activity.registrations and activity.registrations.filter_by else 0 }} (不限)
                         {% endif %}
                     </p>
                     <p><i class="bi bi-person-fill text-primary"></i> <strong>发布者：</strong>管理员</p>
@@ -48,8 +48,8 @@
 
             <div class="d-flex justify-content-between align-items-center">
                 <div>
-                    {% if registration %}
-                        {% if registration.status == 'registered' %}
+                    {% if current_user_registration %}
+                        {% if current_user_registration.status == 'registered' %}
                             <span class="badge bg-success">已报名</span>
                             {% if activity.start_time > now %}
                                 <form method="post" action="{{ url_for('student.cancel_registration', id=activity.id) }}" class="d-inline">
@@ -58,7 +58,7 @@
                                     </button>
                                 </form>
                             {% endif %}
-                        {% elif registration.status == 'cancelled' %}
+                        {% elif current_user_registration.status == 'cancelled' %}
                             <span class="badge bg-secondary">已取消报名</span>
                             {% if can_register %}
                                 <form method="post" action="{{ url_for('student.register_activity', id=activity.id) }}" class="d-inline">
@@ -71,7 +71,7 @@
                             <button type="submit" class="btn btn-primary">立即报名</button>
                         </form>
                     {% elif activity.status == 'active' and activity.registration_deadline >= now %}
-                        {% if activity.max_participants > 0 and activity.registrations.filter_by(status='registered').count() >= activity.max_participants %}
+                        {% if activity.max_participants > 0 and registered_count >= activity.max_participants %}
                             <button class="btn btn-secondary" disabled>名额已满</button>
                         {% endif %}
                     {% else %}

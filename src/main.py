@@ -197,8 +197,8 @@ def initialize_database():
         logger.error(f"Error initializing database: {e}")
 
 # 在应用启动时初始化数据库
-with app.app_context():
-    initialize_database()
+# with app.app_context():
+#     initialize_database()
 
 # 添加一个路由来处理"关于我们"页面
 @app.route('/about')

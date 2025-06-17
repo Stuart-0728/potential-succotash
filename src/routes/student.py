@@ -527,6 +527,13 @@ def submit_review(activity_id):
         flash('提交评价时出错', 'danger')
         return redirect(url_for('student.review_activity', activity_id=activity_id))
 
+@student_bp.route('/points/rank')
+@login_required
+def points_rank():
+    from src.models import StudentInfo
+    top_students = StudentInfo.query.order_by(StudentInfo.points.desc()).limit(100).all()
+    return render_template('student/points_rank.html', top_students=top_students)
+
 def get_recommended_activities(user_id, limit=6):
     """基于用户的历史参与记录和兴趣推荐活动"""
     try:
@@ -588,3 +595,25 @@ def get_recommended_activities(user_id, limit=6):
     except Exception as e:
         logger.error(f"Error in getting recommended activities: {e}")
         return []
+
+@student_bp.route('/recommend')
+@login_required
+def recommend():
+    from src.models import Activity, Tag, Registration, StudentInfo
+    # 获取当前学生已报名/参加过的活动标签
+    stu_info = StudentInfo.query.filter_by(user_id=current_user.id).first()
+    joined_activities = Registration.query.filter_by(user_id=current_user.id).with_entities(Registration.activity_id).all()
+    joined_ids = [a[0] for a in joined_activities]
+    tag_ids = set()
+    for act in Activity.query.filter(Activity.id.in_(joined_ids)).all():
+        tag_ids.update([t.id for t in act.tags])
+    # 推荐同标签的其他活动，排除已报名/参加过的
+    if tag_ids:
+        recommended = Activity.query.join(Activity.tags).filter(
+            Tag.id.in_(tag_ids),
+            ~Activity.id.in_(joined_ids),
+            Activity.status=='active'
+        ).distinct().all()
+    else:
+        recommended = Activity.query.filter_by(status='active').order_by(Activity.created_at.desc()).limit(10).all()
+    return render_template('student/recommendation.html', recommended=recommended)

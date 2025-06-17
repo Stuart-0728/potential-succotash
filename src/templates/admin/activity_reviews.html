@@ -1,0 +1,40 @@
+{% extends 'base.html' %}
+
+{% block title %}活动评价详情 - 重庆师范大学师能素质协会{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2 class="mb-4">活动评价详情</h2>
+    <div class="mb-3">
+        <a href="{{ url_for('admin.activities') }}" class="btn btn-secondary btn-sm">返回活动管理</a>
+    </div>
+    <div class="card mb-4">
+        <div class="card-header bg-primary text-white">活动：{{ activity.title }}</div>
+        <div class="card-body">
+            <p><strong>时间：</strong>{{ activity.start_time.strftime('%Y-%m-%d %H:%M') }} 至 {{ activity.end_time.strftime('%Y-%m-%d %H:%M') }}</p>
+            <p><strong>地点：</strong>{{ activity.location }}</p>
+            <p><strong>评价总数：</strong>{{ reviews|length }}</p>
+            <p><strong>平均评分：</strong>{{ average_rating|round(2) }} / 5</p>
+        </div>
+    </div>
+    <div class="card">
+        <div class="card-header">评价列表</div>
+        <div class="card-body">
+            {% if reviews %}
+            <ul class="list-group">
+                {% for review in reviews %}
+                <li class="list-group-item">
+                    <strong>{{ review.reviewer_name }}</strong>
+                    <span class="ms-2">{{ review.created_at.strftime('%Y-%m-%d %H:%M') }}</span>
+                    <span class="ms-2">评分：{{ review.rating }}星</span>
+                    <p class="mb-1">{{ review.review }}</p>
+                </li>
+                {% endfor %}
+            </ul>
+            {% else %}
+            <div class="alert alert-info">暂无评价</div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
