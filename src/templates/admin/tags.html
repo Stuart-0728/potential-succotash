@@ -71,7 +71,10 @@
                                     {% for tag in tags %}
                                     <tr>
                                         <td>
-                                            <span class="badge bg-{{ tag.color }}">{{ tag.name }}</span>
+                                            {% set bootstrap_colors = ['primary','secondary','success','danger','warning','info','dark','light'] %}
+                                            <span class="badge bg-{{ tag.color }}" {% if tag.color not in bootstrap_colors %}style="color: {{ tag.color }};"{% endif %}>
+                                                {{ tag.name }}
+                                            </span>
                                         </td>
                                         <td>{{ tag.color }}</td>
                                         <td>{{ tag.activities.count() if tag.activities else 0 }}</td>

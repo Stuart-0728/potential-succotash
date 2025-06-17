@@ -125,7 +125,14 @@
             
             <div class="mb-3">
               {{ form.tags.label(class="form-label") }}
-              {{ form.tags(class="form-select", multiple=true) }}
+              <div>
+                {% for value, label in form.tags.choices %}
+                  <div class="form-check form-check-inline">
+                    <input class="form-check-input" type="checkbox" name="tags" id="tag_{{ value }}" value="{{ value }}" {% if value in form.tags.data %}checked{% endif %}>
+                    <label class="form-check-label" for="tag_{{ value }}">{{ label }}</label>
+                  </div>
+                {% endfor %}
+              </div>
               <div class="form-text">可多选，活动可关联多个标签</div>
             </div>
           </div>

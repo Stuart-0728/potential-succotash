@@ -152,6 +152,7 @@ class Tag(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(32), unique=True, nullable=False)
     description = db.Column(db.String(128))
+    color = db.Column(db.String(32), default='primary')  # 标签颜色：primary, success, danger等
     created_at = db.Column(db.DateTime, default=datetime.utcnow)  # 修复：添加 created_at 字段
     activities = db.relationship('ActivityTag', back_populates='tag')
 
