@@ -98,6 +98,7 @@
                             <th>联系方式</th>
                             <th>报名时间</th>
                             <th>状态</th>
+                            <th>积分</th>
                             <th>操作</th>
                         </tr>
                     </thead>
@@ -120,6 +121,7 @@
                                         <span class="badge bg-danger">已取消</span>
                                     {% endif %}
                                 </td>
+                                <td>{{ reg.points }}</td>
                                 <td>
                                     <div class="btn-group btn-group-sm">
                                         {% if reg.status == 'registered' %}
@@ -155,7 +157,7 @@
                             </tr>
                         {% else %}
                             <tr>
-                                <td colspan="9" class="text-center">暂无报名信息</td>
+                                <td colspan="10" class="text-center">暂无报名信息</td>
                             </tr>
                         {% endfor %}
                     </tbody>

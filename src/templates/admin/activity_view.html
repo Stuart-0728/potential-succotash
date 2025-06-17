@@ -89,6 +89,9 @@
                     <a href="{{ url_for('admin.activity_tags', id=activity.id) }}" class="btn btn-success">
                         <i class="fas fa-tags me-1"></i>打标签
                     </a>
+                    <a href="#" class="btn btn-warning ms-2" data-bs-toggle="modal" data-bs-target="#qrcodeModal">
+                        <i class="fas fa-qrcode me-1"></i>生成签到二维码
+                    </a>
                     <form action="{{ url_for('admin.delete_activity', id=activity.id, force=true) }}" method="post" id="deleteActivityForm" style="display:inline;">
                         <button type="button" class="btn btn-danger" onclick="confirmDelete()">
                             <i class="fas fa-trash-alt me-1"></i>永久删除活动
@@ -101,14 +104,32 @@
     </div>
 </div>
 
+<!-- 签到二维码模态框 -->
+<div class="modal fade" id="qrcodeModal" tabindex="-1" aria-labelledby="qrcodeModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="qrcodeModalLabel">签到二维码</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
+      </div>
+      <div class="modal-body text-center">
+        <img id="qrcode-img" src="{{ url_for('admin.generate_checkin_qrcode', id=activity.id) }}" alt="签到二维码" style="max-width: 100%; height: auto;" />
+        <p class="mt-2 text-muted">学生扫码即可签到</p>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
 function confirmDelete() {
     var message = "您确定要删除活动{{ activity.title }}吗？";
-    {% if activity.registrations.count() > 0 %}
-        message += "\n\n警告：该活动已有 {{ activity.registrations.count() }} 人报名，删除后将标记为已取消而非彻底删除。";
-    {% else %}
+    // 由于Jinja模板表达式在JS中容易报错，直接用后端传递的报名人数变量
+    var regCount = {{ registration_count|default(0) }};
+    if (regCount > 0) {
+        message += "\n\n警告：该活动已有 " + regCount + " 人报名，删除后将标记为已取消而非彻底删除。";
+    } else {
         message += "\n\n警告：此操作不可撤销，活动将被永久删除。";
-    {% endif %}
+    }
     if (window.confirm(message)) {
         document.getElementById('deleteActivityForm').submit();
     }

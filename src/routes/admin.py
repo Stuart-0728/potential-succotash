@@ -525,7 +525,8 @@ def activity_registrations(id):
             StudentInfo.grade,
             StudentInfo.college,
             StudentInfo.major,
-            StudentInfo.phone
+            StudentInfo.phone,
+            StudentInfo.points  # 新增积分字段
         ).all()
         
         # 统计报名状态
