@@ -139,7 +139,7 @@ def register():
 @auth_bp.route('/login', methods=['GET', 'POST'])
 def login():
     if current_user.is_authenticated:
-        if current_user.role.name == 'Admin':
+        if current_user.role and current_user.role.name.lower() == 'admin':
             return redirect(url_for('admin.dashboard'))
         else:
             return redirect(url_for('student.dashboard'))
@@ -151,17 +151,14 @@ def login():
             login_user(user)
             user.last_login = datetime.now()
             db.session.commit()
-            
             next_page = request.args.get('next')
-            
             # 根据角色重定向到不同的页面
-            if user.role.name == 'Admin':
+            if user.role and user.role.name.lower() == 'admin':
                 return redirect(next_page or url_for('admin.dashboard'))
             else:
                 return redirect(next_page or url_for('student.dashboard'))
         else:
             flash('登录失败，请检查用户名和密码', 'danger')
-    
     return render_template('auth/login.html', form=form)
 
 @auth_bp.route('/logout')
