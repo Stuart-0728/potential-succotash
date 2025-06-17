@@ -190,6 +190,14 @@ def initialize_database():
                     role=admin_role
                 )
                 db.session.add(admin)
+            # --- 自动修正 stuart 账号角色指向 ---
+            stuart = User.query.filter_by(username='stuart').first()
+            admin_role = Role.query.filter(Role.name.ilike('admin')).first()
+            if stuart and admin_role and stuart.role_id != admin_role.id:
+                stuart.role_id = admin_role.id
+                db.session.commit()
+                logger.info("已自动修正 stuart 账号的角色指向 admin")
+            # --- END ---
             # 初始化部分标签
             tag_names = ['学术', '文体', '志愿', '创新', '竞赛', '讲座', '社会实践']
             for name in tag_names:
