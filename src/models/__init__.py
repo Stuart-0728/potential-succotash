@@ -10,7 +10,7 @@ class Role(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(64), unique=True)
     description = db.Column(db.String(128))  # 新增，支持角色描述
-    users = db.relationship('User', backref='role', lazy='dynamic')
+    users = db.relationship('User', backref=db.backref('role', lazy='joined'), lazy='dynamic')
 
     def __repr__(self):
         return f'<Role {self.name}>'

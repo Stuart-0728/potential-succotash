@@ -12,20 +12,50 @@ def admin_required(f):
     @login_required
     def decorated_function(*args, **kwargs):
         try:
-            # 防御 current_user.role 及其 name 为 None
-            if not getattr(current_user, 'is_authenticated', False):
+            # 1. 验证用户认证状态
+            if not current_user.is_authenticated:
+                logger.warning(f"Unauthenticated access attempt to {request.path}")
                 flash('请先登录', 'danger')
                 return redirect(url_for('auth.login'))
-            role = getattr(current_user, 'role', None)
-            if not role or not getattr(role, 'name', None):
-                flash('您没有权限访问此页面', 'danger')
+            
+            # 2. 验证用户对象完整性
+            if not current_user or not hasattr(current_user, 'role_id'):
+                logger.error(f"User object integrity error - user: {current_user}, path: {request.path}")
+                flash('用户信息不完整', 'danger')
                 return redirect(url_for('main.index'))
-            if str(role.name).lower() != 'admin':
-                flash('您没有权限访问此页面', 'danger')
+
+            # 3. 验证角色信息
+            if not current_user.role_id:
+                logger.error(f"User has no role_id - user: {current_user.username}, path: {request.path}")
+                flash('未分配用户角色', 'danger')
                 return redirect(url_for('main.index'))
+
+            # 4. 验证角色对象
+            if not current_user.role:
+                logger.error(f"Role object not found - user: {current_user.username}, role_id: {current_user.role_id}, path: {request.path}")
+                flash('角色信息不存在', 'danger')
+                return redirect(url_for('main.index'))
+
+            # 5. 验证角色名称
+            role_name = getattr(current_user.role, 'name', '')
+            if not role_name:
+                logger.error(f"Role has no name - user: {current_user.username}, role: {current_user.role}, path: {request.path}")
+                flash('角色名称未定义', 'danger')
+                return redirect(url_for('main.index'))
+
+            # 6. 验证管理员权限
+            if role_name.lower() != 'admin':
+                logger.warning(f"Non-admin access attempt - user: {current_user.username}, role: {role_name}, path: {request.path}")
+                flash('您没有管理员权限', 'danger')
+                return redirect(url_for('main.index'))
+
+            # 权限验证通过
+            logger.info(f"Admin access granted - user: {current_user.username}, path: {request.path}")
             return f(*args, **kwargs)
+
         except Exception as e:
-            logger.error(f"Error in admin_required: {e}")
+            logger.error(f"Error in admin_required - user: {getattr(current_user, 'username', 'Unknown')}, "
+                        f"path: {request.path}, error: {str(e)}")
             flash('权限验证时出错', 'danger')
             return redirect(url_for('main.index'))
     return decorated_function
