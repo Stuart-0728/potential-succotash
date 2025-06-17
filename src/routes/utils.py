@@ -12,8 +12,8 @@ def admin_required(f):
     @login_required
     def decorated_function(*args, **kwargs):
         try:
-            # 修复管理员权限校验逻辑
-            if not current_user.role or current_user.role.name != 'Admin':
+            # 支持 admin/Admin 不区分大小写
+            if not current_user.role or current_user.role.name.lower() != 'admin':
                 flash('您没有权限访问此页面', 'danger')
                 return redirect(url_for('main.index'))
             return f(*args, **kwargs)

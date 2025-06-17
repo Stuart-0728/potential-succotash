@@ -98,7 +98,11 @@ with app.app_context():
             logger.info("默认角色已创建")
         # 自动创建初始管理员账号
         if User.query.filter_by(username='stuart').first() is None:
-            admin_role = Role.query.filter_by(name='admin').first()
+            admin_role = Role.query.filter(Role.name.ilike('admin')).first()
+            if not admin_role:
+                admin_role = Role(name='admin', description='管理员')
+                db.session.add(admin_role)
+                db.session.commit()
             user = User(
                 username='stuart',
                 email='admin@cqnu.edu.cn',
