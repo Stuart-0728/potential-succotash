@@ -76,6 +76,7 @@ class Activity(db.Model):
     created_by = db.Column(db.Integer, db.ForeignKey('users.id'))
     updated_at = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now)
     registrations = db.relationship('Registration', backref='activity', lazy='dynamic')
+    tags = db.relationship('Tag', secondary='activity_tags', backref=db.backref('activities', lazy='dynamic'))  # 修正多对多关系
     
     def __repr__(self):
         return f'<Activity {self.title}>'
@@ -155,22 +156,17 @@ class Tag(db.Model):
     description = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=datetime.now)
     color = db.Column(db.String(20), default='primary')  # 默认使用 Bootstrap 的 primary 颜色
-    activities = db.relationship('Activity', secondary='activity_tags', back_populates='tags')
+    # 不再定义 activities 字段，backref 已自动建立
 
     def __repr__(self):
         return f'<Tag {self.name}>'
 
-# 活动-标签多对多关联表
-class ActivityTag(db.Model):
-    __tablename__ = 'activity_tags'
-    id = db.Column(db.Integer, primary_key=True)
-    activity_id = db.Column(db.Integer, db.ForeignKey('activities.id'))
-    tag_id = db.Column(db.Integer, db.ForeignKey('tags.id'))
-    tag = db.relationship('Tag', back_populates='activities')
-    activity = db.relationship('Activity', back_populates='tags')
-
-# 在 Activity 模型中补充多对多关系
-Activity.tags = db.relationship('ActivityTag', back_populates='activity')
+# 活动-标签多对多辅助表
+activity_tags = db.Table(
+    'activity_tags',
+    db.Column('activity_id', db.Integer, db.ForeignKey('activities.id')),
+    db.Column('tag_id', db.Integer, db.ForeignKey('tags.id'))
+)
 
 # 签到表
 class ActivityCheckin(db.Model):
