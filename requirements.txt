@@ -14,3 +14,5 @@ gunicorn==21.2.0
 psycopg2-binary==2.9.9
 pandas==2.2.0
 openpyxl==3.1.2
+bleach>=6.0.0  # HTML 清理
+qrcode>=7.4.2  # 二维码生成

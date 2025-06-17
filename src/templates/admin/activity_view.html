@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 
-{% block title %}活动详情 - {{ activity.title }} - 重庆师范大学师能素质协会{% endblock %}
+{% block title %}活动详情 - {{ activity.title|default('未知活动') }} - 重庆师范大学师能素质协会{% endblock %}
 
 {% block content %}
 <div class="container mt-4">
@@ -14,37 +14,86 @@
 
     <div class="card shadow-sm mb-4">
         <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-            <h4 class="mb-0">{{ activity.title }}</h4>
-            <span class="badge {% if activity.status == 'active' %}bg-success{% elif activity.status == 'completed' %}bg-secondary{% else %}bg-danger{% endif %}">
-                {% if activity.status == 'active' %}进行中{% elif activity.status == 'completed' %}已结束{% else %}已取消{% endif %}
-            </span>
+            <h4 class="mb-0">{{ activity.title|default('未知活动') }}</h4>
+            <div>
+                <span class="badge {% if activity.status == 'active' %}bg-success{% elif activity.status == 'completed' %}bg-secondary{% else %}bg-danger{% endif %}">
+                    {% if activity.status == 'active' %}进行中{% elif activity.status == 'completed' %}已结束{% else %}已取消{% endif %}
+                </span>
+            </div>
         </div>
         <div class="card-body">
             <div class="row mb-4">
                 <div class="col-md-6">
-                    <p><i class="bi bi-geo-alt-fill text-primary"></i> <strong>活动地点：</strong>{{ activity.location }}</p>
-                    <p><i class="bi bi-calendar-event-fill text-primary"></i> <strong>活动时间：</strong>{{ activity.start_time.strftime('%Y-%m-%d %H:%M') }} 至 {{ activity.end_time.strftime('%Y-%m-%d %H:%M') }}</p>
-                    <p><i class="bi bi-clock-fill text-primary"></i> <strong>报名截止：</strong>{{ activity.registration_deadline.strftime('%Y-%m-%d %H:%M') }}</p>
+                    <p><i class="bi bi-geo-alt-fill text-primary"></i> <strong>活动地点：</strong>{{ activity.location|default('未设置') }}</p>
+                    <p>
+                        <i class="bi bi-calendar-event-fill text-primary"></i> <strong>活动时间：</strong>
+                        {% if activity.start_time and activity.end_time %}
+                            {{ activity.start_time.strftime('%Y-%m-%d %H:%M') }} 至 {{ activity.end_time.strftime('%Y-%m-%d %H:%M') }}
+                        {% else %}
+                            未设置
+                        {% endif %}
+                    </p>
+                    <p>
+                        <i class="bi bi-clock-fill text-primary"></i> <strong>报名截止：</strong>
+                        {% if activity.registration_deadline %}
+                            {{ activity.registration_deadline.strftime('%Y-%m-%d %H:%M') }}
+                        {% else %}
+                            未设置
+                        {% endif %}
+                    </p>
                 </div>
                 <div class="col-md-6">
                     <p><i class="bi bi-people-fill text-primary"></i> <strong>参与人数：</strong>
-                        {% if activity.max_participants > 0 %}
-                            {{ registration_count }}/{{ activity.max_participants }}
+                        {% if activity.max_participants and activity.max_participants > 0 %}
+                            {{ registration_count|default(0) }}/{{ activity.max_participants }}
                         {% else %}
-                            {{ registration_count }} (不限)
+                            {{ registration_count|default(0) }} (不限)
                         {% endif %}
                     </p>
                     <p><i class="bi bi-person-fill text-primary"></i> <strong>发布者：</strong>{{ creator.username if creator else '未知' }}</p>
-                    <p><i class="bi bi-calendar-plus-fill text-primary"></i> <strong>发布时间：</strong>{{ activity.created_at.strftime('%Y-%m-%d %H:%M') }}</p>
+                    <p>
+                        <i class="bi bi-calendar-plus-fill text-primary"></i> <strong>发布时间：</strong>
+                        {% if activity.created_at %}
+                            {{ activity.created_at.strftime('%Y-%m-%d %H:%M') }}
+                        {% else %}
+                            未知
+                        {% endif %}
+                    </p>
                 </div>
             </div>
+
+            {% if tags %}
+            <div class="mb-4">
+                <h5 class="border-bottom pb-2">活动标签</h5>
+                <div class="d-flex flex-wrap gap-2">
+                    {% for tag in tags %}
+                        <span class="badge bg-info" style="{% if tag.color %}background-color: {{ tag.color }}!important;{% endif %}">
+                            {{ tag.name }}
+                        </span>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
 
             <div class="mb-4">
                 <h5 class="border-bottom pb-2">活动描述</h5>
                 <div class="activity-description">
-                    {{ activity.description|safe }}
+                    {% if activity.description %}
+                        {{ activity.description|safe }}
+                    {% else %}
+                        <p class="text-muted">暂无活动描述</p>
+                    {% endif %}
                 </div>
             </div>
+
+            {% if activity.poster_url %}
+            <div class="mb-4">
+                <h5 class="border-bottom pb-2">活动海报</h5>
+                <div class="text-center">
+                    <img src="{{ activity.poster_url }}" alt="活动海报" class="img-fluid" style="max-height: 300px;">
+                </div>
+            </div>
+            {% endif %}
 
             <div class="mb-4">
                 <h5 class="border-bottom pb-2">参与人员列表</h5>
@@ -58,20 +107,31 @@
                                 <th>年级</th>
                                 <th>学院</th>
                                 <th>专业</th>
+                                <th>签到状态</th>
                             </tr>
                         </thead>
                         <tbody>
                             {% for registration in registrations %}
                             <tr>
-                                <td>{{ registration.real_name }}</td>
-                                <td>{{ registration.student_id }}</td>
-                                <td>{{ registration.grade }}</td>
-                                <td>{{ registration.college }}</td>
-                                <td>{{ registration.major }}</td>
+                                <td>{{ registration.real_name|default('未知') }}</td>
+                                <td>{{ registration.student_id|default('未知') }}</td>
+                                <td>{{ registration.grade|default('未知') }}</td>
+                                <td>{{ registration.college|default('未知') }}</td>
+                                <td>{{ registration.major|default('未知') }}</td>
+                                <td>
+                                    {% if registration.check_in_time %}
+                                        <span class="badge bg-success">已签到 ({{ registration.check_in_time.strftime('%H:%M') }})</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">未签到</span>
+                                    {% endif %}
+                                </td>
                             </tr>
                             {% endfor %}
                         </tbody>
                     </table>
+                </div>
+                <div class="mt-2">
+                    <small class="text-muted">共 {{ registrations|length }} 人报名</small>
                 </div>
                 {% else %}
                 <p class="text-muted">暂无报名人员</p>
@@ -83,15 +143,14 @@
                     <a href="{{ url_for('admin.edit_activity', id=activity.id) }}" class="btn btn-primary">
                         <i class="fas fa-edit me-1"></i>编辑活动
                     </a>
+                    {% if activity.status == 'active' %}
                     <a href="{{ url_for('admin.activity_registrations', id=activity.id) }}" class="btn btn-info">
                         <i class="fas fa-users me-1"></i>查看报名情况
                     </a>
-                    <a href="{{ url_for('admin.activity_tags', id=activity.id) }}" class="btn btn-success">
-                        <i class="fas fa-tags me-1"></i>打标签
-                    </a>
-                    <a href="#" class="btn btn-warning ms-2" data-bs-toggle="modal" data-bs-target="#qrcodeModal">
+                    <button type="button" class="btn btn-warning" onclick="generateQRCode({{ activity.id }})">
                         <i class="fas fa-qrcode me-1"></i>生成签到二维码
-                    </a>
+                    </button>
+                    {% endif %}
                     <form action="{{ url_for('admin.delete_activity', id=activity.id, force=true) }}" method="post" id="deleteActivityForm" style="display:inline;">
                         <button type="button" class="btn btn-danger" onclick="confirmDelete()">
                             <i class="fas fa-trash-alt me-1"></i>永久删除活动
@@ -113,7 +172,11 @@
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
       </div>
       <div class="modal-body text-center">
-        <img id="qrcode-img" src="{{ url_for('admin.generate_checkin_qrcode', id=activity.id) }}" alt="签到二维码" style="max-width: 100%; height: auto;" />
+        <div id="qrcode-container">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">加载中...</span>
+            </div>
+        </div>
         <p class="mt-2 text-muted">学生扫码即可签到</p>
       </div>
     </div>
@@ -122,8 +185,7 @@
 
 <script>
 function confirmDelete() {
-    var message = "您确定要删除活动{{ activity.title }}吗？";
-    // 由于Jinja模板表达式在JS中容易报错，直接用后端传递的报名人数变量
+    var message = "您确定要删除活动"{{ activity.title|default('未知活动')|e }}"吗？";
     var regCount = {{ registration_count|default(0) }};
     if (regCount > 0) {
         message += "\n\n警告：该活动已有 " + regCount + " 人报名，删除后将标记为已取消而非彻底删除。";
@@ -133,6 +195,23 @@ function confirmDelete() {
     if (window.confirm(message)) {
         document.getElementById('deleteActivityForm').submit();
     }
+}
+
+function generateQRCode(activityId) {
+    const modal = new bootstrap.Modal(document.getElementById('qrcodeModal'));
+    modal.show();
+    
+    fetch(`/api/qrcode/checkin/${activityId}`)
+        .then(response => response.blob())
+        .then(blob => {
+            const container = document.getElementById('qrcode-container');
+            container.innerHTML = `<img src="${URL.createObjectURL(blob)}" alt="签到二维码" style="max-width: 100%; height: auto;" />`;
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            const container = document.getElementById('qrcode-container');
+            container.innerHTML = '<div class="alert alert-danger">生成二维码失败</div>';
+        });
 }
 </script>
 {% endblock %}

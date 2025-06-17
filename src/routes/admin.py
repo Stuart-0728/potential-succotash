@@ -12,6 +12,8 @@ from src.forms import ActivityForm, SearchForm
 import os
 import shutil
 from werkzeug.utils import secure_filename
+import qrcode
+from io import BytesIO
 
 admin_bp = Blueprint('admin', __name__)
 logger = logging.getLogger(__name__)
@@ -201,34 +203,81 @@ def edit_activity(id):
 @admin_required
 def activity_view(id):
     try:
-        activity = Activity.query.get_or_404(id)
-        # 获取创建者信息
-        creator = User.query.get(activity.created_by)
+        # 1. 获取活动信息
+        try:
+            activity = Activity.query.get_or_404(id)
+            logger.info(f"加载活动 {id} 的详细信息")
+        except Exception as e:
+            logger.error(f"活动 {id} 不存在: {e}")
+            flash('找不到该活动', 'danger')
+            return redirect(url_for('admin.activities'))
         
-        # 获取报名人数
-        registration_count = Registration.query.filter_by(activity_id=id).count()
-        
-        # 获取报名学生列表
-        registrations = Registration.query.filter_by(activity_id=id).join(
-            User, Registration.user_id == User.id
-        ).join(
-            StudentInfo, User.id == StudentInfo.user_id
-        ).add_columns(
-            StudentInfo.real_name,
-            StudentInfo.student_id,
-            StudentInfo.grade,
-            StudentInfo.college,
-            StudentInfo.major
-        ).all()
+        # 2. 获取创建者信息
+        try:
+            if activity.created_by:
+                creator = User.query.get(activity.created_by)
+                if not creator:
+                    logger.warning(f"活动 {id} 的创建者 (ID: {activity.created_by}) 不存在")
+                    creator = {'username': '未知用户', 'id': None}
+            else:
+                creator = {'username': '系统', 'id': None}
+        except Exception as e:
+            logger.error(f"加载活动创建者信息出错: {e}")
+            creator = {'username': '未知', 'id': None}
 
-        return render_template('admin/activity_view.html', 
-                             activity=activity, 
-                             creator=creator, 
+        # 3. 获取报名统计
+        try:
+            registration_count = Registration.query.filter_by(activity_id=id).count()
+            logger.info(f"活动 {id} 的报名人数: {registration_count}")
+        except Exception as e:
+            logger.error(f"获取报名人数时出错: {e}")
+            registration_count = 0
+
+        # 4. 获取报名学生列表
+        try:
+            registrations = Registration.query.filter_by(activity_id=id)\
+                .join(User, Registration.user_id == User.id)\
+                .join(StudentInfo, User.id == StudentInfo.user_id)\
+                .add_columns(
+                    StudentInfo.real_name.label('real_name'),
+                    StudentInfo.student_id.label('student_id'),
+                    StudentInfo.grade.label('grade'),
+                    StudentInfo.college.label('college'),
+                    StudentInfo.major.label('major'),
+                    Registration.check_in_time.label('check_in_time')
+                ).all()
+            logger.info(f"加载了 {len(registrations)} 条报名记录")
+        except Exception as e:
+            logger.error(f"加载报名学生列表时出错: {e}")
+            registrations = []
+
+        # 5. 获取活动的标签列表
+        try:
+            if activity.tags:
+                tags = activity.tags
+            else:
+                tags = []
+            logger.info(f"活动 {id} 有 {len(tags)} 个标签")
+        except Exception as e:
+            logger.error(f"加载活动标签时出错: {e}")
+            tags = []
+
+        # 6. 处理描述字段，确保安全
+        if activity.description:
+            from bleach import clean
+            allowed_tags = ['p', 'br', 'strong', 'em', 'u', 'ul', 'ol', 'li']
+            activity.description = clean(activity.description, tags=allowed_tags, strip=True)
+
+        return render_template('admin/activity_view.html',
+                             activity=activity,
+                             creator=creator,
                              registration_count=registration_count,
-                             registrations=registrations)
+                             registrations=registrations,
+                             tags=tags)
+                             
     except Exception as e:
-        logger.error(f"Error viewing activity: {e}")
-        flash('查看活动详情时出错', 'danger')
+        logger.error(f"访问活动详情页时出错: {e}", exc_info=True)
+        flash('加载活动详情时出错', 'danger')
         return redirect(url_for('admin.activities'))
 
 @admin_bp.route('/activity/<int:id>/delete', methods=['POST'])
@@ -1078,3 +1127,39 @@ def activity_reviews(id):
     else:
         average_rating = 0
     return render_template('admin/activity_reviews.html', activity=activity, reviews=reviews, average_rating=average_rating)
+
+@admin_bp.route('/api/qrcode/checkin/<int:id>')
+@admin_required
+def generate_checkin_qrcode(id):
+    try:
+        # 检查活动是否存在
+        activity = Activity.query.get_or_404(id)
+        
+        # 生成签到链接
+        checkin_url = url_for('student.checkin', activity_id=id, _external=True)
+        
+        # 创建QR码实例
+        qr = qrcode.QRCode(
+            version=1,
+            error_correction=qrcode.constants.ERROR_CORRECT_L,
+            box_size=10,  
+            border=4,
+        )
+        
+        # 添加数据
+        qr.add_data(checkin_url)
+        qr.make(fit=True)
+        
+        # 创建图像
+        qr_image = qr.make_image(fill_color="black", back_color="white")
+        
+        # 保存到内存
+        img_buffer = BytesIO()
+        qr_image.save(img_buffer, format='PNG')
+        img_buffer.seek(0)
+        
+        return send_file(img_buffer, mimetype='image/png')
+        
+    except Exception as e:
+        logger.error(f"生成签到二维码时出错: {e}")
+        return jsonify({'error': '生成二维码失败'}), 500
