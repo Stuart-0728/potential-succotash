@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
 from flask_login import login_required, current_user
-from src.models import db, Tag, Activity, ActivityTag
+from src.models import db, Tag, Activity, activity_tags
 
 tag_bp = Blueprint('tag', __name__, url_prefix='/tags')
 
@@ -49,9 +49,10 @@ def assign_tag():
     if not activity:
         return jsonify({'success': False, 'msg': '活动不存在'})
     # 清空原有标签
-    ActivityTag.query.filter_by(activity_id=activity_id).delete()
+    activity.tags = []
     # 添加新标签
-    for tag_id in tag_ids:
-        db.session.add(ActivityTag(activity_id=activity_id, tag_id=tag_id))
+    if tag_ids:
+        tags = Tag.query.filter(Tag.id.in_(tag_ids)).all()
+        activity.tags = tags
     db.session.commit()
     return jsonify({'success': True})
