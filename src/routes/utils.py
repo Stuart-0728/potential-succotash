@@ -12,8 +12,15 @@ def admin_required(f):
     @login_required
     def decorated_function(*args, **kwargs):
         try:
-            # 支持 admin/Admin 不区分大小写
-            if not current_user.role or current_user.role.name.lower() != 'admin':
+            # 防御 current_user.role 及其 name 为 None
+            if not getattr(current_user, 'is_authenticated', False):
+                flash('请先登录', 'danger')
+                return redirect(url_for('auth.login'))
+            role = getattr(current_user, 'role', None)
+            if not role or not getattr(role, 'name', None):
+                flash('您没有权限访问此页面', 'danger')
+                return redirect(url_for('main.index'))
+            if str(role.name).lower() != 'admin':
                 flash('您没有权限访问此页面', 'danger')
                 return redirect(url_for('main.index'))
             return f(*args, **kwargs)
@@ -29,7 +36,14 @@ def student_required(f):
     @login_required
     def decorated_function(*args, **kwargs):
         try:
-            if not current_user.role or current_user.role.name != 'Student':
+            if not getattr(current_user, 'is_authenticated', False):
+                flash('请先登录', 'danger')
+                return redirect(url_for('auth.login'))
+            role = getattr(current_user, 'role', None)
+            if not role or not getattr(role, 'name', None):
+                flash('您没有权限访问此页面', 'danger')
+                return redirect(url_for('main.index'))
+            if str(role.name).lower() != 'student':
                 flash('您没有权限访问此页面', 'danger')
                 return redirect(url_for('main.index'))
             return f(*args, **kwargs)

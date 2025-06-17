@@ -255,10 +255,11 @@ def search():
             if query:
                 # 根据匹配程度排序（标题匹配优先级最高）
                 activities_query = activities_query.order_by(
-                    db.case([
+                    db.case(
                         (Activity.title.ilike(f'{query}%'), 1),
-                        (Activity.title.ilike(f'%{query}%'), 2)
-                    ], else_=3),
+                        (Activity.title.ilike(f'%{query}%'), 2),
+                        else_=3
+                    ),
                     Activity.start_time.desc()
                 )
             else:

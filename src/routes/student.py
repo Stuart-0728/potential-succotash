@@ -586,7 +586,7 @@ def get_recommended_activities(user_id, limit=6):
         # 根据用户所在学院和专业推荐
         recommended = recommended.order_by(
             # 优先推荐用户所在学院的活动
-            db.case([(Activity.college == student_info.college, 1)], else_=2),
+            db.case((Activity.college == student_info.college, 1), else_=2),
             # 其次考虑活动开始时间
             Activity.start_time.asc()
         )
