@@ -42,6 +42,7 @@ class StudentInfo(db.Model):
     college = db.Column(db.String(100))
     major = db.Column(db.String(100))
     phone = db.Column(db.String(20))
+    qq = db.Column(db.String(20))  # 新增 QQ 字段
     points = db.Column(db.Integer, default=0)  # 添加积分字段
     points_history = db.relationship('PointsHistory', backref='student', lazy='dynamic')
 
@@ -145,18 +146,38 @@ class ActivityReview(db.Model):
         student_info = StudentInfo.query.filter_by(user_id=self.user_id).first()
         return student_info.real_name if student_info else self.user.username
 
-# 活动标签关联表
-activity_tags = db.Table('activity_tags',
-    db.Column('activity_id', db.Integer, db.ForeignKey('activities.id'), primary_key=True),
-    db.Column('tag_id', db.Integer, db.ForeignKey('tags.id'), primary_key=True)
-)
-
+# 标签表
 class Tag(db.Model):
     __tablename__ = 'tags'
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(50), unique=True, nullable=False)
-    color = db.Column(db.String(20), default='primary')  # Bootstrap 颜色类名
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    
-    activities = db.relationship('Activity', secondary=activity_tags,
-                               backref=db.backref('tags', lazy='dynamic'))
+    name = db.Column(db.String(32), unique=True, nullable=False)
+    description = db.Column(db.String(128))
+    activities = db.relationship('ActivityTag', back_populates='tag')
+
+# 活动-标签多对多关联表
+class ActivityTag(db.Model):
+    __tablename__ = 'activity_tags'
+    id = db.Column(db.Integer, primary_key=True)
+    activity_id = db.Column(db.Integer, db.ForeignKey('activities.id'))
+    tag_id = db.Column(db.Integer, db.ForeignKey('tags.id'))
+    tag = db.relationship('Tag', back_populates='activities')
+    activity = db.relationship('Activity', back_populates='tags')
+
+# 在 Activity 模型中补充多对多关系
+Activity.tags = db.relationship('ActivityTag', back_populates='activity')
+
+# 签到表
+class ActivityCheckin(db.Model):
+    __tablename__ = 'activity_checkins'
+    id = db.Column(db.Integer, primary_key=True)
+    activity_id = db.Column(db.Integer, db.ForeignKey('activities.id'))
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'))
+    checkin_time = db.Column(db.DateTime, default=datetime.utcnow)
+    status = db.Column(db.String(20), default='checked_in')  # checked_in, late, absent
+
+# 智能推荐系统相关数据结构（预留）
+class StudentInterestTag(db.Model):
+    __tablename__ = 'student_interest_tags'
+    id = db.Column(db.Integer, primary_key=True)
+    student_id = db.Column(db.Integer, db.ForeignKey('student_info.id'), nullable=False)
+    tag_id = db.Column(db.Integer, db.ForeignKey('tags.id'), nullable=False)

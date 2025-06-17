@@ -5,12 +5,14 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))  # DON'T CHANGE T
 from flask import Flask, render_template, redirect, url_for, flash, request, send_file, Response
 from flask_login import LoginManager, current_user, login_user, logout_user, login_required
 from flask_migrate import Migrate
-from src.models import db, User, Role, StudentInfo, Activity, Registration, Announcement, SystemLog
+from src.models import db, User, Role, StudentInfo, Activity, Registration, Announcement, SystemLog, Tag
 from src.routes.auth import auth_bp
 from src.routes.admin import admin_bp
 from src.routes.student import student_bp
 from src.routes.main import main_bp
 from src.routes.utils import utils_bp
+from src.routes.tag import tag_bp
+from src.routes.checkin import checkin_bp
 import logging
 from datetime import datetime
 import os
@@ -100,6 +102,8 @@ app.register_blueprint(admin_bp)
 app.register_blueprint(student_bp)
 app.register_blueprint(main_bp)
 app.register_blueprint(utils_bp)
+app.register_blueprint(tag_bp, url_prefix='/tag')
+app.register_blueprint(checkin_bp, url_prefix='/checkin')
 
 # 记录用户最后登录时间
 @app.before_request
@@ -131,19 +135,17 @@ def inject_now():
 def initialize_database():
     try:
         with app.app_context():
+            db.drop_all()  # 重置数据库
             db.create_all()
-            
             # 创建角色
             admin_role = Role.query.filter_by(name='Admin').first()
             if not admin_role:
                 admin_role = Role(name='Admin')
                 db.session.add(admin_role)
-            
             student_role = Role.query.filter_by(name='Student').first()
             if not student_role:
                 student_role = Role(name='Student')
                 db.session.add(student_role)
-            
             # 创建管理员账户
             from werkzeug.security import generate_password_hash
             admin = User.query.filter_by(username='stuart').first()
@@ -152,10 +154,14 @@ def initialize_database():
                     username='stuart',
                     email='admin@cqnu.edu.cn',
                     password_hash=generate_password_hash('LYXspassword123'),
-                    role_id=admin_role.id
+                    role=admin_role
                 )
                 db.session.add(admin)
-            
+            # 初始化部分标签
+            tag_names = ['学术', '文体', '志愿', '创新', '竞赛', '讲座', '社会实践']
+            for name in tag_names:
+                if not Tag.query.filter_by(name=name).first():
+                    db.session.add(Tag(name=name))
             # 创建示例活动
             if Activity.query.count() == 0:
                 activities = [
@@ -184,7 +190,6 @@ def initialize_database():
                 ]
                 for activity in activities:
                     db.session.add(activity)
-            
             db.session.commit()
             logger.info("Database initialized successfully")
     except Exception as e:
