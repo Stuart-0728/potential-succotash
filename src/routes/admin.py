@@ -78,10 +78,19 @@ def activities(status='all'):
 @admin_required
 def create_activity():
     try:
+        # 先尝试加载所有标签
+        try:
+            tags = Tag.query.order_by(Tag.name).all()
+            logger.info(f"成功加载 {len(tags)} 个标签")
+            tag_choices = [(tag.id, tag.name) for tag in tags]
+        except Exception as e:
+            logger.error(f"加载标签时出错: {e}")
+            tag_choices = []
+            
+        # 创建表单并设置标签选项
         form = ActivityForm()
-        # 动态加载标签选项
-        form.tags.choices = [(tag.id, tag.name) for tag in Tag.query.order_by(Tag.name).all()]
-        
+        form.tags.choices = tag_choices
+
         if request.method == 'POST' and form.validate_on_submit():
             try:
                 # 创建新活动
@@ -97,18 +106,25 @@ def create_activity():
                     created_by=current_user.id
                 )
                 
-                # 添加标签
-                for tag_id in form.tags.data:
-                    tag = Tag.query.get(tag_id)
-                    if tag:
-                        activity.tags.append(tag)
+                # 添加标签 - 使用更安全的方式
+                if form.tags.data:
+                    for tag_id in form.tags.data:
+                        tag = Tag.query.get(tag_id)
+                        if tag:
+                            activity.tags.append(tag)
+                            logger.info(f"添加标签: {tag.name}")
                 
                 # 处理海报上传
                 if form.poster.data:
-                    poster = form.poster.data
-                    filename = secure_filename(poster.filename)
-                    poster.save(os.path.join(current_app.config['UPLOAD_FOLDER'], filename))
-                    activity.poster_url = url_for('static', filename=f'uploads/posters/{filename}')
+                    try:
+                        poster = form.poster.data
+                        filename = secure_filename(poster.filename)
+                        save_path = os.path.join(current_app.config['UPLOAD_FOLDER'], filename)
+                        poster.save(save_path)
+                        activity.poster_url = url_for('static', filename=f'uploads/posters/{filename}')
+                        logger.info(f"海报已保存到: {save_path}")
+                    except Exception as e:
+                        logger.error(f"保存海报时出错: {e}")
                 
                 db.session.add(activity)
                 db.session.commit()
@@ -119,12 +135,15 @@ def create_activity():
             
             except Exception as e:
                 db.session.rollback()
-                logger.error(f"Error creating activity: {e}")
+                logger.error(f"创建活动时出错: {e}")
                 flash('创建活动失败', 'danger')
         
         return render_template('admin/activity_form.html', form=form, title='创建新活动')
+    
     except Exception as e:
-        logger.error(f"Error in create_activity view: {e}")
+        logger.error(f"加载创建活动页面时出错: {str(e)}")
+        logger.error(f"错误类型: {type(e)}")
+        logger.error(f"堆栈跟踪: ", exc_info=True)
         flash('加载创建活动页面时出错', 'danger')
         return redirect(url_for('admin.dashboard'))
 

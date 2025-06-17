@@ -23,8 +23,14 @@ logging.basicConfig(level=logging.INFO,
                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
+# 确保上传文件夹存在
+UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static', 'uploads', 'posters')
+if not os.path.exists(UPLOAD_FOLDER):
+    os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'cqnu-association-secret-key')
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER  # 设置上传文件夹路径
 
 # 根据环境变量决定使用哪种数据库
 if os.environ.get('DATABASE_URL'):
@@ -88,6 +94,7 @@ with app.app_context():
     try:
         db.create_all()
         logger.info("数据库表初始化完成")
+        
         # 检查是否需要创建默认角色
         if Role.query.count() == 0:
             admin_role = Role(name='admin', description='管理员')
@@ -96,6 +103,23 @@ with app.app_context():
             db.session.add(student_role)
             db.session.commit()
             logger.info("默认角色已创建")
+            
+        # 检查是否需要创建默认标签
+        if Tag.query.count() == 0:
+            default_tags = [
+                {'name': '讲座', 'color': 'primary', 'description': '各类学术讲座'},
+                {'name': '实践', 'color': 'success', 'description': '实践活动'},
+                {'name': '竞赛', 'color': 'danger', 'description': '各类比赛'},
+                {'name': '文艺', 'color': 'info', 'description': '文艺活动'},
+                {'name': '体育', 'color': 'warning', 'description': '体育活动'},
+                {'name': '志愿', 'color': 'secondary', 'description': '志愿服务'},
+            ]
+            for tag_info in default_tags:
+                tag = Tag(**tag_info)
+                db.session.add(tag)
+            db.session.commit()
+            logger.info("默认标签已创建")
+            
         # 自动创建初始管理员账号
         if User.query.filter_by(username='stuart').first() is None:
             admin_role = Role.query.filter(Role.name.ilike('admin')).first()
