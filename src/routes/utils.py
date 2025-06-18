@@ -227,8 +227,8 @@ def ai_chat():
         Registration.user_id == current_user.id
     ).all()
     
-    # 获取所有活动
-    all_activities = Activity.query.filter_by(status='active').all()
+    # 获取活跃的活动
+    active_activities = Activity.query.filter_by(status='active').order_by(Activity.created_at.desc()).limit(5).all()
     
     # 构建上下文信息
     user_context = f"""
@@ -237,10 +237,8 @@ def ai_chat():
 - 兴趣标签：{', '.join(user_tags) if user_tags else '暂无'}
 - 已参与活动：{len(participated_activities)}个
 
-活动信息：
-- 当前活动总数：{len(all_activities)}个
-- 活动列表：
-{chr(10).join([f'- {a.title}：{a.description[:50]}...' for a in all_activities[:10]])}
+最近活动：
+{chr(10).join([f'- {a.title}' for a in active_activities[:5]]) if active_activities else '- 暂无活动'}
 """
 
     if user_role == 'student':
@@ -253,7 +251,9 @@ def ai_chat():
 3. 提供活动参与建议
 4. 分析用户参与历史
 
-请根据用户的问题，结合上述信息提供个性化的回答。"""
+请根据用户的问题，结合上述信息提供个性化的回答。
+重要：不要假设用户正在查看某个特定活动，除非用户明确提及。
+"""
     else:
         system_prompt = "你是一个智能助手，可以总结反馈信息。你可以：1. 分析活动反馈 2. 总结用户建议 3. 提供改进意见"
 
