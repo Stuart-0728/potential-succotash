@@ -29,7 +29,7 @@ if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'cqnu-association-secret-key')
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev')
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER  # 设置上传文件夹路径
 
 # 根据环境变量决定使用哪种数据库
@@ -286,3 +286,72 @@ def initialize_database():
 @app.route('/about')
 def about():
     return render_template('main/about.html')
+
+def create_app():
+    app = Flask(__name__)
+    
+    # 配置数据库连接
+    database_url = os.environ.get('DATABASE_URL')
+    if database_url:
+        if database_url.startswith('postgres://'):
+            database_url = database_url.replace('postgres://', 'postgresql://', 1)
+        
+        # 添加 SSL 参数
+        if '?' in database_url:
+            database_url += '&sslmode=require'
+        else:
+            database_url += '?sslmode=require'
+            
+        app.config['SQLALCHEMY_DATABASE_URI'] = database_url
+        logger.info(f"Using database connection: {database_url} with enhanced stability")
+    else:
+        app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///app.db'
+        logger.info("Using SQLite database for local development")
+    
+    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+    app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev')
+    
+    # 初始化扩展
+    db.init_app(app)
+    migrate.init_app(app, db)
+    login_manager.init_app(app)
+    cache.init_app(app)
+    
+    # 注册蓝图
+    from src.routes.main import main_bp
+    from src.routes.auth import auth_bp
+    from src.routes.admin import admin_bp
+    from src.routes.utils import utils_bp
+    
+    app.register_blueprint(main_bp)
+    app.register_blueprint(auth_bp)
+    app.register_blueprint(admin_bp)
+    app.register_blueprint(utils_bp)
+    
+    # 创建数据库表
+    with app.app_context():
+        db.create_all()
+        logger.info("数据库表初始化完成")
+        
+        # 检查是否存在管理员账号
+        admin = User.query.filter_by(username='stuart').first()
+        if not admin:
+            # 创建管理员角色
+            admin_role = Role.query.filter_by(name='admin').first()
+            if not admin_role:
+                admin_role = Role(name='admin', description='管理员')
+                db.session.add(admin_role)
+                db.session.commit()
+            
+            # 创建管理员账号
+            admin = User(
+                username='stuart',
+                email='stuart@example.com',
+                role_id=admin_role.id
+            )
+            admin.set_password('LYXspassword123')
+            db.session.add(admin)
+            db.session.commit()
+            logger.info("管理员账号创建成功")
+    
+    return app
