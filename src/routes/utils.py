@@ -6,6 +6,8 @@ import os
 import requests
 import uuid
 import json
+import random
+import string
 from src.models import Activity, Tag, StudentInfo
 
 utils_bp = Blueprint('utils', __name__)
@@ -297,3 +299,16 @@ def ai_chat():
             yield f"data: {json.dumps({'error': '处理 AI 响应时出错'})}\n\n"
 
     return Response(generate(), mimetype='text/event-stream')
+
+# 添加random_string函数
+def random_string(length=6):
+    """生成指定长度的随机字符串
+    
+    Args:
+        length: 字符串长度，默认为6
+    
+    Returns:
+        随机字符串
+    """
+    characters = string.ascii_letters + string.digits
+    return ''.join(random.choice(characters) for _ in range(length))
