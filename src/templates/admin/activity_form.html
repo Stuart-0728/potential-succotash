@@ -5,16 +5,6 @@
 {% block styles %}
 {{ super() }}
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
-<style>
-  .poster-preview {
-    max-width: 100%;
-    max-height: 300px;
-    margin-top: 10px;
-  }
-  .custom-file-label::after {
-    content: "浏览";
-  }
-</style>
 {% endblock %}
 
 {% block content %}
@@ -28,7 +18,7 @@
         {{ form.csrf_token }}
         
         <div class="row">
-          <div class="col-md-8">
+          <div class="col-md-12">
             <div class="mb-3">
               {{ form.title.label(class="form-label") }}
               {{ form.title(class="form-control" + (" is-invalid" if form.title.errors else "")) }}
@@ -176,33 +166,6 @@
                 </div>
               {% endif %}
             </div>
-          </div>
-          
-          <div class="col-md-4">
-            <div class="mb-3">
-              <label class="form-label">活动海报</label>
-              <div class="custom-file">
-                {{ form.poster(class="form-control" + (" is-invalid" if form.poster.errors else ""), accept="image/*") }}
-                {% if form.poster.errors %}
-                  <div class="invalid-feedback">
-                    {% for error in form.poster.errors %}
-                      {{ error }}
-                    {% endfor %}
-                  </div>
-                {% endif %}
-              </div>
-              <small class="form-text text-muted">支持JPG、PNG格式，建议尺寸800x600像素</small>
-              
-              {% if activity and activity.poster %}
-                <div class="mt-3">
-                  <img src="{{ url_for('static', filename=activity.poster) }}" class="poster-preview" alt="活动海报">
-                </div>
-              {% else %}
-                <div id="poster-preview-container" class="mt-3 d-none">
-                  <img id="poster-preview" class="poster-preview" alt="活动海报预览">
-                </div>
-              {% endif %}
-            </div>
             
             <div class="mb-3">
               {{ form.status.label(class="form-label") }}
@@ -242,28 +205,6 @@
       locale: "zh",
       minuteIncrement: 10
     });
-    
-    // 海报预览
-    const posterInput = document.getElementById('poster');
-    const previewContainer = document.getElementById('poster-preview-container');
-    const previewImage = document.getElementById('poster-preview');
-    
-    if (posterInput && previewContainer && previewImage) {
-      posterInput.addEventListener('change', function() {
-        if (this.files && this.files[0]) {
-          const reader = new FileReader();
-          
-          reader.onload = function(e) {
-            previewImage.src = e.target.result;
-            previewContainer.classList.remove('d-none');
-          }
-          
-          reader.readAsDataURL(this.files[0]);
-        } else {
-          previewContainer.classList.add('d-none');
-        }
-      });
-    }
     
     // 重点活动与积分联动
     const isFeaturedCheckbox = document.getElementById('is_featured');

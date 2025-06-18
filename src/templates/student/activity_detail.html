@@ -58,7 +58,7 @@
                                     </button>
                                 </form>
                             {% else %}
-                                {% if activity.start_time <= now and activity.end_time >= now and current_user_registration.check_in_time is none %}
+                                {% if activity.status == 'active' and now >= activity.start_time and now <= activity.end_time and not current_user_registration.check_in_time %}
                                 <button type="button" class="btn btn-sm btn-success" onclick="showQRScanner()">
                                     <i class="fas fa-qrcode me-1"></i>扫码签到
                                 </button>
@@ -257,7 +257,7 @@ function onScanSuccess(decodedText, decodedResult) {
     resultsDiv.innerHTML = '<div class="alert alert-info">正在处理签到...</div>';
     
     // 发送签到请求
-    fetch('/api/attendance/checkin', {
+    fetch('/student/api/attendance/checkin', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',

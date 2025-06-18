@@ -125,18 +125,6 @@ def create_activity():
                             activity.tags.append(tag)
                             logger.info(f"添加标签: {tag.name}")
                 
-                # 处理海报上传
-                if form.poster.data:
-                    try:
-                        poster = form.poster.data
-                        filename = secure_filename(poster.filename)
-                        save_path = os.path.join(current_app.config['UPLOAD_FOLDER'], filename)
-                        poster.save(save_path)
-                        activity.poster_url = url_for('static', filename=f'uploads/posters/{filename}')
-                        logger.info(f"海报已保存到: {save_path}")
-                    except Exception as e:
-                        logger.error(f"保存海报时出错: {e}")
-                
                 db.session.add(activity)
                 db.session.commit()
                 
@@ -194,20 +182,6 @@ def edit_activity(id):
                     tag = Tag.query.get(int(tag_id))
                     if tag:
                         activity.tags.append(tag)
-                
-                # 处理海报上传
-                if form.poster.data:
-                    poster = form.poster.data
-                    # 保存文件
-                    import os
-                    from werkzeug.utils import secure_filename
-                    filename = secure_filename(poster.filename)
-                    # 确保上传目录存在
-                    upload_dir = os.path.join('src/static/uploads/posters')
-                    os.makedirs(upload_dir, exist_ok=True)
-                    poster_path = os.path.join(upload_dir, filename)
-                    poster.save(poster_path)
-                    activity.poster = 'uploads/posters/' + filename
                 
                 db.session.commit()
                 
