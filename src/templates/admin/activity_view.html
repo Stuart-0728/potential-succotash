@@ -62,11 +62,11 @@
                 </div>
             </div>
 
-            {% if tags %}
+            {% if activity.tags %}
             <div class="mb-4">
                 <h5 class="border-bottom pb-2">活动标签</h5>
                 <div class="d-flex flex-wrap gap-2">
-                    {% for tag in tags %}
+                    {% for tag in activity.tags %}
                         <span class="badge bg-info" style="{% if tag.color %}background-color: {{ tag.color }}!important;{% endif %}">
                             {{ tag.name }}
                         </span>
@@ -151,7 +151,8 @@
                         <i class="fas fa-qrcode me-1"></i>生成签到二维码
                     </button>
                     {% endif %}
-                    <form action="{{ url_for('admin.delete_activity', id=activity.id, force=true) }}" method="post" id="deleteActivityForm" style="display:inline;">
+                    <form action="{{ url_for('admin.delete_activity', id=activity.id) }}" method="post" id="deleteActivityForm" style="display:inline;">
+                        <input type="hidden" name="force" value="true">
                         <button type="button" class="btn btn-danger" onclick="confirmDelete()">
                             <i class="fas fa-trash-alt me-1"></i>永久删除活动
                         </button>
@@ -209,9 +210,15 @@ function generateQRCode(activityId) {
         </div>
     `;
     
-    // 添加错误处理
-    fetch(`/api/qrcode/checkin/${activityId}`)
+    // 添加错误处理和超时处理
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10秒超时
+    
+    fetch(`/api/qrcode/checkin/${activityId}`, {
+        signal: controller.signal
+    })
         .then(response => {
+            clearTimeout(timeoutId);
             if (!response.ok) {
                 throw new Error('生成二维码失败');
             }

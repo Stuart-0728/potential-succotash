@@ -32,8 +32,10 @@ def dashboard():
         # 获取最近活动
         recent_activities = Activity.query.order_by(Activity.created_at.desc()).limit(5).all()
         
-        # 获取最近注册的学生
-        recent_students = User.query.join(StudentInfo).filter_by(role_id=2).order_by(User.created_at.desc()).limit(5).all()
+        # 获取最近注册的学生 - 修复查询，使用Role关联而不是role_id
+        recent_students = User.query.join(Role).filter(Role.name == 'Student').join(
+            StudentInfo, User.id == StudentInfo.user_id
+        ).order_by(User.created_at.desc()).limit(5).all()
         
         # 获取报名统计
         total_registrations = Registration.query.count()
@@ -267,9 +269,6 @@ def delete_activity(id):
                 flash('活动已标记为已取消', 'success')
         
         db.session.commit()
-        
-        # 清除缓存
-        cache.delete_memoized(get_activity_data, id)
         
         return redirect(url_for('admin.activities'))
         
@@ -1103,34 +1102,38 @@ def generate_checkin_qrcode(id):
         # 检查活动是否存在
         activity = Activity.query.get_or_404(id)
         
-        # 生成签到链接
-        checkin_url = url_for('student.checkin', activity_id=id, _external=True)
+        # 准备签到数据
+        qr_data = json.dumps({
+            'activity_id': activity.id,
+            'title': activity.title,
+            'timestamp': datetime.now().timestamp()
+        })
         
         # 创建QR码实例 - 优化参数
         qr = qrcode.QRCode(
             version=1,
             error_correction=qrcode.constants.ERROR_CORRECT_L,
-            box_size=8,  # 减小box_size
-            border=2,    # 减小border
+            box_size=10,
+            border=4,
         )
         
         # 添加数据
-        qr.add_data(checkin_url)
+        qr.add_data(qr_data)
         qr.make(fit=True)
         
-        # 创建图像 - 使用更小的尺寸
+        # 创建图像
         qr_image = qr.make_image(fill_color="black", back_color="white")
         
-        # 保存到内存 - 使用更小的缓冲区
+        # 保存到内存
         img_buffer = BytesIO()
-        qr_image.save(img_buffer, format='PNG', optimize=True)
+        qr_image.save(img_buffer, format='PNG')
         img_buffer.seek(0)
         
         return send_file(
             img_buffer,
             mimetype='image/png',
             as_attachment=False,
-            cache_timeout=300  # 缓存5分钟
+            download_name='checkin_qrcode.png'
         )
         
     except Exception as e:
