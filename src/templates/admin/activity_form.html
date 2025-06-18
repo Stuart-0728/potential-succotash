@@ -123,6 +123,36 @@
               </div>
             </div>
             
+            <div class="row">
+              <div class="col-md-6">
+                <div class="mb-3 form-check">
+                  {{ form.is_featured(class="form-check-input" + (" is-invalid" if form.is_featured.errors else "")) }}
+                  {{ form.is_featured.label(class="form-check-label") }}
+                  {% if form.is_featured.errors %}
+                    <div class="invalid-feedback">
+                      {% for error in form.is_featured.errors %}
+                        {{ error }}
+                      {% endfor %}
+                    </div>
+                  {% endif %}
+                </div>
+              </div>
+              <div class="col-md-6">
+                <div class="mb-3">
+                  {{ form.points.label(class="form-label") }}
+                  {{ form.points(class="form-control" + (" is-invalid" if form.points.errors else ""), type="number", min="0", max="100") }}
+                  {% if form.points.errors %}
+                    <div class="invalid-feedback">
+                      {% for error in form.points.errors %}
+                        {{ error }}
+                      {% endfor %}
+                    </div>
+                  {% endif %}
+                  <small class="form-text text-muted">{{ form.points.description }}</small>
+                </div>
+              </div>
+            </div>
+            
             <div class="mb-3">
               {{ form.tags.label(class="form-label") }}
               {% if form.tags.choices and form.tags.choices|length > 0 %}
@@ -223,6 +253,20 @@
           reader.readAsDataURL(this.files[0]);
         } else {
           previewContainer.classList.add('d-none');
+        }
+      });
+    }
+    
+    // 重点活动与积分联动
+    const isFeaturedCheckbox = document.getElementById('is_featured');
+    const pointsInput = document.getElementById('points');
+    
+    if (isFeaturedCheckbox && pointsInput) {
+      isFeaturedCheckbox.addEventListener('change', function() {
+        if (this.checked && (!pointsInput.value || pointsInput.value == "10")) {
+          pointsInput.value = "20";
+        } else if (!this.checked && (!pointsInput.value || pointsInput.value == "20")) {
+          pointsInput.value = "10";
         }
       });
     }
