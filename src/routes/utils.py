@@ -195,7 +195,7 @@ def ai_chat():
     url = "https://ark.cn-beijing.volces.com/api/v3/chat/completions"
     headers = {
         "Content-Type": "application/json",
-        "Authorization": api_key,  # 直接使用 API Key，不需要添加 Bearer 前缀
+        "Authorization": f"Bearer {api_key}",  # 添加 Bearer 前缀
         "X-Request-Id": str(uuid.uuid4())
     }
     
