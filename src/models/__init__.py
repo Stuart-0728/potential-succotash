@@ -1,6 +1,7 @@
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import UserMixin
 from datetime import datetime
+from werkzeug.security import generate_password_hash, check_password_hash
 
 db = SQLAlchemy()
 
@@ -27,27 +28,34 @@ class User(db.Model, UserMixin):
     registrations = db.relationship('Registration', backref='user', lazy='dynamic')
     created_at = db.Column(db.DateTime, default=datetime.now)
     last_login = db.Column(db.DateTime)
+    is_active = db.Column(db.Boolean, default=True)
 
     def __repr__(self):
         return f'<User {self.username}>'
+
+    def set_password(self, password):
+        self.password_hash = generate_password_hash(password)
+    
+    def check_password(self, password):
+        return check_password_hash(self.password_hash, password)
 
 # 学生信息表
 class StudentInfo(db.Model):
     __tablename__ = 'student_info'
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), unique=True)
-    student_id = db.Column(db.String(20), unique=True)
-    real_name = db.Column(db.String(50))
-    gender = db.Column(db.String(10))
-    grade = db.Column(db.String(20))
-    college = db.Column(db.String(100))
-    major = db.Column(db.String(100))
-    phone = db.Column(db.String(20))
-    qq = db.Column(db.String(20))
-    points = db.Column(db.Integer, default=0)
-    points_history = db.relationship('PointsHistory', backref='student', lazy='dynamic')
-    has_selected_tags = db.Column(db.Boolean, default=False)  # 新增字段
-    tags = db.relationship('Tag', secondary='student_interest_tags', backref=db.backref('students', lazy='dynamic'))  # 多对多
+    real_name = db.Column(db.String(20), nullable=False)
+    student_id = db.Column(db.String(20), unique=True, nullable=False)
+    grade = db.Column(db.String(10), nullable=False)
+    major = db.Column(db.String(50), nullable=False)
+    college = db.Column(db.String(50), nullable=False)
+    phone = db.Column(db.String(11), nullable=False)
+    qq = db.Column(db.String(15), nullable=False)
+    points = db.Column(db.Integer, default=0)  # 积分
+    has_selected_tags = db.Column(db.Boolean, default=False)  # 是否已选择兴趣标签
+    
+    user = db.relationship('User', backref=db.backref('student_info', uselist=False))
+    tags = db.relationship('Tag', secondary='student_interest_tags', backref=db.backref('students', lazy='dynamic'))
 
     def __repr__(self):
         return f'<StudentInfo {self.real_name}>'
@@ -187,3 +195,7 @@ class StudentInterestTag(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     student_id = db.Column(db.Integer, db.ForeignKey('student_info.id'), nullable=False)
     tag_id = db.Column(db.Integer, db.ForeignKey('tags.id'), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.now)
+    
+    # 添加唯一约束，确保一个学生不会重复添加同一个标签
+    __table_args__ = (db.UniqueConstraint('student_id', 'tag_id', name='uix_student_tag'),)
