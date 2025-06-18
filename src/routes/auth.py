@@ -146,6 +146,10 @@ def login():
         if current_user.role and current_user.role.name.lower() == 'admin':
             return redirect(url_for('admin.dashboard'))
         else:
+            # 检查学生是否已选择兴趣标签
+            student_info = StudentInfo.query.filter_by(user_id=current_user.id).first()
+            if student_info and not student_info.has_selected_tags:
+                return redirect(url_for('select_tags.select_tags', first_login='true'))
             return redirect(url_for('student.dashboard'))
     
     form = LoginForm()
@@ -177,11 +181,18 @@ def login():
             user.last_login = datetime.now()
             db.session.commit()
             next_page = request.args.get('next')
+            
             # 根据角色重定向到不同的页面
             if user.role and user.role.name.lower() == 'admin':
                 logger.info(f"管理员登录成功: {username}")
                 return redirect(next_page or url_for('admin.dashboard'))
             else:
+                # 检查学生是否已选择兴趣标签
+                student_info = StudentInfo.query.filter_by(user_id=user.id).first()
+                if student_info and not student_info.has_selected_tags:
+                    logger.info(f"学生首次登录，引导选择标签: {username}")
+                    return redirect(url_for('select_tags.select_tags', first_login='true'))
+                
                 logger.info(f"学生登录成功: {username}")
                 return redirect(next_page or url_for('student.dashboard'))
         else:
