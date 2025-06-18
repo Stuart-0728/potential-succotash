@@ -186,29 +186,44 @@ def ai_chat():
     url = "https://ark.cn-beijing.volces.com/api/v3/chat/completions"
     headers = {
         "Content-Type": "application/json",
-        "Authorization": f"Bearer {api_key}",
-        "x-is-encrypted": "true"
+        "Authorization": f"Bearer {api_key}"
     }
+    
     if user_role == 'student':
         system_prompt = "你是一个智能助手，可以回答活动相关问题并推荐相关活动。"
     else:
         system_prompt = "你是一个智能助手，可以总结反馈信息。"
+        
     payload = {
         "model": "doubao-seed-1.6",
         "messages": [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_message}
         ],
-        "temperature": 1,
-        "top_p": 0.7,
-        "max_tokens": 4096,
-        "frequency_penalty": 0
+        "temperature": 0.7,
+        "max_tokens": 1000
     }
+    
     try:
-        resp = requests.post(url, headers=headers, json=payload, timeout=30)
-        resp.raise_for_status()
-        result = resp.json()
-        response = result["choices"][0]["message"]["content"]
-        return jsonify({"response": response})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        response = requests.post(url, headers=headers, json=payload)
+        response.raise_for_status()  # 检查响应状态
+        result = response.json()
+        
+        if 'choices' in result and len(result['choices']) > 0:
+            ai_response = result['choices'][0]['message']['content']
+            return jsonify({
+                'success': True,
+                'response': ai_response
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'AI 响应格式错误'
+            }), 500
+            
+    except requests.exceptions.RequestException as e:
+        logger.error(f"AI API 调用失败: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': f'AI 服务暂时不可用: {str(e)}'
+        }), 500
