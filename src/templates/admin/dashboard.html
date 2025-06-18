@@ -115,12 +115,12 @@
                             <tbody>
                                 {% for activity in recent_activities %}
                                 <tr>
-                                    <td>{{ activity.name }}</td>
+                                    <td>{{ activity.title }}</td>
                                     <td>{{ activity.type }}</td>
                                     <td>{{ activity.start_time.strftime('%Y-%m-%d %H:%M') }}</td>
                                     <td>{{ activity.end_time.strftime('%Y-%m-%d %H:%M') }}</td>
-                                    <td>{{ activity.status }}</td>
-                                    <td>{{ activity.registration_count }}</td>
+                                    <td>{% if activity.status == 'active' %}进行中{% elif activity.status == 'completed' %}已结束{% else %}已取消{% endif %}</td>
+                                    <td>{{ activity.registrations.filter_by(status='registered').count() if activity.registrations and activity.registrations.filter_by else 0 }}</td>
                                     <td>
                                         <a href="{{ url_for('admin.edit_activity', id=activity.id) }}" class="btn btn-sm btn-primary">编辑</a>
                                         <a href="{{ url_for('admin.delete_activity', id=activity.id) }}" class="btn btn-sm btn-danger" onclick="return confirm('确定要删除该活动吗？')">删除</a>

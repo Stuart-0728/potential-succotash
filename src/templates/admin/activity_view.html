@@ -144,8 +144,8 @@
                         <i class="fas fa-edit me-1"></i>编辑活动
                     </a>
                     {% if activity.status == 'active' %}
-                    <a href="{{ url_for('admin.generate_checkin_qrcode', id=activity.id) }}" class="btn btn-success" target="_blank">
-                        <i class="fas fa-qrcode me-1"></i>生成签到二维码
+                    <a href="{{ url_for('admin.checkin_modal', id=activity.id) }}" class="btn btn-success" target="_blank">
+                        <i class="fas fa-qrcode me-1"></i>签到二维码
                     </a>
                     {% endif %}
                 </div>

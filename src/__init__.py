@@ -22,7 +22,7 @@ def create_app(config_class=Config):
     # 配置缓存
     cache.init_app(app, config={
         'CACHE_TYPE': 'simple',
-        'CACHE_DEFAULT_TIMEOUT': 300
+        'CACHE_DEFAULT_TIMEOUT': 86400  # 24小时 = 86400秒
     })
     
     # 注册蓝图
