@@ -136,6 +136,23 @@ with app.app_context():
             db.session.add(user)
             db.session.commit()
             logger.info("初始管理员账号已创建：stuart / LYXspassword123")
+
+        # 检查是否已存在管理员账号
+        admin = User.query.filter_by(username='stuart').first()
+        if not admin:
+            admin_role = Role.query.filter_by(name='admin').first()
+            if not admin_role:
+                admin_role = Role(name='admin')
+                db.session.add(admin_role)
+                db.session.commit()
+            
+            admin = User(
+                username='stuart',
+                password='LYXspassword123',  # 实际应用中应加密存储
+                role_id=admin_role.id
+            )
+            db.session.add(admin)
+            db.session.commit()
     except Exception as e:
         logger.error(f"数据库初始化错误: {str(e)}")
 

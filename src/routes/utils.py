@@ -3,7 +3,7 @@ from flask_login import login_required, current_user
 from functools import wraps
 import logging
 import os
-from volcenginesdkarkruntime import Ark
+from volcenginesdkark import Ark
 
 utils_bp = Blueprint('utils', __name__)
 logger = logging.getLogger(__name__)
