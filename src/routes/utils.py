@@ -1,10 +1,11 @@
-from flask import Blueprint, redirect, url_for, flash, request, jsonify, abort
+from flask import Blueprint, redirect, url_for, flash, request, jsonify, abort, Response
 from flask_login import login_required, current_user
 from functools import wraps
 import logging
 import os
 import requests
 import uuid
+import json
 from src.models import Activity, Tag, StudentInfo
 
 utils_bp = Blueprint('utils', __name__)
@@ -192,13 +193,12 @@ def build_activity_context(activities):
         return "当前暂无可推荐的活动。"
     return "\n".join([f"{a.title}：{a.description[:40]}..." for a in activities])
 
-@utils_bp.route('/api/ai_chat', methods=['POST'])
+@utils_bp.route('/api/ai_chat', methods=['GET'])
 def ai_chat():
     if not current_user.is_authenticated:
         return jsonify({'error': 'AI功能需要登录使用'}), 401
-    data = request.json
-    user_message = data.get('message', '')
-    user_role = data.get('role', 'student')
+    user_message = request.args.get('message', '')
+    user_role = request.args.get('role', 'student')
 
     api_key = os.environ.get("ARK_API_KEY")
     if not api_key:
@@ -231,31 +231,36 @@ def ai_chat():
             {"role": "user", "content": user_message}
         ],
         "temperature": 0.7,
-        "max_tokens": 1000,
-        "stream": False
+        "stream": True
     }
-    try:
-        logger.info(f"发送 AI 请求: URL={url}, Headers={headers}, Payload={payload}")
-        response = requests.post(url, headers=headers, json=payload, timeout=30)
-        logger.info(f"AI API 响应状态码: {response.status_code}")
-        logger.info(f"AI API 响应内容: {response.text}")
-        response.raise_for_status()
-        result = response.json()
-        if 'choices' in result and len(result['choices']) > 0:
-            ai_response = result['choices'][0]['message']['content']
-            return jsonify({
-                'success': True,
-                'response': ai_response
-            })
-        else:
-            logger.error(f"AI API 响应格式错误: {result}")
-            return jsonify({
-                'success': False,
-                'error': 'AI 响应格式错误'
-            }), 500
-    except requests.exceptions.RequestException as e:
-        logger.error(f"AI API 调用失败: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': f'AI 服务暂时不可用: {str(e)}'
-        }), 500
+
+    def generate():
+        try:
+            logger.info(f"发送 AI 请求: URL={url}, Headers={headers}, Payload={payload}")
+            response = requests.post(url, headers=headers, json=payload, timeout=30, stream=True)
+            logger.info(f"AI API 响应状态码: {response.status_code}")
+            response.raise_for_status()
+            
+            for line in response.iter_lines():
+                if line:
+                    line = line.decode('utf-8')
+                    if line.startswith('data: '):
+                        data = line[6:]  # 去掉 'data: ' 前缀
+                        if data == '[DONE]':
+                            break
+                        try:
+                            chunk = json.loads(data)
+                            if 'choices' in chunk and len(chunk['choices']) > 0:
+                                content = chunk['choices'][0].get('delta', {}).get('content', '')
+                                if content:
+                                    yield f"data: {json.dumps({'content': content})}\n\n"
+                        except json.JSONDecodeError:
+                            continue
+        except requests.exceptions.RequestException as e:
+            logger.error(f"AI API 调用失败: {str(e)}")
+            yield f"data: {json.dumps({'error': 'AI 服务调用失败'})}\n\n"
+        except Exception as e:
+            logger.error(f"处理 AI 响应时出错: {str(e)}")
+            yield f"data: {json.dumps({'error': '处理 AI 响应时出错'})}\n\n"
+
+    return Response(generate(), mimetype='text/event-stream')

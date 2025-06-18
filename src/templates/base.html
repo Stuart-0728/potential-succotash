@@ -330,35 +330,40 @@
             input.disabled = true;
             document.getElementById('aiSendButton').disabled = true;
 
-            // 发送到服务器
-            fetch('/api/ai_chat', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    message: message,
-                    role: 'student'
-                })
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    addMessage(data.response, 'bot');
-                } else {
-                    addMessage('抱歉，我遇到了一些问题，请稍后再试。', 'bot');
+            // 创建AI消息容器
+            const messagesContainer = document.getElementById('aiChatMessages');
+            const aiMessageDiv = document.createElement('div');
+            aiMessageDiv.className = 'ai-message bot';
+            messagesContainer.appendChild(aiMessageDiv);
+
+            // 创建 EventSource 连接
+            const eventSource = new EventSource(`/api/ai_chat?message=${encodeURIComponent(message)}&role=student`);
+
+            // 处理消息
+            eventSource.onmessage = function(event) {
+                const data = JSON.parse(event.data);
+                if (data.error) {
+                    aiMessageDiv.textContent = `错误: ${data.error}`;
+                    eventSource.close();
+                    input.disabled = false;
+                    document.getElementById('aiSendButton').disabled = false;
+                    input.focus();
+                } else if (data.content) {
+                    aiMessageDiv.textContent += data.content;
+                    messagesContainer.scrollTop = messagesContainer.scrollHeight;
                 }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                addMessage('抱歉，服务出现错误，请稍后再试。', 'bot');
-            })
-            .finally(() => {
-                // 重新启用输入和按钮
+            };
+
+            // 处理错误
+            eventSource.onerror = function() {
+                eventSource.close();
+                if (!aiMessageDiv.textContent) {
+                    aiMessageDiv.textContent = '抱歉，服务出现错误，请稍后再试。';
+                }
                 input.disabled = false;
                 document.getElementById('aiSendButton').disabled = false;
                 input.focus();
-            });
+            };
         }
 
         function addMessage(text, type) {
