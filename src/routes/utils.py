@@ -5,6 +5,7 @@ import logging
 import os
 import requests
 import uuid
+from src.models import Activity, Tag, StudentInfo
 
 utils_bp = Blueprint('utils', __name__)
 logger = logging.getLogger(__name__)
@@ -177,11 +178,25 @@ def cancel_registration(activity_id, registration_id):
         logger.error(f"Error in cancel_registration: {e}")
         return api_response(False, f'取消报名失败: {str(e)}', status_code=500)
 
+def get_interest_activities(user_id, limit=10):
+    student_info = StudentInfo.query.filter_by(user_id=user_id).first()
+    if not student_info or not student_info.tags:
+        # 没有兴趣标签则返回最新活动
+        return Activity.query.order_by(Activity.created_at.desc()).limit(limit).all()
+    tag_ids = [tag.id for tag in student_info.tags]
+    activities = Activity.query.join(Activity.tags).filter(Tag.id.in_(tag_ids)).order_by(Activity.created_at.desc()).distinct().limit(limit).all()
+    return activities
+
+def build_activity_context(activities):
+    if not activities:
+        return "当前暂无可推荐的活动。"
+    return "\n".join([f"{a.title}：{a.description[:40]}..." for a in activities])
+
 @utils_bp.route('/api/ai_chat', methods=['POST'])
 def ai_chat():
     data = request.json
     user_message = data.get('message', '')
-    user_role = data.get('role', 'student')  # 默认为学生端
+    user_role = data.get('role', 'student')
 
     api_key = os.environ.get("ARK_API_KEY")
     if not api_key:
@@ -191,30 +206,24 @@ def ai_chat():
             'error': 'AI 服务配置错误：API 密钥未设置'
         }), 500
 
-    # 更新为火山方舟 API 端点
     url = "https://ark.cn-beijing.volces.com/api/v3/chat/completions"
     headers = {
         "Content-Type": "application/json",
         "Authorization": f"Bearer {api_key}",
         "X-Request-Id": str(uuid.uuid4())
     }
-    
+
+    # 获取兴趣相关活动
+    activities = get_interest_activities(current_user.id)
+    activity_context = build_activity_context(activities)
+
     if user_role == 'student':
-        system_prompt = """你是一个智能助手，可以回答活动相关问题并推荐相关活动。
-        你可以：
-        1. 回答关于活动报名、参与方式的问题
-        2. 推荐适合用户的活动
-        3. 解释活动规则和注意事项
-        4. 提供活动相关的帮助信息"""
+        system_prompt = f"""你是一个智能助手，可以根据以下活动信息为用户推荐合适的活动：\n{activity_context}\n请根据用户兴趣和提问，优先推荐相关活动，也可补充推荐其它活动。"""
     else:
-        system_prompt = """你是一个智能助手，可以总结反馈信息。
-        你可以：
-        1. 分析活动反馈
-        2. 总结用户建议
-        3. 提供改进意见"""
-        
+        system_prompt = "你是一个智能助手，可以总结反馈信息。你可以：1. 分析活动反馈 2. 总结用户建议 3. 提供改进意见"
+
     payload = {
-        "model": "deepseek-r1-distill-qwen-7b-250120",  # 使用正确的模型 ID
+        "model": "deepseek-r1-distill-qwen-7b-250120",
         "messages": [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_message}
@@ -223,16 +232,13 @@ def ai_chat():
         "max_tokens": 1000,
         "stream": False
     }
-    
     try:
         logger.info(f"发送 AI 请求: URL={url}, Headers={headers}, Payload={payload}")
         response = requests.post(url, headers=headers, json=payload, timeout=30)
         logger.info(f"AI API 响应状态码: {response.status_code}")
         logger.info(f"AI API 响应内容: {response.text}")
-        
         response.raise_for_status()
         result = response.json()
-        
         if 'choices' in result and len(result['choices']) > 0:
             ai_response = result['choices'][0]['message']['content']
             return jsonify({
@@ -245,7 +251,6 @@ def ai_chat():
                 'success': False,
                 'error': 'AI 响应格式错误'
             }), 500
-            
     except requests.exceptions.RequestException as e:
         logger.error(f"AI API 调用失败: {str(e)}")
         return jsonify({

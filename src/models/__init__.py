@@ -43,9 +43,11 @@ class StudentInfo(db.Model):
     college = db.Column(db.String(100))
     major = db.Column(db.String(100))
     phone = db.Column(db.String(20))
-    qq = db.Column(db.String(20))  # 新增 QQ 字段
-    points = db.Column(db.Integer, default=0)  # 添加积分字段
+    qq = db.Column(db.String(20))
+    points = db.Column(db.Integer, default=0)
     points_history = db.relationship('PointsHistory', backref='student', lazy='dynamic')
+    has_selected_tags = db.Column(db.Boolean, default=False)  # 新增字段
+    tags = db.relationship('Tag', secondary='student_interest_tags', backref=db.backref('students', lazy='dynamic'))  # 多对多
 
     def __repr__(self):
         return f'<StudentInfo {self.real_name}>'
