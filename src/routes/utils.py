@@ -3,10 +3,10 @@ from flask_login import login_required, current_user
 from functools import wraps
 import logging
 import os
-import requests
 import uuid
 import json
-from src.models import Activity, Tag, StudentInfo
+from src.models import Activity, Tag, StudentInfo, SystemLog, db
+import datetime
 
 utils_bp = Blueprint('utils', __name__)
 logger = logging.getLogger(__name__)
@@ -89,35 +89,40 @@ def student_required(f):
     return decorated_function
 
 # 添加缺失的log_action函数
-def log_action(action, details=None, user_id=None):
-    """记录系统操作日志
-    
-    Args:
-        action: 操作类型
-        details: 操作详情
-        user_id: 用户ID，如果为None则使用当前登录用户ID
-    """
+def log_action(action, details=None):
+    """记录用户操作日志"""
     try:
-        from src.models import SystemLog, db
-        import datetime
-        
-        if user_id is None and current_user.is_authenticated:
+        if current_user.is_authenticated:
             user_id = current_user.id
+        else:
+            user_id = None
         
         log = SystemLog(
             user_id=user_id,
             action=action,
             details=details,
             ip_address=request.remote_addr,
-            created_at=datetime.datetime.now()
+            user_agent=request.user_agent.string if request.user_agent else None
         )
-        
         db.session.add(log)
         db.session.commit()
-        logger.info(f"Action logged: {action} by user {user_id}")
+        return True
     except Exception as e:
-        logger.error(f"Error logging action: {e}")
+        logger.error(f"记录日志时出错: {e}")
         db.session.rollback()
+        return False
+
+def format_datetime(dt):
+    """格式化日期时间"""
+    if not dt:
+        return ""
+    return dt.strftime("%Y-%m-%d %H:%M")
+
+def get_date_range(days=7):
+    """获取最近n天的日期范围"""
+    end_date = datetime.datetime.now()
+    start_date = end_date - datetime.timedelta(days=days)
+    return start_date, end_date
 
 # API响应生成器
 def api_response(success, message, data=None, status_code=200):
