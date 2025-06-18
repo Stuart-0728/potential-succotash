@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify, send_file, current_app
 from flask_login import login_required, current_user
-from src.models import User, Activity, Registration, StudentInfo, db, Tag, ActivityReview, ActivityCheckin, Role
+from src.models import User, Activity, Registration, StudentInfo, db, Tag, ActivityReview, ActivityCheckin, Role, PointsHistory
 from src.routes.utils import admin_required, log_action
 from datetime import datetime, timedelta
 import pandas as pd
@@ -111,6 +111,8 @@ def create_activity():
                     registration_deadline=form.registration_deadline.data,
                     max_participants=form.max_participants.data or 0,
                     status=form.status.data,
+                    is_featured=form.is_featured.data,
+                    points=form.points.data or (20 if form.is_featured.data else 10),
                     created_by=current_user.id
                 )
                 
@@ -170,10 +172,18 @@ def edit_activity(id):
         # 设置当前活动的已选标签
         if request.method == 'GET':
             form.tags.data = [tag.id for tag in activity.tags]
+            # 设置is_featured和points字段的值
+            form.is_featured.data = activity.is_featured
+            form.points.data = activity.points or (20 if activity.is_featured else 10)
         
         if request.method == 'POST' and form.validate_on_submit():
             try:
                 form.populate_obj(activity)
+                
+                # 确保points字段有值
+                if not activity.points:
+                    activity.points = 20 if activity.is_featured else 10
+                
                 # 处理标签
                 activity.tags.clear()
                 for tag_id in form.tags.data:
@@ -283,26 +293,24 @@ def delete_activity(id):
 def students():
     try:
         page = request.args.get('page', 1, type=int)
-        per_page = 10
-        search_query = request.args.get('q', '')
-
-        # 通过角色名称查询学生
-        query = User.query.join(User.role).filter(Role.name == 'Student').join(
-            StudentInfo, User.id == StudentInfo.user_id
-        )
-
-        # 搜索功能
-        if search_query:
+        search = request.args.get('search', '')
+        
+        query = StudentInfo.query.join(User, StudentInfo.user_id == User.id)
+        
+        if search:
             query = query.filter(
-                (User.username.like(f'%{search_query}%')) |
-                (StudentInfo.real_name.like(f'%{search_query}%')) |
-                (StudentInfo.student_id.like(f'%{search_query}%'))
+                db.or_(
+                    StudentInfo.real_name.ilike(f'%{search}%'),
+                    StudentInfo.student_id.ilike(f'%{search}%'),
+                    StudentInfo.college.ilike(f'%{search}%'),
+                    StudentInfo.major.ilike(f'%{search}%'),
+                    User.username.ilike(f'%{search}%')
+                )
             )
-
-        # 分页查询
-        students = query.paginate(page=page, per_page=per_page)
-
-        return render_template('admin/students.html', students=students, search_query=search_query)
+        
+        students = query.order_by(StudentInfo.id.desc()).paginate(page=page, per_page=20)
+        
+        return render_template('admin/students.html', students=students, search=search)
     except Exception as e:
         logger.error(f"Error in students: {e}")
         flash('加载学生列表时出错', 'danger')
@@ -341,6 +349,78 @@ def delete_student(id):
         logger.error(f"Error deleting student: {e}")
         flash('删除学生账号时出错', 'danger')
         return redirect(url_for('admin.students'))
+
+@admin_bp.route('/student/<int:id>/view')
+@admin_required
+def student_view(id):
+    try:
+        student_info = StudentInfo.query.get_or_404(id)
+        user = User.query.get(student_info.user_id)
+        
+        # 获取积分历史
+        points_history = PointsHistory.query.filter_by(student_id=id)\
+            .order_by(PointsHistory.created_at.desc()).all()
+        
+        # 获取参加的活动
+        registrations = Registration.query.filter_by(user_id=student_info.user_id)\
+            .join(Activity, Registration.activity_id == Activity.id)\
+            .add_columns(
+                Activity.id.label('activity_id'),
+                Activity.title.label('activity_title'),
+                Registration.register_time,
+                Registration.check_in_time,
+                Registration.status
+            ).order_by(Registration.register_time.desc()).all()
+        
+        return render_template('admin/student_view.html', 
+                              student=student_info, 
+                              user=user,
+                              points_history=points_history,
+                              registrations=registrations)
+    except Exception as e:
+        logger.error(f"Error in student_view: {e}")
+        flash('查看学生详情时出错', 'danger')
+        return redirect(url_for('admin.students'))
+
+@admin_bp.route('/student/<int:id>/adjust_points', methods=['POST'])
+@admin_required
+def adjust_student_points(id):
+    try:
+        student_info = StudentInfo.query.get_or_404(id)
+        points = request.form.get('points', type=int)
+        reason = request.form.get('reason', '').strip()
+        
+        if not points:
+            flash('请输入有效的积分值', 'warning')
+            return redirect(url_for('admin.student_view', id=id))
+        
+        if not reason:
+            flash('请输入积分调整原因', 'warning')
+            return redirect(url_for('admin.student_view', id=id))
+        
+        # 更新学生积分
+        student_info.points = (student_info.points or 0) + points
+        
+        # 创建积分历史记录
+        points_history = PointsHistory(
+            student_id=id,
+            points=points,
+            reason=f"管理员调整: {reason}",
+            activity_id=None
+        )
+        
+        db.session.add(points_history)
+        db.session.commit()
+        
+        log_action('adjust_points', f'调整学生 {student_info.real_name} (ID: {id}) 的积分: {points}分, 原因: {reason}')
+        flash(f'积分调整成功，当前积分: {student_info.points}', 'success')
+        
+        return redirect(url_for('admin.student_view', id=id))
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error in adjust_student_points: {e}")
+        flash('调整积分时出错', 'danger')
+        return redirect(url_for('admin.student_view', id=id))
 
 @admin_bp.route('/statistics')
 @admin_required
@@ -924,28 +1004,37 @@ def update_registration_status(id):
 @admin_required
 def activity_checkin(id):
     try:
-        activity = Activity.query.get_or_404(id)
         student_id = request.form.get('student_id')
-        
         if not student_id:
-            return jsonify({'success': False, 'message': '请提供学生ID'})
+            return jsonify({'success': False, 'message': '学生ID不能为空'})
         
+        # 查找学生
+        student = StudentInfo.query.filter_by(student_id=student_id).first()
+        if not student:
+            return jsonify({'success': False, 'message': '学生不存在'})
+        
+        # 查找活动
+        activity = Activity.query.get_or_404(id)
+        
+        # 查找报名记录
         registration = Registration.query.filter_by(
-            activity_id=activity.id,
-            user_id=student_id,
-            status='registered'
+            user_id=student.user_id,
+            activity_id=id
         ).first()
         
         if not registration:
-            return jsonify({'success': False, 'message': '未找到该学生的报名记录'})
+            return jsonify({'success': False, 'message': '该学生未报名此活动'})
+        
+        if registration.check_in_time:
+            return jsonify({'success': False, 'message': '该学生已签到'})
         
         # 更新签到状态
         registration.status = 'checked_in'
         registration.check_in_time = datetime.utcnow()
         
         # 添加积分奖励
-        points = 20 if activity.is_featured else 10  # 重点活动给20分，普通活动给10分
-        student_info = StudentInfo.query.filter_by(user_id=student_id).first()
+        points = activity.points or (20 if activity.is_featured else 10)  # 使用活动自定义积分或默认值
+        student_info = StudentInfo.query.filter_by(user_id=student.user_id).first()
         if student_info:
             if add_points(student_info.id, points, f"参与活动：{activity.title}", activity.id):
                 db.session.commit()

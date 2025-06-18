@@ -1,5 +1,5 @@
 from flask_wtf import FlaskForm
-from wtforms import StringField, TextAreaField, DateTimeField, IntegerField, SelectField, FileField, SubmitField, SelectMultipleField
+from wtforms import StringField, TextAreaField, DateTimeField, IntegerField, SelectField, FileField, SubmitField, SelectMultipleField, BooleanField
 from wtforms.validators import DataRequired, Length, Optional, NumberRange
 from flask_wtf.file import FileAllowed
 from .models import Tag  # Import the Tag model
@@ -21,6 +21,9 @@ class ActivityForm(FlaskForm):
         ('completed', '已结束'),
         ('cancelled', '已取消')
     ], validators=[DataRequired()])
+    is_featured = BooleanField('设为重点活动', default=False)
+    points = IntegerField('活动积分', validators=[Optional(), NumberRange(min=0, max=100)], default=10, 
+                         description='学生参加活动获得的积分值，默认普通活动10分，重点活动20分')
     tags = SelectMultipleField('活动标签', coerce=int, default=[])  # 添加默认空列表
     submit = SubmitField('保存')
 

@@ -698,15 +698,15 @@ def checkin():
         registration.status = 'checked_in'
         
         # 添加积分奖励
-        points = 20 if activity.is_featured else 10  # 重点活动给20分，普通活动给10分
+        points = activity.points or (20 if activity.is_featured else 10)  # 使用活动自定义积分或默认值
         student_info = StudentInfo.query.filter_by(user_id=current_user.id).first()
         if student_info:
             student_info.points = (student_info.points or 0) + points
             # 记录积分历史
             points_history = PointsHistory(
-                user_id=current_user.id,
+                student_id=student_info.id,
                 points=points,
-                description=f"参与活动：{activity.title}",
+                reason=f"参与活动：{activity.title}",
                 activity_id=activity.id
             )
             db.session.add(points_history)

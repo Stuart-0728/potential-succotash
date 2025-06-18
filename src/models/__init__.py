@@ -75,6 +75,7 @@ class Activity(db.Model):
     max_participants = db.Column(db.Integer, default=0)  # 0表示不限制人数
     status = db.Column(db.String(20), default='active')  # active, cancelled, completed
     is_featured = db.Column(db.Boolean, default=False)  # 是否为重点活动
+    points = db.Column(db.Integer, default=10)  # 参加活动获得的积分值，默认10分
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     created_by = db.Column(db.Integer, db.ForeignKey('users.id'))
     updated_at = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now)
