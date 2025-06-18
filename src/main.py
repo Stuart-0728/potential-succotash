@@ -97,8 +97,8 @@ with app.app_context():
         
         # 检查是否需要创建默认角色
         if Role.query.count() == 0:
-            admin_role = Role(name='admin', description='管理员')
-            student_role = Role(name='student', description='学生')
+            admin_role = Role(name='Admin', description='管理员')
+            student_role = Role(name='Student', description='学生')
             db.session.add(admin_role)
             db.session.add(student_role)
             db.session.commit()
@@ -122,9 +122,9 @@ with app.app_context():
             
         # 自动创建初始管理员账号
         if User.query.filter_by(username='stuart').first() is None:
-            admin_role = Role.query.filter(Role.name.ilike('admin')).first()
+            admin_role = Role.query.filter(Role.name == 'Admin').first()
             if not admin_role:
-                admin_role = Role(name='admin', description='管理员')
+                admin_role = Role(name='Admin', description='管理员')
                 db.session.add(admin_role)
                 db.session.commit()
             user = User(
@@ -140,15 +140,16 @@ with app.app_context():
         # 检查是否已存在管理员账号
         admin = User.query.filter_by(username='stuart').first()
         if not admin:
-            admin_role = Role.query.filter_by(name='admin').first()
+            admin_role = Role.query.filter_by(name='Admin').first()
             if not admin_role:
-                admin_role = Role(name='admin')
+                admin_role = Role(name='Admin')
                 db.session.add(admin_role)
                 db.session.commit()
             
             admin = User(
                 username='stuart',
-                password='LYXspassword123',  # 实际应用中应加密存储
+                email='stuart@example.com',
+                password_hash=generate_password_hash('LYXspassword123'),
                 role_id=admin_role.id
             )
             db.session.add(admin)
@@ -233,11 +234,11 @@ def initialize_database():
                 db.session.add(admin)
             # --- 自动修正 stuart 账号角色指向 ---
             stuart = User.query.filter_by(username='stuart').first()
-            admin_role = Role.query.filter(Role.name.ilike('admin')).first()
+            admin_role = Role.query.filter_by(name='Admin').first()
             if stuart and admin_role and stuart.role_id != admin_role.id:
                 stuart.role_id = admin_role.id
                 db.session.commit()
-                logger.info("已自动修正 stuart 账号的角色指向 admin")
+                logger.info("已自动修正 stuart 账号的角色指向 Admin")
             # --- END ---
             # 初始化部分标签
             tag_names = ['学术', '文体', '志愿', '创新', '竞赛', '讲座', '社会实践']
@@ -297,61 +298,28 @@ def create_app():
             database_url = database_url.replace('postgres://', 'postgresql://', 1)
         
         # 添加 SSL 参数
-        if '?' in database_url:
-            database_url += '&sslmode=require'
-        else:
+        if 'postgresql://' in database_url and '?' not in database_url:
             database_url += '?sslmode=require'
-            
+        
         app.config['SQLALCHEMY_DATABASE_URI'] = database_url
-        logger.info(f"Using database connection: {database_url} with enhanced stability")
     else:
-        app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///app.db'
-        logger.info("Using SQLite database for local development")
+        app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///cqnu_association.db'
     
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-    app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev')
+    app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev_key')
     
     # 初始化扩展
     db.init_app(app)
-    migrate.init_app(app, db)
     login_manager.init_app(app)
-    cache.init_app(app)
     
     # 注册蓝图
-    from src.routes.main import main_bp
-    from src.routes.auth import auth_bp
-    from src.routes.admin import admin_bp
-    from src.routes.utils import utils_bp
-    
-    app.register_blueprint(main_bp)
     app.register_blueprint(auth_bp)
     app.register_blueprint(admin_bp)
-    app.register_blueprint(utils_bp)
-    
-    # 创建数据库表
-    with app.app_context():
-        db.create_all()
-        logger.info("数据库表初始化完成")
-        
-        # 检查是否存在管理员账号
-        admin = User.query.filter_by(username='stuart').first()
-        if not admin:
-            # 创建管理员角色
-            admin_role = Role.query.filter_by(name='admin').first()
-            if not admin_role:
-                admin_role = Role(name='admin', description='管理员')
-                db.session.add(admin_role)
-                db.session.commit()
-            
-            # 创建管理员账号
-            admin = User(
-                username='stuart',
-                email='stuart@example.com',
-                role_id=admin_role.id
-            )
-            admin.set_password('LYXspassword123')
-            db.session.add(admin)
-            db.session.commit()
-            logger.info("管理员账号创建成功")
+    app.register_blueprint(student_bp)
+    app.register_blueprint(main_bp)
     
     return app
+
+if __name__ == '__main__':
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port, debug=True)
