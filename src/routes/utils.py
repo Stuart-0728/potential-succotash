@@ -214,7 +214,7 @@ def ai_chat():
         3. 提供改进意见"""
         
     payload = {
-        "model": "DeepSeek-R1-Distill-Qwen-7B",  # 使用你部署的模型
+        "model": "deepseek-r1",  # 使用正确的模型名称
         "messages": [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_message}
