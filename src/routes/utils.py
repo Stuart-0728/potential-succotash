@@ -215,12 +215,45 @@ def ai_chat():
         "X-Request-Id": str(uuid.uuid4())
     }
 
-    # 获取兴趣相关活动
-    activities = get_interest_activities(current_user.id)
-    activity_context = build_activity_context(activities)
+    # 获取用户信息
+    student_info = StudentInfo.query.filter_by(user_id=current_user.id).first()
+    user_tags = [tag.name for tag in student_info.tags] if student_info and student_info.tags else []
+    
+    # 获取用户参与的活动
+    from src.models import Registration
+    participated_activities = Activity.query.join(
+        Registration, Activity.id == Registration.activity_id
+    ).filter(
+        Registration.user_id == current_user.id
+    ).all()
+    
+    # 获取所有活动
+    all_activities = Activity.query.filter_by(status='active').all()
+    
+    # 构建上下文信息
+    user_context = f"""
+用户信息：
+- 用户名：{current_user.username}
+- 兴趣标签：{', '.join(user_tags) if user_tags else '暂无'}
+- 已参与活动：{len(participated_activities)}个
+
+活动信息：
+- 当前活动总数：{len(all_activities)}个
+- 活动列表：
+{chr(10).join([f'- {a.title}：{a.description[:50]}...' for a in all_activities[:10]])}
+"""
 
     if user_role == 'student':
-        system_prompt = f"""你是一个智能助手，可以根据以下活动信息为用户推荐合适的活动：\n{activity_context}\n请根据用户兴趣和提问，优先推荐相关活动，也可补充推荐其它活动。"""
+        system_prompt = f"""你是一个智能助手，可以访问以下信息：
+{user_context}
+
+你可以：
+1. 根据用户兴趣标签推荐相关活动
+2. 回答用户关于活动的问题
+3. 提供活动参与建议
+4. 分析用户参与历史
+
+请根据用户的问题，结合上述信息提供个性化的回答。"""
     else:
         system_prompt = "你是一个智能助手，可以总结反馈信息。你可以：1. 分析活动反馈 2. 总结用户建议 3. 提供改进意见"
 
