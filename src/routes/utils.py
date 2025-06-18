@@ -191,28 +191,37 @@ def ai_chat():
             'error': 'AI 服务配置错误：API 密钥未设置'
         }), 500
 
-    # 更新为正确的 API 端点
+    # 更新为火山方舟 API 端点
     url = "https://ark.cn-beijing.volces.com/api/v3/chat/completions"
     headers = {
         "Content-Type": "application/json",
-        "Authorization": f"Bearer {api_key}",
-        "X-Request-Id": str(uuid.uuid4())  # 添加请求 ID
+        "Authorization": api_key,  # 直接使用 API Key，不需要添加 Bearer 前缀
+        "X-Request-Id": str(uuid.uuid4())
     }
     
     if user_role == 'student':
-        system_prompt = "你是一个智能助手，可以回答活动相关问题并推荐相关活动。"
+        system_prompt = """你是一个智能助手，可以回答活动相关问题并推荐相关活动。
+        你可以：
+        1. 回答关于活动报名、参与方式的问题
+        2. 推荐适合用户的活动
+        3. 解释活动规则和注意事项
+        4. 提供活动相关的帮助信息"""
     else:
-        system_prompt = "你是一个智能助手，可以总结反馈信息。"
+        system_prompt = """你是一个智能助手，可以总结反馈信息。
+        你可以：
+        1. 分析活动反馈
+        2. 总结用户建议
+        3. 提供改进意见"""
         
     payload = {
-        "model": "doubao-seed-1.6",
+        "model": "doubao-seed-1.6",  # 使用火山方舟推荐的模型
         "messages": [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_message}
         ],
         "temperature": 0.7,
         "max_tokens": 1000,
-        "stream": False  # 确保不使用流式响应
+        "stream": False
     }
     
     try:
@@ -221,7 +230,7 @@ def ai_chat():
         logger.info(f"AI API 响应状态码: {response.status_code}")
         logger.info(f"AI API 响应内容: {response.text}")
         
-        response.raise_for_status()  # 检查响应状态
+        response.raise_for_status()
         result = response.json()
         
         if 'choices' in result and len(result['choices']) > 0:
