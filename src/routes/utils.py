@@ -194,6 +194,8 @@ def build_activity_context(activities):
 
 @utils_bp.route('/api/ai_chat', methods=['POST'])
 def ai_chat():
+    if not current_user.is_authenticated:
+        return jsonify({'error': 'AI功能需要登录使用'}), 401
     data = request.json
     user_message = data.get('message', '')
     user_role = data.get('role', 'student')
