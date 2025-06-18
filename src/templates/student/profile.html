@@ -91,40 +91,40 @@
                         <div class="col-md-12">
                             <h5 class="text-danger">危险操作</h5>
                             <p>注销账号将删除您的所有个人信息和活动报名记录，此操作不可撤销。</p>
-                            <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#deactivateAccountModal">
+                            <button type="button" class="btn btn-danger" id="showDeactivateModal">
                                 <i class="fas fa-user-slash me-2"></i>注销我的账号
                             </button>
-                            
-                            <!-- 注销账号确认模态框 -->
-                            <div class="modal fade" id="deactivateAccountModal" tabindex="-1" aria-labelledby="deactivateAccountModalLabel" aria-hidden="true">
-                                <div class="modal-dialog modal-dialog-centered">
-                                    <div class="modal-content">
-                                        <div class="modal-header">
-                                            <h5 class="modal-title" id="deactivateAccountModalLabel">确认注销账号</h5>
-                                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                                        </div>
-                                        <div class="modal-body">
-                                            <div class="alert alert-danger">
-                                                <i class="fas fa-exclamation-triangle me-2"></i>
-                                                <strong>警告：</strong> 注销账号将永久删除您的所有个人信息和活动报名记录，此操作不可撤销！
-                                            </div>
-                                            <p>请输入您的用户名 <strong>{{ current_user.username }}</strong> 以确认注销：</p>
-                                            <form id="deleteAccountForm" action="{{ url_for('student.delete_account') }}" method="post">
-                                                <div class="mb-3">
-                                                    <input type="text" class="form-control" id="confirmUsername" name="confirm_username" required>
-                                                </div>
-                                            </form>
-                                        </div>
-                                        <div class="modal-footer">
-                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
-                                            <button type="submit" form="deleteAccountForm" class="btn btn-danger">确认注销</button>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
                         </div>
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 注销账号确认模态框 -->
+<div class="modal fade" id="deactivateAccountModal" tabindex="-1" aria-labelledby="deactivateAccountModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="deactivateAccountModalLabel">确认注销账号</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-danger">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    <strong>警告：</strong> 注销账号将永久删除您的所有个人信息和活动报名记录，此操作不可撤销！
+                </div>
+                <p>请输入您的用户名 <strong>{{ current_user.username }}</strong> 以确认注销：</p>
+                <form id="deleteAccountForm" action="{{ url_for('student.delete_account') }}" method="post">
+                    <div class="mb-3">
+                        <input type="text" class="form-control" id="confirmUsername" name="confirm_username" required>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="submit" form="deleteAccountForm" class="btn btn-danger">确认注销</button>
             </div>
         </div>
     </div>
@@ -150,4 +150,46 @@
         font-weight: bold;
     }
 </style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // 使用变量保存模态框实例
+        let deactivateModal = null;
+        
+        // 点击按钮时初始化并显示模态框
+        document.getElementById('showDeactivateModal').addEventListener('click', function() {
+            // 如果模态框实例已存在，先销毁它
+            if (deactivateModal) {
+                deactivateModal.dispose();
+                deactivateModal = null;
+            }
+            
+            // 创建新的模态框实例
+            const modalElement = document.getElementById('deactivateAccountModal');
+            deactivateModal = new bootstrap.Modal(modalElement, {
+                backdrop: 'static',
+                keyboard: false
+            });
+            
+            // 显示模态框
+            deactivateModal.show();
+            
+            // 清空输入框
+            document.getElementById('confirmUsername').value = '';
+            
+            // 模态框隐藏后的清理
+            modalElement.addEventListener('hidden.bs.modal', function() {
+                // 延迟销毁模态框实例，避免内存泄漏
+                setTimeout(function() {
+                    if (deactivateModal) {
+                        deactivateModal.dispose();
+                        deactivateModal = null;
+                    }
+                }, 100);
+            }, { once: true });
+        });
+    });
+</script>
 {% endblock %}
