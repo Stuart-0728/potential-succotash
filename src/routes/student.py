@@ -316,9 +316,19 @@ def my_activities():
 @student_required
 def profile():
     try:
-        return render_template('student/profile.html')
+        student_info = StudentInfo.query.filter_by(user_id=current_user.id).first()
+        if not student_info:
+            flash('请先完善个人信息', 'warning')
+            return redirect(url_for('student.edit_profile'))
+        
+        # 获取学生标签
+        student_tags = student_info.tags
+        
+        return render_template('student/profile.html', 
+                              student_info=student_info, 
+                              student_tags=student_tags)
     except Exception as e:
-        logger.error(f"Error in profile: {e}")
+        logger.error(f"Error in student profile: {e}")
         flash('加载个人资料时发生错误', 'danger')
         return redirect(url_for('student.dashboard'))
 
