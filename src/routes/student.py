@@ -3,6 +3,7 @@ from flask_login import login_required, current_user
 from src.models import db, Activity, Registration, User, StudentInfo, PointsHistory, ActivityReview
 from datetime import datetime, timedelta
 import logging
+import json
 
 logger = logging.getLogger(__name__)
 
@@ -617,3 +618,100 @@ def recommend():
     else:
         recommended = Activity.query.filter_by(status='active').order_by(Activity.created_at.desc()).limit(10).all()
     return render_template('student/recommendation.html', recommended=recommended)
+
+@student_bp.route('/api/attendance/checkin', methods=['POST'])
+@student_required
+def checkin():
+    try:
+        data = request.get_json()
+        activity_id = data.get('activity_id')
+        qr_data = data.get('qr_data')
+        
+        if not activity_id or not qr_data:
+            return jsonify({
+                'success': False,
+                'message': '缺少必要参数'
+            }), 400
+        
+        # 验证活动是否存在且正在进行
+        activity = Activity.query.get_or_404(activity_id)
+        if activity.status != 'active':
+            return jsonify({
+                'success': False,
+                'message': '活动未在进行中'
+            }), 400
+        
+        # 验证当前时间是否在活动时间范围内
+        now = datetime.now()
+        if now < activity.start_time or now > activity.end_time:
+            return jsonify({
+                'success': False,
+                'message': '不在活动签到时间范围内'
+            }), 400
+        
+        # 验证用户是否已报名
+        registration = Registration.query.filter_by(
+            user_id=current_user.id,
+            activity_id=activity_id,
+            status='registered'
+        ).first()
+        
+        if not registration:
+            return jsonify({
+                'success': False,
+                'message': '您尚未报名此活动'
+            }), 400
+        
+        # 验证是否已签到
+        if registration.check_in_time:
+            return jsonify({
+                'success': False,
+                'message': '您已经签到过了'
+            }), 400
+        
+        # 验证二维码数据
+        try:
+            qr_data_dict = json.loads(qr_data)
+            if str(qr_data_dict.get('activity_id')) != str(activity_id):
+                return jsonify({
+                    'success': False,
+                    'message': '无效的签到二维码'
+                }), 400
+        except:
+            return jsonify({
+                'success': False,
+                'message': '无效的签到二维码'
+            }), 400
+        
+        # 更新签到状态
+        registration.check_in_time = now
+        registration.status = 'checked_in'
+        
+        # 添加积分奖励
+        points = 20 if activity.is_featured else 10  # 重点活动给20分，普通活动给10分
+        student_info = StudentInfo.query.filter_by(user_id=current_user.id).first()
+        if student_info:
+            student_info.points = (student_info.points or 0) + points
+            # 记录积分历史
+            points_history = PointsHistory(
+                user_id=current_user.id,
+                points=points,
+                description=f"参与活动：{activity.title}",
+                activity_id=activity.id
+            )
+            db.session.add(points_history)
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'签到成功！获得 {points} 积分'
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error in checkin: {e}")
+        return jsonify({
+            'success': False,
+            'message': '签到失败，请重试'
+        }), 500

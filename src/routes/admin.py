@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify, send_file, current_app
 from flask_login import login_required, current_user
-from src.models import User, Activity, Registration, StudentInfo, db, Tag
+from src.models import User, Activity, Registration, StudentInfo, db, Tag, ActivityReview, ActivityCheckin
 from src.routes.utils import admin_required, log_action
 from datetime import datetime, timedelta
 import pandas as pd
@@ -14,9 +14,11 @@ import shutil
 from werkzeug.utils import secure_filename
 import qrcode
 from io import BytesIO
+from flask_caching import Cache
 
 admin_bp = Blueprint('admin', __name__)
 logger = logging.getLogger(__name__)
+cache = Cache()
 
 @admin_bp.route('/dashboard')
 @admin_required
@@ -203,81 +205,42 @@ def edit_activity(id):
 @admin_required
 def activity_view(id):
     try:
-        # 1. 获取活动信息
-        try:
-            activity = Activity.query.get_or_404(id)
-            logger.info(f"加载活动 {id} 的详细信息")
-        except Exception as e:
-            logger.error(f"活动 {id} 不存在: {e}")
-            flash('找不到该活动', 'danger')
-            return redirect(url_for('admin.activities'))
+        # 使用缓存装饰器
+        @cache.memoize(timeout=300)  # 缓存5分钟
+        def get_activity_data(activity_id):
+            activity = Activity.query.get_or_404(activity_id)
+            registrations = Registration.query.filter_by(
+                activity_id=activity_id
+            ).join(
+                User, Registration.user_id == User.id
+            ).join(
+                StudentInfo, User.id == StudentInfo.user_id
+            ).add_columns(
+                Registration.id.label('registration_id'),
+                Registration.register_time,
+                Registration.status,
+                Registration.check_in_time,
+                StudentInfo.real_name,
+                StudentInfo.student_id,
+                StudentInfo.grade,
+                StudentInfo.college,
+                StudentInfo.major
+            ).all()
+            
+            registration_count = len(registrations)
+            
+            return {
+                'activity': activity,
+                'registrations': registrations,
+                'registration_count': registration_count
+            }
         
-        # 2. 获取创建者信息
-        try:
-            if activity.created_by:
-                creator = User.query.get(activity.created_by)
-                if not creator:
-                    logger.warning(f"活动 {id} 的创建者 (ID: {activity.created_by}) 不存在")
-                    creator = {'username': '未知用户', 'id': None}
-            else:
-                creator = {'username': '系统', 'id': None}
-        except Exception as e:
-            logger.error(f"加载活动创建者信息出错: {e}")
-            creator = {'username': '未知', 'id': None}
-
-        # 3. 获取报名统计
-        try:
-            registration_count = Registration.query.filter_by(activity_id=id).count()
-            logger.info(f"活动 {id} 的报名人数: {registration_count}")
-        except Exception as e:
-            logger.error(f"获取报名人数时出错: {e}")
-            registration_count = 0
-
-        # 4. 获取报名学生列表
-        try:
-            registrations = Registration.query.filter_by(activity_id=id)\
-                .join(User, Registration.user_id == User.id)\
-                .join(StudentInfo, User.id == StudentInfo.user_id)\
-                .add_columns(
-                    StudentInfo.real_name.label('real_name'),
-                    StudentInfo.student_id.label('student_id'),
-                    StudentInfo.grade.label('grade'),
-                    StudentInfo.college.label('college'),
-                    StudentInfo.major.label('major'),
-                    Registration.check_in_time.label('check_in_time')
-                ).all()
-            logger.info(f"加载了 {len(registrations)} 条报名记录")
-        except Exception as e:
-            logger.error(f"加载报名学生列表时出错: {e}")
-            registrations = []
-
-        # 5. 获取活动的标签列表
-        try:
-            if activity.tags:
-                tags = activity.tags
-            else:
-                tags = []
-            logger.info(f"活动 {id} 有 {len(tags)} 个标签")
-        except Exception as e:
-            logger.error(f"加载活动标签时出错: {e}")
-            tags = []
-
-        # 6. 处理描述字段，确保安全
-        if activity.description:
-            from bleach import clean
-            allowed_tags = ['p', 'br', 'strong', 'em', 'u', 'ul', 'ol', 'li']
-            activity.description = clean(activity.description, tags=allowed_tags, strip=True)
-
-        return render_template('admin/activity_view.html',
-                             activity=activity,
-                             creator=creator,
-                             registration_count=registration_count,
-                             registrations=registrations,
-                             tags=tags)
-                             
+        data = get_activity_data(id)
+        return render_template('admin/activity_view.html', **data)
+        
     except Exception as e:
-        logger.error(f"访问活动详情页时出错: {e}", exc_info=True)
-        flash('加载活动详情时出错', 'danger')
+        logger.error(f"Error in activity_view: {e}")
+        flash('查看活动详情时出错', 'danger')
         return redirect(url_for('admin.activities'))
 
 @admin_bp.route('/activity/<int:id>/delete', methods=['POST'])
@@ -287,24 +250,28 @@ def delete_activity(id):
         activity = Activity.query.get_or_404(id)
         force_delete = request.args.get('force', 'false').lower() == 'true'
         
-        # 如果是从活动详情页面删除，或者没有人报名，则直接删除
-        if force_delete or Registration.query.filter_by(activity_id=activity.id).count() == 0:
-            db.session.delete(activity)
-            db.session.commit()
-            log_action('delete_activity', f'删除活动: {activity.title}')
-            flash('活动已删除', 'success')
-        else:
-            # 如果是从活动列表页面删除且有人报名，则标记为已取消
-            activity.status = 'cancelled'
-            db.session.commit()
-            log_action('cancel_activity', f'取消活动: {activity.title}')
-            flash('活动已标记为已取消', 'success')
+        # 使用事务
+        with db.session.begin_nested():
+            if force_delete or Registration.query.filter_by(activity_id=activity.id).count() == 0:
+                # 删除相关数据
+                Registration.query.filter_by(activity_id=activity.id).delete()
+                ActivityReview.query.filter_by(activity_id=activity.id).delete()
+                ActivityCheckin.query.filter_by(activity_id=activity.id).delete()
+                db.session.delete(activity)
+                log_action('delete_activity', f'删除活动: {activity.title}')
+                flash('活动已删除', 'success')
+            else:
+                activity.status = 'cancelled'
+                log_action('cancel_activity', f'取消活动: {activity.title}')
+                flash('活动已标记为已取消', 'success')
         
-        # 根据来源页面返回
-        referer = request.headers.get('Referer', '')
-        if 'activity/view' in referer:
-            return redirect(url_for('admin.activities'))
-        return redirect(request.referrer or url_for('admin.activities'))
+        db.session.commit()
+        
+        # 清除缓存
+        cache.delete_memoized(get_activity_data, id)
+        
+        return redirect(url_for('admin.activities'))
+        
     except Exception as e:
         db.session.rollback()
         logger.error(f"Error deleting activity: {e}")
@@ -1138,27 +1105,32 @@ def generate_checkin_qrcode(id):
         # 生成签到链接
         checkin_url = url_for('student.checkin', activity_id=id, _external=True)
         
-        # 创建QR码实例
+        # 创建QR码实例 - 优化参数
         qr = qrcode.QRCode(
             version=1,
             error_correction=qrcode.constants.ERROR_CORRECT_L,
-            box_size=10,  
-            border=4,
+            box_size=8,  # 减小box_size
+            border=2,    # 减小border
         )
         
         # 添加数据
         qr.add_data(checkin_url)
         qr.make(fit=True)
         
-        # 创建图像
+        # 创建图像 - 使用更小的尺寸
         qr_image = qr.make_image(fill_color="black", back_color="white")
         
-        # 保存到内存
+        # 保存到内存 - 使用更小的缓冲区
         img_buffer = BytesIO()
-        qr_image.save(img_buffer, format='PNG')
+        qr_image.save(img_buffer, format='PNG', optimize=True)
         img_buffer.seek(0)
         
-        return send_file(img_buffer, mimetype='image/png')
+        return send_file(
+            img_buffer,
+            mimetype='image/png',
+            as_attachment=False,
+            cache_timeout=300  # 缓存5分钟
+        )
         
     except Exception as e:
         logger.error(f"生成签到二维码时出错: {e}")
