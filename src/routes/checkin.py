@@ -8,13 +8,6 @@ from src.utils.time_helpers import get_localized_now
 logger = logging.getLogger(__name__)
 checkin_bp = Blueprint('checkin', __name__, url_prefix='/checkin')
 
-# 一个辅助函数，确保时间的时区一致性
-def get_localized_now():
-    """获取本地时间，与数据库中的时间使用相同的时区处理方式"""
-    # 因为数据库中存储的是datetime.now()，所以我们也使用相同的方式
-    # 如果数据库中存储的是UTC时间，则应该返回datetime.now(timezone.utc)
-    return datetime.now()
-
 # 签到接口
 @checkin_bp.route('/<int:activity_id>', methods=['POST'])
 @login_required

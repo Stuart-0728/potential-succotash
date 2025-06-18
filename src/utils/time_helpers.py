@@ -36,7 +36,43 @@ def get_localized_now():
     此函数适用于需要与数据库比较时间的情况
     """
     try:
-        beijing_tz = current_app.config.get('TIMEZONE', pytz.timezone('Asia/Shanghai'))
+        beijing_tz = pytz.timezone('Asia/Shanghai')
         return datetime.datetime.now(beijing_tz)
     except RuntimeError:  # 如果不在应用上下文中
-        return datetime.datetime.now(pytz.timezone('Asia/Shanghai')) 
+        return datetime.datetime.now(pytz.timezone('Asia/Shanghai'))
+
+def convert_to_utc(dt):
+    """
+    将一个时间转换为UTC时间
+    :param dt: 需要转换的datetime对象
+    :return: UTC时间
+    """
+    if dt is None:
+        return None
+    
+    # 如果dt已经有时区，则直接转换为UTC
+    if dt.tzinfo is not None:
+        return dt.astimezone(pytz.utc)
+    
+    # 如果dt没有时区，假设它是北京时间，然后转换为UTC
+    beijing_tz = pytz.timezone('Asia/Shanghai')
+    localized_dt = beijing_tz.localize(dt)
+    return localized_dt.astimezone(pytz.utc)
+
+def format_datetime(dt, format_str='%Y-%m-%d %H:%M'):
+    """
+    格式化时间为指定格式的字符串
+    :param dt: 需要格式化的datetime对象
+    :param format_str: 格式化字符串
+    :return: 格式化后的字符串
+    """
+    if dt is None:
+        return ''
+    
+    # 确保时间是北京时间
+    if dt.tzinfo is None:
+        dt = pytz.utc.localize(dt).astimezone(pytz.timezone('Asia/Shanghai'))
+    elif dt.tzinfo != pytz.timezone('Asia/Shanghai'):
+        dt = dt.astimezone(pytz.timezone('Asia/Shanghai'))
+        
+    return dt.strftime(format_str) 

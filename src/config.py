@@ -8,4 +8,10 @@ class Config:
     CACHE_TYPE = 'simple'
     CACHE_DEFAULT_TIMEOUT = 300
     # 设置时区为北京时间
-    TIMEZONE = pytz.timezone('Asia/Shanghai') 
+    TIMEZONE = pytz.timezone('Asia/Shanghai')
+    # 添加时区名称，方便在模板中使用
+    TIMEZONE_NAME = 'Asia/Shanghai'
+    # 确保SQLAlchemy使用UTC时间
+    SQLALCHEMY_ENGINE_OPTIONS = {
+        'connect_args': {'timezone': '+08:00'}
+    } 
