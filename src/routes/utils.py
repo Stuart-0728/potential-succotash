@@ -8,12 +8,6 @@ import requests
 utils_bp = Blueprint('utils', __name__)
 logger = logging.getLogger(__name__)
 
-# 初始化火山方舟客户端
-client = Ark(
-    base_url="https://ark.cn-beijing.volces.com/api/v3",
-    api_key="ccde7115-49bc-4977-9e17-e61075fa9eac",
-)
-
 # 管理员权限装饰器
 def admin_required(f):
     @wraps(f)
