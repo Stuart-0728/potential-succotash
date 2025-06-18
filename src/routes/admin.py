@@ -1249,3 +1249,28 @@ def generate_checkin_qrcode(id):
 def checkin_modal(id):
     activity = Activity.query.get_or_404(id)
     return render_template('admin/checkin_modal.html', activity=activity)
+
+# 切换活动签到状态
+@admin_bp.route('/activity/<int:id>/toggle-checkin', methods=['POST'])
+@admin_required
+def toggle_checkin(id):
+    try:
+        activity = Activity.query.get_or_404(id)
+        
+        # 切换签到状态
+        activity.checkin_enabled = not getattr(activity, 'checkin_enabled', False)
+        
+        db.session.commit()
+        
+        status = "开启" if activity.checkin_enabled else "关闭"
+        flash(f'已{status}活动签到', 'success')
+        
+        # 记录操作日志
+        log_action(f'toggle_checkin_{status}', f'管理员{status}了活动 {activity.title} 的签到')
+        
+        return redirect(url_for('admin.activity_view', id=id))
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"切换签到状态失败: {e}")
+        flash('操作失败，请重试', 'danger')
+        return redirect(url_for('admin.activity_view', id=id))

@@ -62,15 +62,19 @@ def scan_checkin(activity_id, checkin_key):
             return redirect(url_for('student.activity_detail', id=activity_id))
         
         # 验证当前时间是否在活动时间范围内
-        # 添加灵活度：允许活动开始前30分钟和结束后30分钟的签到
-        start_time_buffer = activity.start_time - timedelta(minutes=30)
-        end_time_buffer = activity.end_time + timedelta(minutes=30)
-        
-        logger.info(f"签到时间检查: 当前时间={now}, 活动开始时间={activity.start_time}, 活动结束时间={activity.end_time}")
-        
-        if now < start_time_buffer or now > end_time_buffer:
-            flash('不在活动签到时间范围内', 'warning')
-            return redirect(url_for('student.activity_detail', id=activity_id))
+        # 如果手动开启了签到，则忽略时间检查
+        if not getattr(activity, 'checkin_enabled', False):
+            # 添加灵活度：允许活动开始前30分钟和结束后30分钟的签到
+            start_time_buffer = activity.start_time - timedelta(minutes=30)
+            end_time_buffer = activity.end_time + timedelta(minutes=30)
+            
+            logger.info(f"签到时间检查: 当前时间={now}, 活动开始时间={activity.start_time}, 活动结束时间={activity.end_time}")
+            
+            if now < start_time_buffer or now > end_time_buffer:
+                flash('不在活动签到时间范围内', 'warning')
+                return redirect(url_for('student.activity_detail', id=activity_id))
+        else:
+            logger.info(f"签到时间检查已忽略: 活动ID={activity_id}，已手动开启签到")
         
         # 检查用户是否已报名该活动
         registration = Registration.query.filter_by(
