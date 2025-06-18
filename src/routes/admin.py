@@ -14,11 +14,10 @@ import shutil
 from werkzeug.utils import secure_filename
 import qrcode
 from io import BytesIO
-from flask_caching import Cache
+import hashlib
 
 admin_bp = Blueprint('admin', __name__)
 logger = logging.getLogger(__name__)
-cache = Cache()
 
 @admin_bp.route('/dashboard')
 @admin_required
@@ -1169,23 +1168,33 @@ def generate_checkin_qrcode(id):
         # 检查活动是否存在
         activity = Activity.query.get_or_404(id)
         
-        # 准备签到数据
-        qr_data = json.dumps({
-            'activity_id': activity.id,
-            'title': activity.title,
-            'timestamp': datetime.now().timestamp()
-        })
+        # 生成唯一签到密钥，确保时效性和安全性
+        checkin_key = hashlib.sha256(f"{activity.id}:{datetime.now().timestamp()}:{current_app.config['SECRET_KEY']}".encode()).hexdigest()[:16]
+        
+        # 优先使用数据库存储
+        try:
+            activity.checkin_key = checkin_key
+            activity.checkin_key_expires = datetime.now() + timedelta(hours=24)  # 24小时有效期
+            db.session.commit()
+        except Exception as e:
+            logger.error(f"无法存储签到密钥到数据库: {e}")
+            # 如果数据库存储失败，记录错误但继续生成二维码
+            pass
+        
+        # 生成带签到URL的二维码，使用完整域名
+        base_url = request.host_url.rstrip('/')
+        checkin_url = f"{base_url}/checkin/scan/{activity.id}/{checkin_key}"
         
         # 创建QR码实例 - 优化参数
         qr = qrcode.QRCode(
             version=1,
-            error_correction=qrcode.constants.ERROR_CORRECT_L,
+            error_correction=qrcode.constants.ERROR_CORRECT_M,  # 提高错误纠正级别
             box_size=10,
             border=4,
         )
         
-        # 添加数据
-        qr.add_data(qr_data)
+        # 添加URL数据
+        qr.add_data(checkin_url)
         qr.make(fit=True)
         
         # 创建图像
@@ -1206,3 +1215,10 @@ def generate_checkin_qrcode(id):
     except Exception as e:
         logger.error(f"生成签到二维码时出错: {e}")
         return jsonify({'error': '生成二维码失败'}), 500
+
+# 添加二维码签到跳转路由
+@admin_bp.route('/checkin/modal/<int:id>')
+@admin_required
+def checkin_modal(id):
+    activity = Activity.query.get_or_404(id)
+    return render_template('admin/checkin_modal.html', activity=activity)
