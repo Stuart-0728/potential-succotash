@@ -4,6 +4,7 @@ from functools import wraps
 import logging
 import os
 import requests
+import uuid
 
 utils_bp = Blueprint('utils', __name__)
 logger = logging.getLogger(__name__)
@@ -190,10 +191,12 @@ def ai_chat():
             'error': 'AI 服务配置错误：API 密钥未设置'
         }), 500
 
+    # 更新为正确的 API 端点
     url = "https://ark.cn-beijing.volces.com/api/v3/chat/completions"
     headers = {
         "Content-Type": "application/json",
-        "Authorization": f"Bearer {api_key}"
+        "Authorization": f"Bearer {api_key}",
+        "X-Request-Id": str(uuid.uuid4())  # 添加请求 ID
     }
     
     if user_role == 'student':
@@ -208,12 +211,13 @@ def ai_chat():
             {"role": "user", "content": user_message}
         ],
         "temperature": 0.7,
-        "max_tokens": 1000
+        "max_tokens": 1000,
+        "stream": False  # 确保不使用流式响应
     }
     
     try:
         logger.info(f"发送 AI 请求: URL={url}, Headers={headers}, Payload={payload}")
-        response = requests.post(url, headers=headers, json=payload)
+        response = requests.post(url, headers=headers, json=payload, timeout=30)
         logger.info(f"AI API 响应状态码: {response.status_code}")
         logger.info(f"AI API 响应内容: {response.text}")
         
