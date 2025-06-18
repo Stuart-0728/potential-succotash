@@ -3,7 +3,7 @@ from flask_login import login_required, current_user
 from functools import wraps
 import logging
 import os
-from volcenginesdkarkruntime import Ark
+import requests
 
 utils_bp = Blueprint('utils', __name__)
 logger = logging.getLogger(__name__)
@@ -188,26 +188,33 @@ def ai_chat():
     user_message = data.get('message', '')
     user_role = data.get('role', 'student')  # 默认为学生端
 
-    # 根据用户角色设置不同的system prompt
+    api_key = os.environ.get("ARK_API_KEY")
+    url = "https://ark.cn-beijing.volces.com/api/v3/chat/completions"
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {api_key}",
+        "x-is-encrypted": "true"
+    }
     if user_role == 'student':
         system_prompt = "你是一个智能助手，可以回答活动相关问题并推荐相关活动。"
     else:
         system_prompt = "你是一个智能助手，可以总结反馈信息。"
-
+    payload = {
+        "model": "doubao-seed-1.6",
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_message}
+        ],
+        "temperature": 1,
+        "top_p": 0.7,
+        "max_tokens": 4096,
+        "frequency_penalty": 0
+    }
     try:
-        completion = client.chat.completions.create(
-            model="doubao-seed-1.6",  # 使用默认模型ID，后续可替换为实际ID
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_message},
-            ],
-            extra_headers={'x-is-encrypted': 'true'},
-            temperature=1,
-            top_p=0.7,
-            max_tokens=4096,
-            frequency_penalty=0,
-        )
-        response = completion.choices[0].message.content
+        resp = requests.post(url, headers=headers, json=payload, timeout=30)
+        resp.raise_for_status()
+        result = resp.json()
+        response = result["choices"][0]["message"]["content"]
         return jsonify({"response": response})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
