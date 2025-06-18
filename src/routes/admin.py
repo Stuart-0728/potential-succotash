@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify, send_file, current_app
 from flask_login import login_required, current_user
-from src.models import User, Activity, Registration, StudentInfo, db, Tag, ActivityReview, ActivityCheckin
+from src.models import User, Activity, Registration, StudentInfo, db, Tag, ActivityReview, ActivityCheckin, Role
 from src.routes.utils import admin_required, log_action
 from datetime import datetime, timedelta
 import pandas as pd
@@ -285,12 +285,12 @@ def students():
         page = request.args.get('page', 1, type=int)
         per_page = 10
         search_query = request.args.get('q', '')
-        
-        # 构建查询
-        query = User.query.filter_by(role_id=2).join(
+
+        # 通过角色名称查询学生
+        query = User.query.join(User.role).filter(Role.name == 'Student').join(
             StudentInfo, User.id == StudentInfo.user_id
         )
-        
+
         # 搜索功能
         if search_query:
             query = query.filter(
@@ -298,10 +298,10 @@ def students():
                 (StudentInfo.real_name.like(f'%{search_query}%')) |
                 (StudentInfo.student_id.like(f'%{search_query}%'))
             )
-        
+
         # 分页查询
         students = query.paginate(page=page, per_page=per_page)
-        
+
         return render_template('admin/students.html', students=students, search_query=search_query)
     except Exception as e:
         logger.error(f"Error in students: {e}")
