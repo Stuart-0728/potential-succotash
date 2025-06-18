@@ -93,8 +93,8 @@ def create_activity():
             
         # 创建表单并设置标签选项
         form = ActivityForm()
-        form.tags.choices = tag_choices
-        if not form.tags.data:  # 确保 tags.data 不为 None
+        form.tags.choices = tag_choices if tag_choices else []
+        if not form.tags.data:
             form.tags.data = []
 
         if request.method == 'POST' and form.validate_on_submit():
