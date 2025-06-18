@@ -2,9 +2,17 @@ from flask import Blueprint, redirect, url_for, flash, request, jsonify, abort
 from flask_login import login_required, current_user
 from functools import wraps
 import logging
+import os
+from volcenginesdkarkruntime import Ark
 
 utils_bp = Blueprint('utils', __name__)
 logger = logging.getLogger(__name__)
+
+# 初始化火山方舟客户端
+client = Ark(
+    base_url="https://ark.cn-beijing.volces.com/api/v3",
+    api_key="ccde7115-49bc-4977-9e17-e61075fa9eac",
+)
 
 # 管理员权限装饰器
 def admin_required(f):
@@ -173,3 +181,33 @@ def cancel_registration(activity_id, registration_id):
         db.session.rollback()
         logger.error(f"Error in cancel_registration: {e}")
         return api_response(False, f'取消报名失败: {str(e)}', status_code=500)
+
+@utils_bp.route('/api/ai_chat', methods=['POST'])
+def ai_chat():
+    data = request.json
+    user_message = data.get('message', '')
+    user_role = data.get('role', 'student')  # 默认为学生端
+
+    # 根据用户角色设置不同的system prompt
+    if user_role == 'student':
+        system_prompt = "你是一个智能助手，可以回答活动相关问题并推荐相关活动。"
+    else:
+        system_prompt = "你是一个智能助手，可以总结反馈信息。"
+
+    try:
+        completion = client.chat.completions.create(
+            model="doubao-seed-1.6",  # 使用默认模型ID，后续可替换为实际ID
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_message},
+            ],
+            extra_headers={'x-is-encrypted': 'true'},
+            temperature=1,
+            top_p=0.7,
+            max_tokens=4096,
+            frequency_penalty=0,
+        )
+        response = completion.choices[0].message.content
+        return jsonify({"response": response})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500

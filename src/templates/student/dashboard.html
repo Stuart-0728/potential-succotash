@@ -176,4 +176,50 @@
         </div>
     </div>
 </div>
+
+<!-- 在页面底部添加AI对话框 -->
+<div id="ai-chat-container" style="position: fixed; bottom: 20px; right: 20px; width: 300px; background: #fff; border: 1px solid #ccc; border-radius: 5px; box-shadow: 0 0 10px rgba(0,0,0,0.1);">
+    <div style="padding: 10px; background: #f0f0f0; border-bottom: 1px solid #ccc; font-weight: bold;">AI助手</div>
+    <div id="ai-chat-messages" style="height: 200px; overflow-y: auto; padding: 10px;"></div>
+    <div style="padding: 10px; border-top: 1px solid #ccc;">
+        <input type="text" id="ai-chat-input" placeholder="输入问题..." style="width: 70%; padding: 5px;">
+        <button onclick="sendAiMessage()" style="width: 25%; padding: 5px;">发送</button>
+    </div>
+</div>
+
+<script>
+function sendAiMessage() {
+    const input = document.getElementById('ai-chat-input');
+    const message = input.value.trim();
+    if (!message) return;
+
+    const messagesDiv = document.getElementById('ai-chat-messages');
+    messagesDiv.innerHTML += `<div><strong>你:</strong> ${message}</div>`;
+    input.value = '';
+
+    fetch('/api/ai_chat', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            message: message,
+            role: 'student'
+        }),
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.error) {
+            messagesDiv.innerHTML += `<div><strong>AI:</strong> 出错了: ${data.error}</div>`;
+        } else {
+            messagesDiv.innerHTML += `<div><strong>AI:</strong> ${data.response}</div>`;
+        }
+        messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    })
+    .catch(error => {
+        messagesDiv.innerHTML += `<div><strong>AI:</strong> 请求失败: ${error}</div>`;
+    });
+}
+</script>
+
 {% endblock %}
