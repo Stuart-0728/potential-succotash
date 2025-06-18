@@ -1,11 +1,19 @@
 from flask import Blueprint, request, jsonify, flash, redirect, url_for, render_template, current_app
 from flask_login import login_required, current_user
 from src.models import db, Activity, ActivityCheckin, Registration, StudentInfo, PointsHistory
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 import logging
+from src.utils.time_helpers import get_localized_now
 
 logger = logging.getLogger(__name__)
 checkin_bp = Blueprint('checkin', __name__, url_prefix='/checkin')
+
+# 一个辅助函数，确保时间的时区一致性
+def get_localized_now():
+    """获取本地时间，与数据库中的时间使用相同的时区处理方式"""
+    # 因为数据库中存储的是datetime.now()，所以我们也使用相同的方式
+    # 如果数据库中存储的是UTC时间，则应该返回datetime.now(timezone.utc)
+    return datetime.now()
 
 # 签到接口
 @checkin_bp.route('/<int:activity_id>', methods=['POST'])
@@ -22,7 +30,7 @@ def checkin(activity_id):
     checkin_record = ActivityCheckin(
         activity_id=activity_id,
         user_id=current_user.id,
-        checkin_time=datetime.utcnow(),
+        checkin_time=get_localized_now(),
         status='checked_in'
     )
     db.session.add(checkin_record)
@@ -39,7 +47,9 @@ def scan_checkin(activity_id, checkin_key):
         
         # 验证签到密钥是否有效
         valid_key = False
-        if activity.checkin_key == checkin_key and activity.checkin_key_expires and activity.checkin_key_expires >= datetime.now():
+        now = get_localized_now()
+        
+        if activity.checkin_key == checkin_key and activity.checkin_key_expires and activity.checkin_key_expires >= now:
             valid_key = True
             
         if not valid_key:
@@ -52,8 +62,13 @@ def scan_checkin(activity_id, checkin_key):
             return redirect(url_for('student.activity_detail', id=activity_id))
         
         # 验证当前时间是否在活动时间范围内
-        now = datetime.now()
-        if now < activity.start_time or now > activity.end_time:
+        # 添加灵活度：允许活动开始前30分钟和结束后30分钟的签到
+        start_time_buffer = activity.start_time - timedelta(minutes=30)
+        end_time_buffer = activity.end_time + timedelta(minutes=30)
+        
+        logger.info(f"签到时间检查: 当前时间={now}, 活动开始时间={activity.start_time}, 活动结束时间={activity.end_time}")
+        
+        if now < start_time_buffer or now > end_time_buffer:
             flash('不在活动签到时间范围内', 'warning')
             return redirect(url_for('student.activity_detail', id=activity_id))
         

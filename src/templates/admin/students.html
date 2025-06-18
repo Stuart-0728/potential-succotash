@@ -4,7 +4,16 @@
 
 {% block content %}
 <div class="container py-4">
-    <h2 class="mb-4">学生管理</h2>
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <h2 class="mb-0">学生管理</h2>
+        </div>
+        <div class="col-md-4 text-end">
+            <a href="{{ url_for('admin.export_students') }}" class="btn btn-success">
+                <i class="fas fa-file-excel me-2"></i>导出学生信息
+            </a>
+        </div>
+    </div>
     
     <!-- 搜索框 -->
     <div class="card shadow-sm mb-4">

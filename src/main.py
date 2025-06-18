@@ -17,6 +17,8 @@ import logging
 from datetime import datetime
 import os
 from werkzeug.security import generate_password_hash
+import pytz
+from src.utils.time_helpers import get_beijing_time
 
 # 配置日志
 logging.basicConfig(level=logging.INFO, 
@@ -204,7 +206,7 @@ def internal_server_error(e):
 # 添加全局上下文处理器
 @app.context_processor
 def inject_now():
-    return {'now': datetime.now()}
+    return {'now': get_beijing_time()}
 
 # 初始化数据库和创建管理员账户
 def initialize_database():

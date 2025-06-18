@@ -15,9 +15,16 @@ from werkzeug.utils import secure_filename
 import qrcode
 from io import BytesIO
 import hashlib
+from src.utils.time_helpers import get_localized_now, get_beijing_time, localize_time
 
 admin_bp = Blueprint('admin', __name__)
 logger = logging.getLogger(__name__)
+
+# 一个辅助函数，确保时间的时区一致性
+def get_localized_now():
+    """获取本地时间，与数据库中的时间使用相同的时区处理方式"""
+    # 因为数据库中存储的是datetime.now()，所以我们也使用相同的方式
+    return datetime.now()
 
 @admin_bp.route('/dashboard')
 @admin_required
@@ -664,13 +671,15 @@ def export_activity_registrations(id):
         ).add_columns(
             Registration.id.label('registration_id'),
             Registration.register_time,
+            Registration.check_in_time,
             Registration.status,
             StudentInfo.real_name,
             StudentInfo.student_id,
             StudentInfo.grade,
             StudentInfo.college,
             StudentInfo.major,
-            StudentInfo.phone
+            StudentInfo.phone,
+            StudentInfo.points
         ).all()
         
         # 创建Excel文件
@@ -680,6 +689,10 @@ def export_activity_registrations(id):
         # 转换为DataFrame
         data = []
         for reg in registrations:
+            # 将UTC时间转换为北京时间
+            register_time_bj = localize_time(reg.register_time)
+            check_in_time_bj = localize_time(reg.check_in_time) if reg.check_in_time else None
+            
             data.append({
                 '报名ID': reg.registration_id,
                 '姓名': reg.real_name,
@@ -688,11 +701,11 @@ def export_activity_registrations(id):
                 '学院': reg.college,
                 '专业': reg.major,
                 '手机号': reg.phone,
-                '报名时间': reg.register_time.strftime('%Y-%m-%d %H:%M:%S'),
+                '报名时间': register_time_bj.strftime('%Y-%m-%d %H:%M:%S') if register_time_bj else '',
                 '状态': '已报名' if reg.status == 'registered' else '已取消' if reg.status == 'cancelled' else '已参加',
-                '积分': reg.points,
+                '积分': reg.points or 0,
                 '签到状态': '已签到' if reg.check_in_time else '未签到',
-                '签到时间': reg.check_in_time.strftime('%Y-%m-%d %H:%M:%S') if reg.check_in_time else ''
+                '签到时间': check_in_time_bj.strftime('%Y-%m-%d %H:%M:%S') if check_in_time_bj else ''
             })
         
         df = pd.DataFrame(data)
@@ -703,13 +716,16 @@ def export_activity_registrations(id):
         output.seek(0)
         
         # 记录操作日志
-        log_action('export_registrations', f'导出活动报名信息: {activity.title}')
+        log_action('export_registrations', f'导出活动({activity.title})的报名信息')
+        
+        # 使用北京时间作为文件名
+        beijing_now = get_beijing_time()
         
         # 返回Excel文件
         return send_file(
             output,
             as_attachment=True,
-            download_name=f"{activity.title}_报名信息_{datetime.now().strftime('%Y%m%d%H%M%S')}.xlsx",
+            download_name=f"{activity.title}_报名信息_{beijing_now.strftime('%Y%m%d%H%M%S')}.xlsx",
             mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
         )
     except Exception as e:
@@ -735,7 +751,8 @@ def export_students():
             StudentInfo.college,
             StudentInfo.major,
             StudentInfo.phone,
-            StudentInfo.qq
+            StudentInfo.qq,
+            StudentInfo.points
         ).all()
         
         # 创建Excel文件
@@ -745,6 +762,9 @@ def export_students():
         # 转换为DataFrame
         data = []
         for student in students:
+            # 将UTC时间转换为北京时间
+            beijing_created_at = localize_time(student.created_at)
+            
             data.append({
                 '用户ID': student.id,
                 '用户名': student.username,
@@ -756,7 +776,8 @@ def export_students():
                 '专业': student.major,
                 '手机号': student.phone,
                 'QQ': student.qq,
-                '注册时间': student.created_at.strftime('%Y-%m-%d %H:%M:%S')
+                '积分': student.points or 0,
+                '注册时间': beijing_created_at.strftime('%Y-%m-%d %H:%M:%S')
             })
         
         df = pd.DataFrame(data)
@@ -769,11 +790,14 @@ def export_students():
         # 记录操作日志
         log_action('export_students', '导出所有学生信息')
         
+        # 使用北京时间作为文件名
+        beijing_now = get_beijing_time()
+        
         # 返回Excel文件
         return send_file(
             output,
             as_attachment=True,
-            download_name=f"学生信息_{datetime.now().strftime('%Y%m%d%H%M%S')}.xlsx",
+            download_name=f"学生信息_{beijing_now.strftime('%Y%m%d%H%M%S')}.xlsx",
             mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
         )
     except Exception as e:
@@ -1168,13 +1192,16 @@ def generate_checkin_qrcode(id):
         # 检查活动是否存在
         activity = Activity.query.get_or_404(id)
         
+        # 获取当前本地化时间
+        now = get_localized_now()
+        
         # 生成唯一签到密钥，确保时效性和安全性
-        checkin_key = hashlib.sha256(f"{activity.id}:{datetime.now().timestamp()}:{current_app.config['SECRET_KEY']}".encode()).hexdigest()[:16]
+        checkin_key = hashlib.sha256(f"{activity.id}:{now.timestamp()}:{current_app.config['SECRET_KEY']}".encode()).hexdigest()[:16]
         
         # 优先使用数据库存储
         try:
             activity.checkin_key = checkin_key
-            activity.checkin_key_expires = datetime.now() + timedelta(hours=24)  # 24小时有效期
+            activity.checkin_key_expires = now + timedelta(hours=24)  # 24小时有效期
             db.session.commit()
         except Exception as e:
             logger.error(f"无法存储签到密钥到数据库: {e}")

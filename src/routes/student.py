@@ -4,6 +4,13 @@ from src.models import db, Activity, Registration, User, StudentInfo, PointsHist
 from datetime import datetime, timedelta
 import logging
 import json
+from functools import wraps
+from src.routes.utils import log_action, random_string
+from sqlalchemy import func, desc, or_, and_, not_
+from wtforms import StringField, TextAreaField, IntegerField, SelectField, SubmitField, RadioField, BooleanField, HiddenField
+from wtforms.validators import DataRequired, Length, Optional, NumberRange, Email, Regexp
+from flask_wtf import FlaskForm
+from src.utils.time_helpers import get_localized_now
 
 logger = logging.getLogger(__name__)
 
@@ -662,8 +669,15 @@ def checkin():
             }), 400
         
         # 验证当前时间是否在活动时间范围内
-        now = datetime.now()
-        if now < activity.start_time or now > activity.end_time:
+        now = get_localized_now()
+        
+        # 添加灵活度：允许活动开始前30分钟和结束后30分钟的签到
+        start_time_buffer = activity.start_time - timedelta(minutes=30)
+        end_time_buffer = activity.end_time + timedelta(minutes=30)
+        
+        logger.info(f"API签到时间检查: 当前时间={now}, 活动开始时间={activity.start_time}, 活动结束时间={activity.end_time}")
+        
+        if now < start_time_buffer or now > end_time_buffer:
             return jsonify({
                 'success': False,
                 'message': '不在活动签到时间范围内'
@@ -735,3 +749,9 @@ def checkin():
             'success': False,
             'message': '签到失败，请重试'
         }), 500
+
+# 一个辅助函数，确保时间的时区一致性
+def get_localized_now():
+    """获取本地时间，与数据库中的时间使用相同的时区处理方式"""
+    # 因为数据库中存储的是datetime.now()，所以我们也使用相同的方式
+    return datetime.now()
