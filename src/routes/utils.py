@@ -214,7 +214,7 @@ def ai_chat():
         3. 提供改进意见"""
         
     payload = {
-        "model": "doubao-1.5-pro",  # 使用火山方舟支持的模型
+        "model": "DeepSeek-R1-Distill-Qwen-7B",  # 使用你部署的模型
         "messages": [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_message}
