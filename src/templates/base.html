@@ -295,13 +295,19 @@
             <button class="ai-chat-close" onclick="toggleAIChat()">&times;</button>
         </div>
         <div class="ai-chat-messages" id="aiChatMessages">
+            {% if current_user.is_authenticated %}
             <div class="ai-message bot">
                 你好！我是智能助手，有什么可以帮你的吗？
             </div>
+            {% else %}
+            <div class="ai-message bot">
+                您好！AI助手功能需要登录后使用。请先<a href="{{ url_for('auth.login') }}">登录</a>或<a href="{{ url_for('auth.register') }}">注册</a>。
+            </div>
+            {% endif %}
         </div>
         <div class="ai-chat-input">
-            <input type="text" id="aiChatInput" placeholder="输入你的问题..." onkeypress="handleAIChatInput(event)">
-            <button onclick="sendAIMessage()" id="aiSendButton">发送</button>
+            <input type="text" id="aiChatInput" placeholder="输入你的问题..." onkeypress="handleAIChatInput(event)" {% if not current_user.is_authenticated %}disabled{% endif %}>
+            <button onclick="sendAIMessage()" id="aiSendButton" {% if not current_user.is_authenticated %}disabled{% endif %}>发送</button>
         </div>
     </div>
 
@@ -318,6 +324,10 @@
         }
 
         function sendAIMessage() {
+            {% if not current_user.is_authenticated %}
+                return;
+            {% endif %}
+            
             const input = document.getElementById('aiChatInput');
             const message = input.value.trim();
             if (!message) return;

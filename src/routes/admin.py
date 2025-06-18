@@ -25,7 +25,7 @@ cache = Cache()
 def dashboard():
     try:
         # 获取基本统计数据
-        total_students = User.query.filter_by(role_id=2).count()
+        total_students = db.session.query(StudentInfo).count()
         total_activities = Activity.query.count()
         active_activities = Activity.query.filter_by(status='active').count()
         
@@ -33,7 +33,7 @@ def dashboard():
         recent_activities = Activity.query.order_by(Activity.created_at.desc()).limit(5).all()
         
         # 获取最近注册的学生
-        recent_students = User.query.filter_by(role_id=2).order_by(User.created_at.desc()).limit(5).all()
+        recent_students = User.query.join(StudentInfo).filter_by(role_id=2).order_by(User.created_at.desc()).limit(5).all()
         
         # 获取报名统计
         total_registrations = Registration.query.count()
@@ -161,6 +161,14 @@ def edit_activity(id):
         activity = Activity.query.get_or_404(id)
         form = ActivityForm(obj=activity)
         
+        # 加载所有标签并设置选项
+        tags = Tag.query.order_by(Tag.name).all()
+        form.tags.choices = [(tag.id, tag.name) for tag in tags]
+        
+        # 设置当前活动的已选标签
+        if request.method == 'GET':
+            form.tags.data = [tag.id for tag in activity.tags]
+        
         if request.method == 'POST' and form.validate_on_submit():
             try:
                 form.populate_obj(activity)
@@ -205,38 +213,31 @@ def edit_activity(id):
 @admin_required
 def activity_view(id):
     try:
-        # 使用缓存装饰器
-        @cache.memoize(timeout=300)  # 缓存5分钟
-        def get_activity_data(activity_id):
-            activity = Activity.query.get_or_404(activity_id)
-            registrations = Registration.query.filter_by(
-                activity_id=activity_id
-            ).join(
-                User, Registration.user_id == User.id
-            ).join(
-                StudentInfo, User.id == StudentInfo.user_id
-            ).add_columns(
-                Registration.id.label('registration_id'),
-                Registration.register_time,
-                Registration.status,
-                Registration.check_in_time,
-                StudentInfo.real_name,
-                StudentInfo.student_id,
-                StudentInfo.grade,
-                StudentInfo.college,
-                StudentInfo.major
-            ).all()
-            
-            registration_count = len(registrations)
-            
-            return {
-                'activity': activity,
-                'registrations': registrations,
-                'registration_count': registration_count
-            }
+        activity = Activity.query.get_or_404(id)
+        registrations = Registration.query.filter_by(
+            activity_id=id
+        ).join(
+            User, Registration.user_id == User.id
+        ).join(
+            StudentInfo, User.id == StudentInfo.user_id
+        ).add_columns(
+            Registration.id.label('registration_id'),
+            Registration.register_time,
+            Registration.status,
+            Registration.check_in_time,
+            StudentInfo.real_name,
+            StudentInfo.student_id,
+            StudentInfo.grade,
+            StudentInfo.college,
+            StudentInfo.major
+        ).all()
         
-        data = get_activity_data(id)
-        return render_template('admin/activity_view.html', **data)
+        registration_count = len(registrations)
+        
+        return render_template('admin/activity_view.html', 
+                              activity=activity,
+                              registrations=registrations,
+                              registration_count=registration_count)
         
     except Exception as e:
         logger.error(f"Error in activity_view: {e}")

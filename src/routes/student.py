@@ -37,6 +37,14 @@ def dashboard():
         # 获取推荐活动
         recommended_activities = get_recommended_activities(current_user.id)
         
+        # 获取已报名活动
+        registered_activities = Activity.query.join(
+            Registration, Activity.id == Registration.activity_id
+        ).filter(
+            Registration.user_id == current_user.id,
+            Registration.status == 'registered'
+        ).order_by(Activity.start_time.desc()).limit(5).all()
+        
         # 获取活动统计
         total_activities = Registration.query.filter_by(user_id=current_user.id).count()
         ongoing_activities = Registration.query.join(
@@ -56,10 +64,12 @@ def dashboard():
         
         return render_template('student/dashboard.html',
                              student_info=student_info,
+                             registered_activities=registered_activities,
                              recommended_activities=recommended_activities,
+                             upcoming_activities=recommended_activities,
                              total_activities=total_activities,
                              ongoing_activities=ongoing_activities,
-                             upcoming_activities=upcoming_registrations)
+                             now=datetime.now())
     except Exception as e:
         logger.error(f"Error in student dashboard: {e}")
         flash('加载面板时发生错误', 'danger')
