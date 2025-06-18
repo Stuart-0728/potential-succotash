@@ -195,7 +195,7 @@ def ai_chat():
     url = "https://ark.cn-beijing.volces.com/api/v3/chat/completions"
     headers = {
         "Content-Type": "application/json",
-        "Authorization": f"Bearer {api_key}",  # 添加 Bearer 前缀
+        "Authorization": f"Bearer {api_key}",
         "X-Request-Id": str(uuid.uuid4())
     }
     
@@ -214,7 +214,7 @@ def ai_chat():
         3. 提供改进意见"""
         
     payload = {
-        "model": "doubao-seed-1.6",  # 使用火山方舟推荐的模型
+        "model": "deepseek-r1",  # 使用火山方舟支持的模型
         "messages": [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_message}
