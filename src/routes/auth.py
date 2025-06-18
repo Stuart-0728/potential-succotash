@@ -1,7 +1,7 @@
 from flask import Blueprint, render_template, redirect, url_for, flash, request
 from flask_login import login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
-from src.models import db, User, Role, StudentInfo
+from src.models import db, User, Role, StudentInfo, Tag, StudentInterestTag
 from flask_wtf import FlaskForm
 from wtforms import StringField, PasswordField, SubmitField, SelectField, ValidationError
 from wtforms.validators import DataRequired, Email, EqualTo, Length, Regexp
@@ -136,7 +136,9 @@ def register():
         db.session.commit()
         
         flash('注册成功，请登录！', 'success')
-        return redirect(url_for('auth.login'))
+        # 登录用户并重定向到标签选择页面
+        login_user(user)
+        return redirect(url_for('auth.select_tags'))
     
     return render_template('auth/register.html', form=form)
 
@@ -146,10 +148,6 @@ def login():
         if current_user.role and current_user.role.name.lower() == 'admin':
             return redirect(url_for('admin.dashboard'))
         else:
-            # 检查学生是否已选择兴趣标签
-            student_info = StudentInfo.query.filter_by(user_id=current_user.id).first()
-            if student_info and not student_info.has_selected_tags:
-                return redirect(url_for('select_tags.select_tags', first_login='true'))
             return redirect(url_for('student.dashboard'))
     
     form = LoginForm()
@@ -181,18 +179,11 @@ def login():
             user.last_login = datetime.now()
             db.session.commit()
             next_page = request.args.get('next')
-            
             # 根据角色重定向到不同的页面
             if user.role and user.role.name.lower() == 'admin':
                 logger.info(f"管理员登录成功: {username}")
                 return redirect(next_page or url_for('admin.dashboard'))
             else:
-                # 检查学生是否已选择兴趣标签
-                student_info = StudentInfo.query.filter_by(user_id=user.id).first()
-                if student_info and not student_info.has_selected_tags:
-                    logger.info(f"学生首次登录，引导选择标签: {username}")
-                    return redirect(url_for('select_tags.select_tags', first_login='true'))
-                
                 logger.info(f"学生登录成功: {username}")
                 return redirect(next_page or url_for('student.dashboard'))
         else:
@@ -269,3 +260,55 @@ def setup_admin():
         return redirect(url_for('auth.login'))
     
     return render_template('auth/setup_admin.html', form=form)
+
+@auth_bp.route('/select-tags', methods=['GET', 'POST'])
+@login_required
+def select_tags():
+    # 只有学生用户可以选择标签
+    if not current_user.role or current_user.role.name != 'Student':
+        return redirect(url_for('main.index'))
+    
+    # 获取学生信息
+    student_info = StudentInfo.query.filter_by(user_id=current_user.id).first()
+    if not student_info:
+        flash('未找到学生信息', 'danger')
+        return redirect(url_for('main.index'))
+    
+    # 获取所有标签
+    tags = Tag.query.all()
+    
+    # 获取已选标签ID
+    selected_tag_ids = []
+    for tag in student_info.tags:
+        selected_tag_ids.append(tag.id)
+    
+    if request.method == 'POST':
+        # 获取提交的标签ID
+        tag_ids = request.form.getlist('tags')
+        
+        if not tag_ids:
+            flash('请至少选择一个兴趣标签', 'warning')
+            return render_template('select_tags.html', tags=tags, selected_tag_ids=selected_tag_ids)
+        
+        try:
+            # 清除原有标签关联
+            student_info.tags = []
+            
+            # 添加新的标签关联
+            for tag_id in tag_ids:
+                tag = Tag.query.get(int(tag_id))
+                if tag:
+                    student_info.tags.append(tag)
+            
+            # 更新学生标签选择状态
+            student_info.has_selected_tags = True
+            db.session.commit()
+            
+            flash('兴趣标签保存成功！', 'success')
+            return redirect(url_for('student.dashboard'))
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"保存标签时出错: {e}")
+            flash('保存标签时出错，请稍后再试', 'danger')
+    
+    return render_template('select_tags.html', tags=tags, selected_tag_ids=selected_tag_ids)

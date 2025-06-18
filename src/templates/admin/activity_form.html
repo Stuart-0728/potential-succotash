@@ -14,17 +14,6 @@
   .custom-file-label::after {
     content: "浏览";
   }
-  .tag-selection {
-    border: 1px solid #ced4da;
-    border-radius: 0.25rem;
-    padding: 10px;
-    max-height: 200px;
-    overflow-y: auto;
-  }
-  .form-check-inline {
-    margin-right: 0.75rem;
-    margin-bottom: 0.5rem;
-  }
 </style>
 {% endblock %}
 
@@ -167,10 +156,10 @@
             <div class="mb-3">
               {{ form.tags.label(class="form-label") }}
               {% if form.tags.choices and form.tags.choices|length > 0 %}
-                <div class="tag-selection">
+                <div class="tag-checkboxes">
                   {% for tag_id, tag_name in form.tags.choices %}
                   <div class="form-check form-check-inline">
-                    <input type="checkbox" class="form-check-input" id="tag{{ tag_id }}" name="tags" value="{{ tag_id }}"
+                    <input class="form-check-input" type="checkbox" name="tags" id="tag{{ tag_id }}" value="{{ tag_id }}"
                       {% if tag_id in form.tags.data %}checked{% endif %}>
                     <label class="form-check-label" for="tag{{ tag_id }}">{{ tag_name }}</label>
                   </div>
@@ -180,7 +169,7 @@
                 <div class="form-control bg-light text-muted">暂无可选标签，请先在标签管理中添加</div>
               {% endif %}
               {% if form.tags.errors %}
-                <div class="invalid-feedback d-block">
+                <div class="invalid-feedback">
                   {% for error in form.tags.errors %}
                     {{ error }}
                   {% endfor %}

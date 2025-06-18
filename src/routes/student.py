@@ -153,6 +153,14 @@ def activity_detail(id):
         # 获取已报名人数
         registered_count = Registration.query.filter_by(activity_id=id, status='registered').count()
         
+        # 检查是否可以报名
+        now = datetime.now()
+        can_register = (
+            activity.status == 'active' and 
+            activity.registration_deadline >= now and 
+            (activity.max_participants == 0 or registered_count < activity.max_participants)
+        )
+        
         return render_template('student/activity_detail.html',
                              activity=activity,
                              current_user_registration=current_user_registration,
@@ -163,7 +171,9 @@ def activity_detail(id):
                              average_rating=average_rating,
                              avg_content_quality=avg_content_quality,
                              avg_organization=avg_organization,
-                             avg_facility=avg_facility)
+                             avg_facility=avg_facility,
+                             can_register=can_register,
+                             now=now)
     except Exception as e:
         logger.error(f"Error in activity detail: {e}")
         flash('加载活动详情时发生错误', 'danger')
@@ -316,19 +326,9 @@ def my_activities():
 @student_required
 def profile():
     try:
-        student_info = StudentInfo.query.filter_by(user_id=current_user.id).first()
-        if not student_info:
-            flash('请先完善个人信息', 'warning')
-            return redirect(url_for('student.edit_profile'))
-        
-        # 获取学生标签
-        student_tags = student_info.tags
-        
-        return render_template('student/profile.html', 
-                              student_info=student_info, 
-                              student_tags=student_tags)
+        return render_template('student/profile.html')
     except Exception as e:
-        logger.error(f"Error in student profile: {e}")
+        logger.error(f"Error in profile: {e}")
         flash('加载个人资料时发生错误', 'danger')
         return redirect(url_for('student.dashboard'))
 

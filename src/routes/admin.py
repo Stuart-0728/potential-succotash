@@ -178,7 +178,10 @@ def edit_activity(id):
         
         if request.method == 'POST' and form.validate_on_submit():
             try:
-                form.populate_obj(activity)
+                # 将表单数据复制到活动对象，但不包括标签
+                for field in form:
+                    if field.name != 'tags' and field.name != 'submit' and field.name != 'poster':
+                        setattr(activity, field.name, field.data)
                 
                 # 确保points字段有值
                 if not activity.points:
@@ -186,8 +189,9 @@ def edit_activity(id):
                 
                 # 处理标签
                 activity.tags.clear()
-                for tag_id in form.tags.data:
-                    tag = Tag.query.get(tag_id)
+                tag_ids = request.form.getlist('tags')  # 直接从请求中获取多选框值
+                for tag_id in tag_ids:
+                    tag = Tag.query.get(int(tag_id))
                     if tag:
                         activity.tags.append(tag)
                 

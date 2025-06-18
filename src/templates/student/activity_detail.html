@@ -57,6 +57,14 @@
                                         取消报名
                                     </button>
                                 </form>
+                            {% else %}
+                                {% if activity.start_time <= now and activity.end_time >= now and current_user_registration.check_in_time is none %}
+                                <button type="button" class="btn btn-sm btn-success" onclick="showQRScanner()">
+                                    <i class="fas fa-qrcode me-1"></i>扫码签到
+                                </button>
+                                {% elif current_user_registration.check_in_time %}
+                                <span class="badge bg-info">已签到</span>
+                                {% endif %}
                             {% endif %}
                         {% elif current_user_registration.status == 'cancelled' %}
                             <span class="badge bg-secondary">已取消报名</span>
@@ -188,14 +196,29 @@
         </div>
     </div>
 </div>
+{% endblock %}
 
 {% block scripts %}
+{{ super() }}
 <script src="https://unpkg.com/html5-qrcode"></script>
 <script>
-let html5QrcodeScanner = null;
+// 全局变量
+var html5QrcodeScanner = null;
 
+// 初始化
+document.addEventListener('DOMContentLoaded', function() {
+    // 为模态框添加关闭事件
+    var qrScannerModal = document.getElementById('qrScannerModal');
+    if (qrScannerModal) {
+        qrScannerModal.addEventListener('hidden.bs.modal', function() {
+            stopScanner();
+        });
+    }
+});
+
+// 显示扫码器
 function showQRScanner() {
-    const modal = new bootstrap.Modal(document.getElementById('qrScannerModal'));
+    var modal = new bootstrap.Modal(document.getElementById('qrScannerModal'));
     modal.show();
     
     // 初始化扫码器
@@ -215,12 +238,22 @@ function showQRScanner() {
     );
 }
 
+// 停止扫描器
+function stopScanner() {
+    if (html5QrcodeScanner) {
+        html5QrcodeScanner.stop().catch(function(err) {
+            console.error("停止扫描失败:", err);
+        });
+    }
+}
+
+// 扫码成功回调
 function onScanSuccess(decodedText, decodedResult) {
     // 停止扫描
-    html5QrcodeScanner.stop();
+    stopScanner();
     
     // 处理扫描结果
-    const resultsDiv = document.getElementById('qr-reader-results');
+    var resultsDiv = document.getElementById('qr-reader-results');
     resultsDiv.innerHTML = '<div class="alert alert-info">正在处理签到...</div>';
     
     // 发送签到请求
@@ -234,57 +267,34 @@ function onScanSuccess(decodedText, decodedResult) {
             qr_data: decodedText
         })
     })
-    .then(response => response.json())
-    .then(data => {
+    .then(function(response) {
+        return response.json();
+    })
+    .then(function(data) {
         if (data.success) {
-            resultsDiv.innerHTML = `
-                <div class="alert alert-success">
-                    <i class="fas fa-check-circle me-2"></i> 签到成功！
-                    <p class="small mb-0">${data.message}</p>
-                </div>
-            `;
+            resultsDiv.innerHTML = '<div class="alert alert-success"><i class="fas fa-check-circle me-2"></i> 签到成功！<p class="small mb-0">' + data.message + '</p></div>';
             // 3秒后关闭模态框并刷新页面
-            setTimeout(() => {
-                bootstrap.Modal.getInstance(document.getElementById('qrScannerModal')).hide();
+            setTimeout(function() {
+                var modalElem = document.getElementById('qrScannerModal');
+                var modalInstance = bootstrap.Modal.getInstance(modalElem);
+                if (modalInstance) {
+                    modalInstance.hide();
+                }
                 window.location.reload();
             }, 3000);
         } else {
-            resultsDiv.innerHTML = `
-                <div class="alert alert-danger">
-                    <i class="fas fa-exclamation-circle me-2"></i> 签到失败
-                    <p class="small mb-0">${data.message}</p>
-                    <button class="btn btn-sm btn-outline-danger mt-2" onclick="showQRScanner()">
-                        <i class="fas fa-redo me-1"></i>重试
-                    </button>
-                </div>
-            `;
+            resultsDiv.innerHTML = '<div class="alert alert-danger"><i class="fas fa-exclamation-circle me-2"></i> 签到失败<p class="small mb-0">' + data.message + '</p><button class="btn btn-sm btn-outline-danger mt-2" onclick="showQRScanner()"><i class="fas fa-redo me-1"></i>重试</button></div>';
         }
     })
-    .catch(error => {
+    .catch(function(error) {
         console.error('Error:', error);
-        resultsDiv.innerHTML = `
-            <div class="alert alert-danger">
-                <i class="fas fa-exclamation-circle me-2"></i> 签到请求失败
-                <p class="small mb-0">请检查网络连接后重试</p>
-                <button class="btn btn-sm btn-outline-danger mt-2" onclick="showQRScanner()">
-                    <i class="fas fa-redo me-1"></i>重试
-                </button>
-            </div>
-        `;
+        resultsDiv.innerHTML = '<div class="alert alert-danger"><i class="fas fa-exclamation-circle me-2"></i> 签到请求失败<p class="small mb-0">请检查网络连接后重试</p><button class="btn btn-sm btn-outline-danger mt-2" onclick="showQRScanner()"><i class="fas fa-redo me-1"></i>重试</button></div>';
     });
 }
 
+// 扫码失败回调
 function onScanFailure(error) {
-    // 处理扫描失败
-    console.warn(`扫描失败: ${error}`);
+    console.warn("扫描失败:", error);
 }
-
-// 模态框关闭时停止扫描
-document.getElementById('qrScannerModal').addEventListener('hidden.bs.modal', function () {
-    if (html5QrcodeScanner) {
-        html5QrcodeScanner.stop();
-    }
-});
 </script>
-{% endblock %}
 {% endblock %}
