@@ -183,6 +183,13 @@ def ai_chat():
     user_role = data.get('role', 'student')  # 默认为学生端
 
     api_key = os.environ.get("ARK_API_KEY")
+    if not api_key:
+        logger.error("ARK_API_KEY 环境变量未设置")
+        return jsonify({
+            'success': False,
+            'error': 'AI 服务配置错误：API 密钥未设置'
+        }), 500
+
     url = "https://ark.cn-beijing.volces.com/api/v3/chat/completions"
     headers = {
         "Content-Type": "application/json",
@@ -205,7 +212,11 @@ def ai_chat():
     }
     
     try:
+        logger.info(f"发送 AI 请求: URL={url}, Headers={headers}, Payload={payload}")
         response = requests.post(url, headers=headers, json=payload)
+        logger.info(f"AI API 响应状态码: {response.status_code}")
+        logger.info(f"AI API 响应内容: {response.text}")
+        
         response.raise_for_status()  # 检查响应状态
         result = response.json()
         
@@ -216,6 +227,7 @@ def ai_chat():
                 'response': ai_response
             })
         else:
+            logger.error(f"AI API 响应格式错误: {result}")
             return jsonify({
                 'success': False,
                 'error': 'AI 响应格式错误'
