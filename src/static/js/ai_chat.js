@@ -263,6 +263,12 @@ class AIChatUI {
         if (this.toggleButton) {
             this.toggleButton.addEventListener('click', () => this.toggleChat());
         }
+        
+        // 添加关闭按钮事件监听
+        const closeButton = document.getElementById('aiChatCloseBtn');
+        if (closeButton) {
+            closeButton.addEventListener('click', () => this.closeChat());
+        }
     }
     
     // 切换聊天窗口显示/隐藏
@@ -323,25 +329,41 @@ class AIChatUI {
         // 滚动到底部
         this.scrollToBottom();
         
+        // 显示加载指示器
+        aiMessageDiv.innerHTML = '<span class="loading-indicator">AI思考中<span class="dot-animation">...</span></span>';
+        
         // 创建 EventSource 连接
         const role = 'student'; // 默认角色，可扩展
         const eventSource = new EventSource(`/api/ai_chat?message=${encodeURIComponent(userMessage)}&role=${role}&session_id=${this.session.sessionId}`);
         
         // 完整的AI响应文本
         let fullResponse = '';
+        let hasError = false;
+        let retryCount = 0;
+        const MAX_RETRIES = 2;
         
         // 处理消息
         eventSource.onmessage = (event) => {
-            const data = JSON.parse(event.data);
-            if (data.error) {
-                aiMessageDiv.textContent = `错误: ${data.error}`;
-                eventSource.close();
-                this.disableInput(false);
-                this.input.focus();
-            } else if (data.content) {
-                fullResponse += data.content;
-                aiMessageDiv.textContent = fullResponse;
-                this.scrollToBottom();
+            try {
+                const data = JSON.parse(event.data);
+                if (data.error) {
+                    hasError = true;
+                    aiMessageDiv.textContent = `错误: ${data.error}`;
+                    eventSource.close();
+                    this.disableInput(false);
+                    this.input.focus();
+                } else if (data.content) {
+                    // 移除加载指示器
+                    if (fullResponse === '') {
+                        aiMessageDiv.textContent = '';
+                    }
+                    
+                    fullResponse += data.content;
+                    aiMessageDiv.textContent = fullResponse;
+                    this.scrollToBottom();
+                }
+            } catch (e) {
+                console.error('解析AI响应失败:', e);
             }
         };
         
@@ -354,6 +376,9 @@ class AIChatUI {
                 this.session.addMessage(fullResponse, 'assistant');
                 // 备份到Cookie
                 this.session.saveMessagesToCookie();
+            } else if (!hasError) {
+                // 如果没有响应但也没有错误，显示一个提示
+                aiMessageDiv.textContent = '抱歉，AI没有返回响应。请重试。';
             }
             
             this.disableInput(false);
@@ -363,7 +388,21 @@ class AIChatUI {
         // 处理错误
         eventSource.onerror = () => {
             eventSource.close();
-            if (!aiMessageDiv.textContent) {
+            
+            if (retryCount < MAX_RETRIES && !hasError && !fullResponse) {
+                // 尝试重新连接
+                retryCount++;
+                aiMessageDiv.innerHTML = `<span class="loading-indicator">连接中断，正在重试 (${retryCount}/${MAX_RETRIES})<span class="dot-animation">...</span></span>`;
+                
+                setTimeout(() => {
+                    // 重新创建连接
+                    this.receiveAIResponse(userMessage);
+                }, 1000 * retryCount); // 逐步增加重试间隔
+                
+                return;
+            }
+            
+            if (!aiMessageDiv.textContent || aiMessageDiv.textContent.includes('AI思考中') || aiMessageDiv.textContent.includes('连接中断')) {
                 aiMessageDiv.textContent = '抱歉，服务出现错误，请稍后再试。';
             }
             this.disableInput(false);

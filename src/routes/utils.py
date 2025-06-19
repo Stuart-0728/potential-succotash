@@ -348,34 +348,36 @@ def ai_chat():
                 try:
                     # 检查会话是否存在
                     session = AIChatSession.query.filter_by(id=session_id).first()
-                    if not session:
+                    if not session and current_user and current_user.is_authenticated:
                         # 如果会话不存在，创建新会话
                         session = AIChatSession(id=session_id, user_id=current_user.id)
                         db.session.add(session)
                         db.session.commit()
                     
-                    # 保存用户消息
-                    user_history = AIChatHistory(
-                        user_id=current_user.id,
-                        session_id=session_id,
-                        role="user",
-                        content=user_message
-                    )
-                    db.session.add(user_history)
-                    
-                    # 保存AI回复
-                    ai_history = AIChatHistory(
-                        user_id=current_user.id,
-                        session_id=session_id,
-                        role="assistant",
-                        content=full_response
-                    )
-                    db.session.add(ai_history)
-                    db.session.commit()
-                    
-                    # 更新会话最后更新时间
-                    session.updated_at = datetime.now()
-                    db.session.commit()
+                    # 只有当会话和用户都存在时才保存消息
+                    if session and current_user and current_user.is_authenticated:
+                        # 保存用户消息
+                        user_history = AIChatHistory(
+                            user_id=current_user.id,
+                            session_id=session_id,
+                            role="user",
+                            content=user_message
+                        )
+                        db.session.add(user_history)
+                        
+                        # 保存AI回复
+                        ai_history = AIChatHistory(
+                            user_id=current_user.id,
+                            session_id=session_id,
+                            role="assistant",
+                            content=full_response
+                        )
+                        db.session.add(ai_history)
+                        db.session.commit()
+                        
+                        # 更新会话最后更新时间
+                        session.updated_at = datetime.now()
+                        db.session.commit()
                         
                 except Exception as e:
                     logger.error(f"保存聊天历史记录失败: {str(e)}")

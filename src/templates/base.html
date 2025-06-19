@@ -343,6 +343,22 @@
             }, 100);
             {% endif %}
             
+            // 确保关闭按钮正常工作
+            const closeBtn = document.getElementById('aiChatCloseBtn');
+            if (closeBtn) {
+                closeBtn.addEventListener('click', function() {
+                    const container = document.getElementById('aiChatContainer');
+                    if (container) {
+                        container.style.display = 'none';
+                        // 如果aiChat对象存在，也设置其状态
+                        if (window.aiChat && window.aiChat.session) {
+                            window.aiChat.session.isOpen = false;
+                            window.aiChat.session.setCookie('chat_open', 'false', 7);
+                        }
+                    }
+                });
+            }
+            
             // 关于智能助手的信息弹窗
             window.toggleAIChatInfo = function() {
                 // 获取关于智能助手的信息

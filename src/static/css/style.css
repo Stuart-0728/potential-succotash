@@ -453,3 +453,80 @@ footer {
         margin-bottom: 0.5rem;
     }
 }
+
+/* AI聊天框样式优化 */
+.ai-chat-close {
+    background: none;
+    border: none;
+    color: white;
+    font-size: 24px;
+    cursor: pointer;
+    padding: 0 8px;
+    border-radius: 50%;
+    transition: background-color 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+}
+
+.ai-chat-close:hover {
+    background-color: rgba(255, 255, 255, 0.2);
+}
+
+.ai-chat-close:active {
+    background-color: rgba(255, 255, 255, 0.3);
+}
+
+/* 确保聊天框在移动设备上也能正常显示 */
+@media (max-width: 576px) {
+    .ai-chat-container {
+        width: 90%;
+        right: 5%;
+        left: 5%;
+        bottom: 80px;
+    }
+    
+    .ai-chat-button {
+        bottom: 10px;
+        right: 10px;
+        width: 50px;
+        height: 50px;
+        font-size: 20px;
+    }
+}
+
+/* AI聊天加载动画 */
+.loading-indicator {
+    color: #666;
+    font-style: italic;
+}
+
+.dot-animation {
+    display: inline-block;
+    animation: dotAnimation 1.5s infinite;
+}
+
+@keyframes dotAnimation {
+    0% { content: '.'; }
+    33% { content: '..'; }
+    66% { content: '...'; }
+    100% { content: '.'; }
+}
+
+/* 聊天消息动画效果 */
+.ai-message {
+    animation: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* 聊天框错误提示样式 */
+.ai-message.error {
+    background-color: #ffebee;
+    border-left: 3px solid #f44336;
+}
