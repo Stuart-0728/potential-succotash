@@ -3,7 +3,7 @@ from flask_login import login_required, current_user
 from src.models import db, Activity, ActivityCheckin, Registration, StudentInfo, PointsHistory
 from datetime import datetime, timezone, timedelta
 import logging
-from src.utils.time_helpers import get_localized_now, localize_time
+from src.utils.time_helpers import get_localized_now, localize_time, ensure_timezone_aware
 
 logger = logging.getLogger(__name__)
 checkin_bp = Blueprint('checkin', __name__, url_prefix='/checkin')
@@ -59,27 +59,20 @@ def scan_checkin(activity_id, checkin_key):
             flash('该活动当前不可签到', 'warning')
             return redirect(url_for('student.activity_detail', id=activity_id))
         
-        # 验证当前时间是否在活动时间范围内
-        # 如果手动开启了签到，则忽略时间检查
-        if not getattr(activity, 'checkin_enabled', False):
+        # 检查是否手动开启了签到
+        checkin_enabled = getattr(activity, 'checkin_enabled', False)
+        logger.info(f"活动签到状态: 活动ID={activity_id}, 签到已手动开启={checkin_enabled}")
+        
+        # 如果没有手动开启签到，则验证当前时间是否在活动时间范围内
+        if not checkin_enabled:
             # 确保活动时间有时区信息
-            start_time = activity.start_time
-            end_time = activity.end_time
-            
-            if start_time is None:
-                start_time = now  # 如果没有开始时间，使用当前时间
-            elif start_time.tzinfo is None:
-                start_time = localize_time(start_time)
-                
-            if end_time is None:
-                end_time = now + timedelta(hours=2)  # 如果没有结束时间，默认为当前时间后2小时
-            elif end_time.tzinfo is None:
-                end_time = localize_time(end_time)
+            start_time = ensure_timezone_aware(activity.start_time) if activity.start_time else now
+            end_time = ensure_timezone_aware(activity.end_time) if activity.end_time else now + timedelta(hours=2)
                 
             # 添加灵活度：允许活动开始前30分钟和结束后30分钟的签到
             start_time_buffer = start_time - timedelta(minutes=30)
             end_time_buffer = end_time + timedelta(minutes=30)
-            
+        
             logger.info(f"签到时间检查: 当前时间={now}, 活动开始时间={start_time}, 活动结束时间={end_time}")
             
             if now < start_time_buffer or now > end_time_buffer:

@@ -39,7 +39,7 @@ def get_localized_now():
         beijing_tz = pytz.timezone('Asia/Shanghai')
         return datetime.datetime.now(beijing_tz)
     except RuntimeError:  # 如果不在应用上下文中
-        return datetime.datetime.now(pytz.timezone('Asia/Shanghai'))
+        return datetime.datetime.now(pytz.timezone('Asia/Shanghai')) 
 
 def convert_to_utc(dt):
     """
@@ -75,4 +75,67 @@ def format_datetime(dt, format_str='%Y-%m-%d %H:%M'):
     elif dt.tzinfo != pytz.timezone('Asia/Shanghai'):
         dt = dt.astimezone(pytz.timezone('Asia/Shanghai'))
         
-    return dt.strftime(format_str) 
+    return dt.strftime(format_str)
+
+def is_naive_datetime(dt):
+    """
+    检查一个datetime对象是否是naive的（没有时区信息）
+    :param dt: datetime对象
+    :return: 如果是naive的返回True，否则返回False
+    """
+    return dt.tzinfo is None
+
+def ensure_timezone_aware(dt, default_timezone='Asia/Shanghai'):
+    """
+    确保datetime对象有时区信息，如果没有则添加默认时区
+    :param dt: datetime对象
+    :param default_timezone: 默认时区名称
+    :return: 带有时区信息的datetime对象
+    """
+    if dt is None:
+        return None
+        
+    if is_naive_datetime(dt):
+        tz = pytz.timezone(default_timezone)
+        return tz.localize(dt)
+    return dt
+
+def compare_datetimes(dt1, dt2):
+    """
+    安全地比较两个datetime对象，确保它们都有时区信息
+    :param dt1: 第一个datetime对象
+    :param dt2: 第二个datetime对象
+    :return: dt1 < dt2返回-1，dt1 == dt2返回0，dt1 > dt2返回1
+    """
+    if dt1 is None and dt2 is None:
+        return 0
+    if dt1 is None:
+        return -1
+    if dt2 is None:
+        return 1
+        
+    # 确保两个时间都有时区信息
+    dt1 = ensure_timezone_aware(dt1)
+    dt2 = ensure_timezone_aware(dt2)
+    
+    # 由于已经检查了None值，这里可以安全地使用时间戳比较
+    try:
+        ts1 = dt1.timestamp()
+        ts2 = dt2.timestamp()
+        
+        if ts1 < ts2:
+            return -1
+        elif ts1 > ts2:
+            return 1
+        else:
+            return 0
+    except (AttributeError, TypeError):
+        # 如果出现错误，回退到字符串比较
+        str1 = str(dt1)
+        str2 = str(dt2)
+        if str1 < str2:
+            return -1
+        elif str1 > str2:
+            return 1
+        else:
+            return 0 

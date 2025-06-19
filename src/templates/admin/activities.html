@@ -70,13 +70,16 @@
                             </td>
                             <td>
                                 <div class="d-flex flex-column flex-md-row gap-1">
-                                    <a href="{{ url_for('admin.activity_view', id=activity.id) }}" class="btn btn-sm btn-outline-primary mb-1 mb-md-0">查看</a>
-                                    <a href="{{ url_for('admin.activity_registrations', id=activity.id) }}" class="btn btn-sm btn-outline-info mb-1 mb-md-0">报名</a>
-                                    <a href="{{ url_for('admin.edit_activity', id=activity.id) }}" class="btn btn-sm btn-outline-secondary mb-1 mb-md-0">编辑</a>
-                                    <a href="#" class="btn btn-sm btn-outline-danger mb-1 mb-md-0" onclick="confirmDeleteActivity({{ activity.id }}, '{{ activity.title }}', {{ activity.registrations.count() if activity.registrations else 0 }}); return false;">删除</a>
-                                    <a href="{{ url_for('admin.activity_reviews', id=activity.id) }}" class="btn btn-sm btn-outline-info mb-1 mb-md-0">
-                                        <i class="fas fa-comments"></i> 评价
-                                    </a>
+                                    <a href="{{ url_for('admin.activity_view', id=activity.id) }}" class="btn btn-sm btn-info">查看</a>
+                                    <a href="{{ url_for('admin.activity_registrations', id=activity.id) }}" class="btn btn-sm btn-primary">报名</a>
+                                    <a href="{{ url_for('admin.edit_activity', id=activity.id) }}" class="btn btn-sm btn-warning">编辑</a>
+                                    <form action="{{ url_for('admin.delete_activity', id=activity.id) }}" method="post" class="d-inline" onsubmit="return confirm('确定要删除该活动吗？')">
+                                        <button type="submit" class="btn btn-sm btn-danger">删除</button>
+                                    </form>
+                                    <form action="{{ url_for('admin.delete_activity', id=activity.id) }}?force=true" method="post" class="d-inline" onsubmit="return confirm('确定要永久删除该活动吗？此操作不可恢复！')">
+                                        <button type="submit" class="btn btn-sm btn-danger">永久删除</button>
+                                    </form>
+                                    <a href="{{ url_for('admin.activity_reviews', id=activity.id) }}" class="btn btn-sm btn-secondary">评价</a>
                                 </div>
                             </td>
                         </tr>

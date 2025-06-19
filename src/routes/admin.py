@@ -249,15 +249,33 @@ def delete_activity(id):
         
         # 使用事务
         with db.session.begin_nested():
-            if force_delete or Registration.query.filter_by(activity_id=activity.id).count() == 0:
-                # 删除相关数据
+            if force_delete:
+                # 强制删除活动及相关数据
                 Registration.query.filter_by(activity_id=activity.id).delete()
                 ActivityReview.query.filter_by(activity_id=activity.id).delete()
                 ActivityCheckin.query.filter_by(activity_id=activity.id).delete()
+                
+                # 删除活动与标签的关联
+                activity.tags = []
+                
+                # 删除活动
+                db.session.delete(activity)
+                log_action('delete_activity', f'永久删除活动: {activity.title}')
+                flash('活动已永久删除', 'success')
+            elif Registration.query.filter_by(activity_id=activity.id).count() == 0:
+                # 如果没有报名记录，直接删除活动
+                ActivityReview.query.filter_by(activity_id=activity.id).delete()
+                ActivityCheckin.query.filter_by(activity_id=activity.id).delete()
+                
+                # 删除活动与标签的关联
+                activity.tags = []
+                
+                # 删除活动
                 db.session.delete(activity)
                 log_action('delete_activity', f'删除活动: {activity.title}')
                 flash('活动已删除', 'success')
             else:
+                # 如果有报名记录且不是强制删除，则标记为已取消
                 activity.status = 'cancelled'
                 log_action('cancel_activity', f'取消活动: {activity.title}')
                 flash('活动已标记为已取消', 'success')
@@ -1271,23 +1289,26 @@ def toggle_checkin(id):
         current_status = getattr(activity, 'checkin_enabled', False)
         
         # 切换状态（取反）
-        activity.checkin_enabled = not current_status
+        new_status = not current_status
+        activity.checkin_enabled = new_status
         
         # 如果开启签到，生成或更新签到密钥
-        if activity.checkin_enabled:
+        if new_status:
             now = get_localized_now()
             checkin_key = hashlib.sha256(f"{activity.id}:{now.timestamp()}:{current_app.config['SECRET_KEY']}".encode()).hexdigest()[:16]
             activity.checkin_key = checkin_key
             activity.checkin_key_expires = now + timedelta(hours=24)  # 24小时有效期
+            status_text = "开启"
+        else:
+            status_text = "关闭"
         
         db.session.commit()
         
         # 记录新状态
-        new_status = "开启" if activity.checkin_enabled else "关闭"
-        flash(f'已{new_status}活动签到', 'success')
+        flash(f'已{status_text}活动签到', 'success')
         
         # 记录操作日志
-        log_action(f'toggle_checkin_{new_status}', f'管理员{new_status}了活动 {activity.title} 的签到')
+        log_action(f'toggle_checkin_{status_text}', f'管理员{status_text}了活动 {activity.title} 的签到')
         
         # 重定向回原页面
         referrer = request.referrer
