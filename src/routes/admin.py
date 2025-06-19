@@ -1257,17 +1257,25 @@ def toggle_checkin(id):
     try:
         activity = Activity.query.get_or_404(id)
         
-        # 切换签到状态
-        activity.checkin_enabled = not getattr(activity, 'checkin_enabled', False)
+        # 获取当前状态
+        current_status = getattr(activity, 'checkin_enabled', False)
+        
+        # 切换状态（取反）
+        activity.checkin_enabled = not current_status
         
         db.session.commit()
         
-        status = "开启" if activity.checkin_enabled else "关闭"
-        flash(f'已{status}活动签到', 'success')
+        # 记录新状态
+        new_status = "开启" if activity.checkin_enabled else "关闭"
+        flash(f'已{new_status}活动签到', 'success')
         
         # 记录操作日志
-        log_action(f'toggle_checkin_{status}', f'管理员{status}了活动 {activity.title} 的签到')
+        log_action(f'toggle_checkin_{new_status}', f'管理员{new_status}了活动 {activity.title} 的签到')
         
+        # 重定向回原页面
+        referrer = request.referrer
+        if referrer and ('checkin/modal' in referrer):
+            return redirect(url_for('admin.checkin_modal', id=id))
         return redirect(url_for('admin.activity_view', id=id))
     except Exception as e:
         db.session.rollback()

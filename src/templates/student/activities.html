@@ -22,7 +22,7 @@
                 <div class="list-group">
                     {% for activity in activities.items %}
                         <div class="list-group-item list-group-item-action">
-                            <div class="d-flex w-100 justify-content-between">
+                            <div class="d-flex w-100 justify-content-between flex-wrap">
                                 <h5 class="mb-1">{{ activity.title }}</h5>
                                 <small>
                                     {% if activity.status == 'active' %}
@@ -42,15 +42,15 @@
                                 <i class="bi bi-geo-alt"></i> {{ activity.location }}<br>
                                 <i class="bi bi-calendar-event"></i> {{ activity.start_time.strftime('%Y-%m-%d %H:%M') }} 至 {{ activity.end_time.strftime('%Y-%m-%d %H:%M') }}
                             </p>
-                            <div class="d-flex justify-content-between align-items-center mt-2">
-                                <small class="text-muted">
+                            <div class="d-flex justify-content-between align-items-center mt-2 flex-wrap">
+                                <small class="text-muted mb-2 mb-md-0">
                                     {% if activity.registration_deadline >= now and activity.status == 'active' %}
                                         报名截止: {{ activity.registration_deadline.strftime('%Y-%m-%d %H:%M') }}
                                     {% else %}
                                         报名已截止
                                     {% endif %}
                                 </small>
-                                <div>
+                                <div class="action-buttons">
                                     {% if activity.id in registered_activity_ids %}
                                         <span class="badge bg-info me-2">已报名</span>
                                     {% elif activity.status == 'active' and activity.registration_deadline >= now %}
@@ -68,7 +68,7 @@
                 <!-- 分页 -->
                 {% if activities.pages > 1 %}
                 <nav aria-label="Page navigation" class="mt-4">
-                    <ul class="pagination justify-content-center">
+                    <ul class="pagination justify-content-center flex-wrap">
                         {% if activities.has_prev %}
                             <li class="page-item">
                                 <a class="page-link" href="{{ url_for('student.activities', page=activities.prev_num, status=current_status) }}" aria-label="Previous">
@@ -120,4 +120,31 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block styles %}
+{{ super() }}
+<style>
+    /* 移动端优化 */
+    @media (max-width: 576px) {
+        .list-group-item {
+            padding: 0.75rem;
+        }
+        
+        .action-buttons {
+            margin-top: 0.5rem;
+            width: 100%;
+            display: flex;
+            justify-content: flex-end;
+        }
+        
+        .action-buttons .btn {
+            margin-left: 0.5rem;
+        }
+        
+        .pagination {
+            gap: 0.25rem;
+        }
+    }
+</style>
 {% endblock %}

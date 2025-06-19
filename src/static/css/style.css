@@ -12,11 +12,12 @@
 }
 
 body {
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     color: #333;
     min-height: 100vh;
     display: flex;
     flex-direction: column;
+    padding-bottom: 2rem;
 }
 
 .container {
@@ -123,9 +124,13 @@ body {
 
 /* 活动卡片样式 */
 .activity-card {
+    transition: transform 0.3s;
     height: 100%;
-    display: flex;
-    flex-direction: column;
+}
+
+.activity-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 20px rgba(0,0,0,0.1);
 }
 
 .activity-card .card-body {
@@ -276,4 +281,115 @@ body {
 
 ::-webkit-scrollbar-thumb:hover {
     background: #555;
+}
+
+/* 移动端优化 */
+@media (max-width: 576px) {
+    .container {
+        padding-left: 10px;
+        padding-right: 10px;
+    }
+    
+    .card-body {
+        padding: 1rem;
+    }
+    
+    .table-responsive {
+        font-size: 0.9rem;
+    }
+    
+    .btn-group .btn {
+        padding: 0.375rem 0.5rem;
+    }
+    
+    h1, .h1 {
+        font-size: 1.8rem;
+    }
+    
+    h2, .h2 {
+        font-size: 1.5rem;
+    }
+    
+    .display-4 {
+        font-size: 2.5rem;
+    }
+    
+    .form-group {
+        margin-bottom: 0.75rem;
+    }
+    
+    .table td, .table th {
+        padding: 0.5rem;
+    }
+    
+    /* 确保按钮在小屏幕上有足够的间距 */
+    .btn {
+        margin-bottom: 0.5rem;
+        margin-right: 0.5rem;
+    }
+    
+    /* 确保表单在小屏幕上正确显示 */
+    .form-control {
+        font-size: 16px; /* 防止iOS缩放 */
+    }
+    
+    /* 改进移动端的导航栏 */
+    .navbar-brand {
+        font-size: 1.2rem;
+    }
+    
+    .navbar-toggler {
+        padding: 0.25rem 0.5rem;
+    }
+}
+
+/* 标签样式 */
+.tag-badge {
+    margin-right: 5px;
+    margin-bottom: 5px;
+}
+
+/* 签到二维码样式 */
+.qrcode-container {
+    background-color: #fff;
+    display: inline-block;
+    padding: 15px;
+    border-radius: 8px;
+}
+
+/* 按钮组样式优化 */
+.action-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+/* 表格内容垂直居中 */
+.table td {
+    vertical-align: middle;
+}
+
+/* 活动描述样式 */
+.activity-description img {
+    max-width: 100%;
+    height: auto;
+}
+
+/* 确保页脚始终在底部 */
+html, body {
+    height: 100%;
+}
+
+.wrapper {
+    min-height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+.content {
+    flex: 1;
+}
+
+footer {
+    margin-top: auto;
 }

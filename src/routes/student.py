@@ -602,22 +602,19 @@ def get_recommended_activities(user_id, limit=6):
             liked_keywords = set()
             for activity in reviewed_activities:
                 liked_keywords.update(activity.title.split())
-                liked_keywords.update(activity.description.split())
+                if activity.description:
+                    liked_keywords.update(activity.description.split())
             
-            recommended = recommended.filter(
-                db.or_(
-                    *[Activity.title.ilike(f'%{keyword}%') for keyword in liked_keywords],
-                    *[Activity.description.ilike(f'%{keyword}%') for keyword in liked_keywords]
+            if liked_keywords:
+                recommended = recommended.filter(
+                    db.or_(
+                        *[Activity.title.ilike(f'%{keyword}%') for keyword in liked_keywords],
+                        *[Activity.description.ilike(f'%{keyword}%') for keyword in liked_keywords]
+                    )
                 )
-            )
         
-        # 根据用户所在学院和专业推荐
-        recommended = recommended.order_by(
-            # 优先推荐用户所在学院的活动
-            db.case((Activity.college == student_info.college, 1), else_=2),
-            # 其次考虑活动开始时间
-            Activity.start_time.asc()
-        )
+        # 根据活动开始时间排序，优先推荐即将开始的活动
+        recommended = recommended.order_by(Activity.start_time.asc())
         
         return recommended.limit(limit).all()
     except Exception as e:
