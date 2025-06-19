@@ -150,7 +150,7 @@
                     <form action="{{ url_for('admin.toggle_checkin', id=activity.id) }}" method="post" class="d-inline">
                         <button type="submit" class="btn {% if activity.checkin_enabled %}btn-warning{% else %}btn-outline-success{% endif %} m-1">
                             <i class="fas {% if activity.checkin_enabled %}fa-toggle-on{% else %}fa-toggle-off{% endif %} me-1"></i>
-                            {% if activity.checkin_enabled %}关闭{% else %}开启{% endif %}签到
+                            {% if activity.checkin_enabled %}停止签到{% else %}开始签到{% endif %}
                         </button>
                     </form>
                     {% endif %}

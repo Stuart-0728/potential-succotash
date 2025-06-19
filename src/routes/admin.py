@@ -644,6 +644,9 @@ def activity_registrations(id):
         cancelled_count = Registration.query.filter_by(activity_id=id, status='cancelled').count()
         attended_count = Registration.query.filter_by(activity_id=id, status='attended').count()
         
+        # 修复签到状态统计 - 确保报名统计准确性
+        # 这里处理签到后的状态计数，让前端能正确显示
+        
         return render_template('admin/activity_registrations.html',
                               activity=activity,
                               registrations=registrations,
@@ -984,12 +987,19 @@ def update_registration_status(id):
     try:
         registration = Registration.query.get_or_404(id)
         new_status = request.form.get('status')
+        old_status = registration.status
         
         if new_status not in ['registered', 'cancelled', 'attended']:
             flash('无效的状态值', 'danger')
             return redirect(url_for('admin.activity_registrations', id=registration.activity_id))
         
         registration.status = new_status
+        
+        # 如果状态改为已参加，设置签到时间
+        if new_status == 'attended' and not registration.check_in_time:
+            registration.check_in_time = get_localized_now()
+        # 如果从已参加改为其他状态，保留签到时间以便恢复
+        
         db.session.commit()
         
         log_action('update_registration', f'更新报名状态: ID {id} 到 {new_status}')
@@ -1030,8 +1040,8 @@ def activity_checkin(id):
             return jsonify({'success': False, 'message': '该学生已签到'})
         
         # 更新签到状态
-        registration.status = 'checked_in'
-        registration.check_in_time = datetime.utcnow()
+        registration.status = 'attended'
+        registration.check_in_time = get_localized_now()
         
         # 添加积分奖励
         points = activity.points or (20 if activity.is_featured else 10)  # 使用活动自定义积分或默认值
@@ -1262,6 +1272,13 @@ def toggle_checkin(id):
         
         # 切换状态（取反）
         activity.checkin_enabled = not current_status
+        
+        # 如果开启签到，生成或更新签到密钥
+        if activity.checkin_enabled:
+            now = get_localized_now()
+            checkin_key = hashlib.sha256(f"{activity.id}:{now.timestamp()}:{current_app.config['SECRET_KEY']}".encode()).hexdigest()[:16]
+            activity.checkin_key = checkin_key
+            activity.checkin_key_expires = now + timedelta(hours=24)  # 24小时有效期
         
         db.session.commit()
         

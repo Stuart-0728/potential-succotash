@@ -106,7 +106,7 @@ def scan_checkin(activity_id, checkin_key):
         
         # 更新签到状态
         registration.check_in_time = now
-        registration.status = 'checked_in'
+        registration.status = 'attended'
         
         # 添加积分奖励
         points = activity.points or (20 if activity.is_featured else 10)  # 使用活动自定义积分或默认值
