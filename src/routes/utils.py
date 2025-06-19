@@ -317,6 +317,12 @@ def ai_chat():
         "stream": True
     }
 
+    # 保存当前用户ID和会话ID，以便在流式响应中使用
+    current_user_id = current_user.id if current_user.is_authenticated else None
+    
+    # 获取Flask应用实例
+    from flask import current_app
+
     def generate():
         try:
             logger.info(f"发送 AI 请求: URL={url}, Headers={headers}, Payload={payload}")
@@ -344,41 +350,39 @@ def ai_chat():
                             continue
                             
             # 响应结束，保存历史记录
-            if session_id and full_response:
+            if session_id and full_response and current_user_id:
                 try:
+                    # 在请求上下文中保存聊天记录
                     # 检查会话是否存在
                     session = AIChatSession.query.filter_by(id=session_id).first()
-                    if not session and current_user and current_user.is_authenticated:
+                    if not session:
                         # 如果会话不存在，创建新会话
-                        session = AIChatSession(id=session_id, user_id=current_user.id)
+                        session = AIChatSession(id=session_id, user_id=current_user_id)
                         db.session.add(session)
                         db.session.commit()
                     
-                    # 只有当会话和用户都存在时才保存消息
-                    if session and current_user and current_user.is_authenticated:
-                        # 保存用户消息
-                        user_history = AIChatHistory(
-                            user_id=current_user.id,
-                            session_id=session_id,
-                            role="user",
-                            content=user_message
-                        )
-                        db.session.add(user_history)
-                        
-                        # 保存AI回复
-                        ai_history = AIChatHistory(
-                            user_id=current_user.id,
-                            session_id=session_id,
-                            role="assistant",
-                            content=full_response
-                        )
-                        db.session.add(ai_history)
-                        db.session.commit()
-                        
-                        # 更新会话最后更新时间
-                        session.updated_at = datetime.now()
-                        db.session.commit()
-                        
+                    # 保存用户消息
+                    user_history = AIChatHistory(
+                        user_id=current_user_id,
+                        session_id=session_id,
+                        role="user",
+                        content=user_message
+                    )
+                    db.session.add(user_history)
+                    
+                    # 保存AI回复
+                    ai_history = AIChatHistory(
+                        user_id=current_user_id,
+                        session_id=session_id,
+                        role="assistant",
+                        content=full_response
+                    )
+                    db.session.add(ai_history)
+                    
+                    # 更新会话最后更新时间
+                    session.updated_at = datetime.now()
+                    db.session.commit()
+                    
                 except Exception as e:
                     logger.error(f"保存聊天历史记录失败: {str(e)}")
                     db.session.rollback()
