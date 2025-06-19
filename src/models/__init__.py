@@ -1,10 +1,30 @@
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import UserMixin
+from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
+import json
 
 db = SQLAlchemy()
 
-# 用户角色表
+# 用户与角色关系表
+roles_users = db.Table('roles_users',
+    db.Column('user_id', db.Integer(), db.ForeignKey('user.id')),
+    db.Column('role_id', db.Integer(), db.ForeignKey('role.id'))
+)
+
+# 学生与标签关系表
+student_tags = db.Table('student_tags',
+    db.Column('student_id', db.Integer(), db.ForeignKey('student_info.id')),
+    db.Column('tag_id', db.Integer(), db.ForeignKey('tag.id'))
+)
+
+# 活动与标签关系表
+activity_tags = db.Table('activity_tags',
+    db.Column('activity_id', db.Integer(), db.ForeignKey('activity.id')),
+    db.Column('tag_id', db.Integer(), db.ForeignKey('tag.id'))
+)
+
+# 角色模型
 class Role(db.Model):
     __tablename__ = 'roles'
     id = db.Column(db.Integer, primary_key=True)
@@ -15,7 +35,7 @@ class Role(db.Model):
     def __repr__(self):
         return f'<Role {self.name}>'
 
-# 用户表
+# 用户模型
 class User(db.Model, UserMixin):
     __tablename__ = 'users'
     id = db.Column(db.Integer, primary_key=True)
@@ -23,15 +43,27 @@ class User(db.Model, UserMixin):
     email = db.Column(db.String(120), unique=True, index=True)
     password_hash = db.Column(db.String(256))  # 已修改：从128扩展到256
     role_id = db.Column(db.Integer, db.ForeignKey('roles.id'))
+    active = db.Column(db.Boolean, default=True)
     student_info = db.relationship('StudentInfo', backref='user', uselist=False)
     registrations = db.relationship('Registration', backref='user', lazy='dynamic')
     created_at = db.Column(db.DateTime, default=datetime.now)
     last_login = db.Column(db.DateTime)
+    
+    # AI聊天关联
+    ai_chat_histories = db.relationship('AIChatHistory', backref='user', lazy='dynamic')
+    ai_chat_sessions = db.relationship('AIChatSession', backref='user', lazy='dynamic')
+    ai_preferences = db.relationship('AIUserPreferences', backref='user', uselist=False)
 
     def __repr__(self):
         return f'<User {self.username}>'
 
-# 学生信息表
+    def set_password(self, password):
+        self.password_hash = generate_password_hash(password)
+        
+    def check_password(self, password):
+        return check_password_hash(self.password_hash, password)
+
+# 学生信息模型
 class StudentInfo(db.Model):
     __tablename__ = 'student_info'
     id = db.Column(db.Integer, primary_key=True)
@@ -47,7 +79,7 @@ class StudentInfo(db.Model):
     points = db.Column(db.Integer, default=0)
     points_history = db.relationship('PointsHistory', backref='student', lazy='dynamic')
     has_selected_tags = db.Column(db.Boolean, default=False)  # 新增字段
-    tags = db.relationship('Tag', secondary='student_interest_tags', backref=db.backref('students', lazy='dynamic'))  # 多对多
+    tags = db.relationship('Tag', secondary=student_tags, backref=db.backref('students', lazy='dynamic'))  # 多对多
 
     def __repr__(self):
         return f'<StudentInfo {self.real_name}>'
@@ -62,7 +94,7 @@ class PointsHistory(db.Model):
     activity_id = db.Column(db.Integer, db.ForeignKey('activities.id'), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-# 活动表
+# 活动模型
 class Activity(db.Model):
     __tablename__ = 'activities'
     id = db.Column(db.Integer, primary_key=True)
@@ -74,20 +106,21 @@ class Activity(db.Model):
     registration_deadline = db.Column(db.DateTime)
     max_participants = db.Column(db.Integer, default=0)  # 0表示不限制人数
     status = db.Column(db.String(20), default='active')  # active, cancelled, completed
+    type = db.Column(db.String(50), default='其他')  # 活动类型：讲座、研讨会、实践活动等
     is_featured = db.Column(db.Boolean, default=False)  # 是否为重点活动
     points = db.Column(db.Integer, default=10)  # 参加活动获得的积分值，默认10分
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     created_by = db.Column(db.Integer, db.ForeignKey('users.id'))
     updated_at = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now)
     registrations = db.relationship('Registration', backref='activity', lazy='dynamic')
-    tags = db.relationship('Tag', secondary='activity_tags', backref=db.backref('activities', lazy='dynamic'))  # 修正多对多关系
+    tags = db.relationship('Tag', secondary=activity_tags, backref=db.backref('activities', lazy='dynamic'))  # 修正多对多关系
     checkin_key = db.Column(db.String(32), nullable=True)  # 签到密钥
     checkin_key_expires = db.Column(db.DateTime, nullable=True)  # 签到密钥过期时间
     
     def __repr__(self):
         return f'<Activity {self.title}>'
 
-# 活动报名表
+# 报名模型
 class Registration(db.Model):
     __tablename__ = 'registrations'
     id = db.Column(db.Integer, primary_key=True)
@@ -115,7 +148,7 @@ class Announcement(db.Model):
     def __repr__(self):
         return f'<Announcement {self.title}>'
 
-# 系统日志表
+# 系统日志模型
 class SystemLog(db.Model):
     __tablename__ = 'system_logs'
     id = db.Column(db.Integer, primary_key=True)
@@ -128,7 +161,7 @@ class SystemLog(db.Model):
     def __repr__(self):
         return f'<SystemLog {self.action}>'
 
-# 活动评价表
+# 活动评价模型
 class ActivityReview(db.Model):
     __tablename__ = 'activity_reviews'
     id = db.Column(db.Integer, primary_key=True)
@@ -154,7 +187,7 @@ class ActivityReview(db.Model):
         student_info = StudentInfo.query.filter_by(user_id=self.user_id).first()
         return student_info.real_name if student_info else self.user.username
 
-# 标签表
+# 标签模型
 class Tag(db.Model):
     __tablename__ = 'tags'
     id = db.Column(db.Integer, primary_key=True)
@@ -166,13 +199,6 @@ class Tag(db.Model):
 
     def __repr__(self):
         return f'<Tag {self.name}>'
-
-# 活动-标签多对多辅助表
-activity_tags = db.Table(
-    'activity_tags',
-    db.Column('activity_id', db.Integer, db.ForeignKey('activities.id')),
-    db.Column('tag_id', db.Integer, db.ForeignKey('tags.id'))
-)
 
 # 签到表
 class ActivityCheckin(db.Model):
@@ -189,3 +215,43 @@ class StudentInterestTag(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     student_id = db.Column(db.Integer, db.ForeignKey('student_info.id'), nullable=False)
     tag_id = db.Column(db.Integer, db.ForeignKey('tags.id'), nullable=False)
+
+# AI聊天历史记录模型
+class AIChatHistory(db.Model):
+    __tablename__ = 'ai_chat_history'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    session_id = db.Column(db.String(255), nullable=False)
+    role = db.Column(db.String(50), nullable=False)  # 'user' 或 'assistant'
+    content = db.Column(db.Text, nullable=False)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    def __str__(self):
+        return f"{self.role}: {self.content[:20]}..."
+
+# AI聊天会话模型
+class AIChatSession(db.Model):
+    __tablename__ = 'ai_chat_session'
+    id = db.Column(db.String(255), primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # 历史记录关联
+    messages = db.relationship('AIChatHistory', backref='session', lazy='dynamic',
+                              primaryjoin="AIChatHistory.session_id == AIChatSession.id",
+                              foreign_keys=[AIChatHistory.session_id],
+                              cascade="all, delete-orphan")
+    
+    def __str__(self):
+        return f"Session {self.id} - User {self.user_id}"
+
+# AI用户偏好设置模型
+class AIUserPreferences(db.Model):
+    __tablename__ = 'ai_user_preferences'
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), primary_key=True)
+    enable_history = db.Column(db.Boolean, default=True)  # 默认启用历史记录
+    max_history_count = db.Column(db.Integer, default=50)  # 每个用户最多保存50条历史记录
+    
+    def __str__(self):
+        return f"AI Preferences for User {self.user_id}"
