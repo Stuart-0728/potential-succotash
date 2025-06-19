@@ -136,6 +136,23 @@
             background: #cccccc;
             cursor: not-allowed;
         }
+        
+        .ai-chat-actions {
+            display: flex;
+            justify-content: space-between;
+            padding: 0 15px 10px;
+            font-size: 12px;
+        }
+        
+        .ai-chat-actions a {
+            color: #4CAF50;
+            text-decoration: none;
+            cursor: pointer;
+        }
+        
+        .ai-chat-actions a:hover {
+            text-decoration: underline;
+        }
     </style>
 </head>
 <body>
@@ -283,107 +300,101 @@
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <!-- Custom JS -->
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    <!-- AI Chat JS -->
+    <script src="{{ url_for('static', filename='js/ai_chat.js') }}"></script>
     {% block scripts %}{% endblock %}
 
-    <button class="ai-chat-button" onclick="toggleAIChat()">
+    <button class="ai-chat-button" id="aiChatToggleBtn">
         <i class="fas fa-robot"></i>
     </button>
 
     <div class="ai-chat-container" id="aiChatContainer">
         <div class="ai-chat-header">
             <h3>智能助手</h3>
-            <button class="ai-chat-close" onclick="toggleAIChat()">&times;</button>
+            <button class="ai-chat-close" id="aiChatCloseBtn">&times;</button>
         </div>
         <div class="ai-chat-messages" id="aiChatMessages">
-            {% if current_user.is_authenticated %}
-            <div class="ai-message bot">
-                您好，欢迎来到重庆师范大学社团活动平台，我是基于deepseek开发的智能助手，我可以为您推荐活动、查询信息等等；有任何问题都可以随时找我，很高兴为您服务！
-            </div>
-            {% else %}
-            <div class="ai-message bot">
-                您好！AI助手功能需要登录后使用。请先<a href="{{ url_for('auth.login') }}">登录</a>或<a href="{{ url_for('auth.register') }}">注册</a>。
-            </div>
-            {% endif %}
+            <!-- 消息内容会由JS动态加载 -->
+        </div>
+        <div class="ai-chat-actions">
+            <span>
+                <a href="javascript:void(0);" onclick="window.aiChat.clearHistory()">清除当前对话</a>
+                <span class="mx-1">|</span>
+                <a href="javascript:void(0);" onclick="window.aiChat.clearAllHistory()">清除所有历史</a>
+            </span>
+            <a href="javascript:void(0);" onclick="toggleAIChatInfo()">关于智能助手</a>
         </div>
         <div class="ai-chat-input">
-            <input type="text" id="aiChatInput" placeholder="输入你的问题..." onkeypress="handleAIChatInput(event)" {% if not current_user.is_authenticated %}disabled{% endif %}>
-            <button onclick="sendAIMessage()" id="aiSendButton" {% if not current_user.is_authenticated %}disabled{% endif %}>发送</button>
+            <input type="text" id="aiChatInput" placeholder="输入你的问题..." {% if not current_user.is_authenticated %}disabled{% endif %}>
+            <button id="aiSendButton" {% if not current_user.is_authenticated %}disabled{% endif %}>发送</button>
         </div>
     </div>
 
     <script>
-        function toggleAIChat() {
-            const container = document.getElementById('aiChatContainer');
-            container.style.display = container.style.display === 'none' ? 'flex' : 'none';
-        }
-
-        function handleAIChatInput(event) {
-            if (event.key === 'Enter') {
-                sendAIMessage();
-            }
-        }
-
-        function sendAIMessage() {
+        // 这个脚本处理AI聊天组件的初始配置
+        document.addEventListener('DOMContentLoaded', function() {
+            // 如果未登录，显示登录提示
             {% if not current_user.is_authenticated %}
-                return;
+            setTimeout(function() {
+                if (window.aiChat && window.aiChat.ui) {
+                    window.aiChat.ui.clearMessagesUI();
+                    window.aiChat.ui.addMessageToUI('您好！AI助手功能需要登录后使用。请先<a href="{{ url_for('auth.login') }}">登录</a>或<a href="{{ url_for('auth.register') }}">注册</a>。', 'bot');
+                }
+            }, 100);
             {% endif %}
             
-            const input = document.getElementById('aiChatInput');
-            const message = input.value.trim();
-            if (!message) return;
-
-            // 添加用户消息
-            addMessage(message, 'user');
-            input.value = '';
-
-            // 禁用输入和按钮
-            input.disabled = true;
-            document.getElementById('aiSendButton').disabled = true;
-
-            // 创建AI消息容器
-            const messagesContainer = document.getElementById('aiChatMessages');
-            const aiMessageDiv = document.createElement('div');
-            aiMessageDiv.className = 'ai-message bot';
-            messagesContainer.appendChild(aiMessageDiv);
-
-            // 创建 EventSource 连接
-            const eventSource = new EventSource(`/api/ai_chat?message=${encodeURIComponent(message)}&role=student`);
-
-            // 处理消息
-            eventSource.onmessage = function(event) {
-                const data = JSON.parse(event.data);
-                if (data.error) {
-                    aiMessageDiv.textContent = `错误: ${data.error}`;
-                    eventSource.close();
-                    input.disabled = false;
-                    document.getElementById('aiSendButton').disabled = false;
-                    input.focus();
-                } else if (data.content) {
-                    aiMessageDiv.textContent += data.content;
-                    messagesContainer.scrollTop = messagesContainer.scrollHeight;
-                }
+            // 关于智能助手的信息弹窗
+            window.toggleAIChatInfo = function() {
+                // 获取关于协会的信息
+                const info = window.aiChat.associationInfo;
+                const infoHtml = `
+                <div class="modal fade" id="aiChatInfoModal" tabindex="-1" aria-hidden="true">
+                    <div class="modal-dialog">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title">关于智能助手</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                            </div>
+                            <div class="modal-body">
+                                <h6>重庆师范大学师能素质协会</h6>
+                                <p>${info.description}</p>
+                                <p><strong>成立时间：</strong>${info.foundedYear}年</p>
+                                <p><strong>协会宗旨：</strong>${info.goals}</p>
+                                <h6>主要活动</h6>
+                                <ul>
+                                    ${info.mainActivities.map(activity => `<li>${activity}</li>`).join('')}
+                                </ul>
+                                <h6>协会部门</h6>
+                                <p>${info.departments.join('、')}</p>
+                                <h6>联系方式</h6>
+                                <p><i class="fas fa-map-marker-alt me-2"></i>${info.contactInfo.address}</p>
+                                <p><i class="fab fa-qq me-2"></i>QQ群：${info.contactInfo.qqGroup}</p>
+                                <p><i class="fas fa-phone me-2"></i>${info.contactInfo.phone}</p>
+                                <p><i class="fas fa-envelope me-2"></i>${info.contactInfo.email}</p>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                `;
+                
+                // 添加模态框到页面
+                const modalContainer = document.createElement('div');
+                modalContainer.innerHTML = infoHtml;
+                document.body.appendChild(modalContainer);
+                
+                // 显示模态框
+                const modal = new bootstrap.Modal(document.getElementById('aiChatInfoModal'));
+                modal.show();
+                
+                // 模态框关闭后移除
+                document.getElementById('aiChatInfoModal').addEventListener('hidden.bs.modal', function() {
+                    document.body.removeChild(modalContainer);
+                });
             };
-
-            // 处理错误
-            eventSource.onerror = function() {
-                eventSource.close();
-                if (!aiMessageDiv.textContent) {
-                    aiMessageDiv.textContent = '抱歉，服务出现错误，请稍后再试。';
-                }
-                input.disabled = false;
-                document.getElementById('aiSendButton').disabled = false;
-                input.focus();
-            };
-        }
-
-        function addMessage(text, type) {
-            const messagesContainer = document.getElementById('aiChatMessages');
-            const messageDiv = document.createElement('div');
-            messageDiv.className = `ai-message ${type}`;
-            messageDiv.textContent = text;
-            messagesContainer.appendChild(messageDiv);
-            messagesContainer.scrollTop = messagesContainer.scrollHeight;
-        }
+        });
     </script>
 </body>
 </html>

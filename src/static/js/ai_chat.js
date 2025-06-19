@@ -1,0 +1,440 @@
+/**
+ * 师能素质协会 - AI聊天助手
+ * 
+ * 实现功能：
+ * 1. 聊天历史记录的数据库存储和加载
+ * 2. 页面间保持聊天记录
+ * 3. 会话管理
+ */
+
+// 配置参数
+const AI_CHAT_CONFIG = {
+    cookiePrefix: 'cqnu_ai_chat_',
+    maxStoredMessages: 50,  // 最大存储消息数
+    cookieExpireDays: 7,    // Cookie保存天数
+    initialBotMessage: '您好，欢迎来到重庆师范大学师能素质协会平台，我是智能助手，有什么可以帮助您的吗？'
+};
+
+// 协会基本信息
+const ASSOCIATION_INFO = {
+    name: '重庆师范大学师能素质协会',
+    description: '致力于提升师范生专业素养和教学能力的学生组织',
+    foundedYear: 2015,
+    mainActivities: [
+        '教学技能培训与比赛',
+        '师范生素质拓展活动',
+        '教育教学研讨会',
+        '师范生就业指导',
+        '支教与社会实践'
+    ],
+    contactInfo: {
+        address: '重庆市沙坪坝区大学城中路37号',
+        qqGroup: '995213034',
+        phone: '023-65362779',
+        email: 'shineng@cqnu.edu.cn',
+        website: 'http://shineng.cqnu.edu.cn'
+    },
+    departments: [
+        '学习部', '组织部', '宣传部', '外联部', '秘书部'
+    ],
+    goals: '提高师范生专业素养，培养高素质教师人才，服务于教育教学事业'
+};
+
+// 会话管理
+class AIChatSession {
+    constructor() {
+        this.sessionId = this.getOrCreateSessionId();
+        this.messages = [];
+        this.isOpen = false;
+        // 初始化时从后端加载历史记录
+        this.loadMessagesFromServer();
+    }
+
+    // 获取或创建会话ID
+    getOrCreateSessionId() {
+        let sessionId = this.getCookie('session_id');
+        if (!sessionId) {
+            sessionId = 'session_' + Date.now() + '_' + Math.random().toString(36).substring(2, 15);
+            this.setCookie('session_id', sessionId, AI_CHAT_CONFIG.cookieExpireDays);
+        }
+        return sessionId;
+    }
+
+    // 添加消息
+    addMessage(content, role) {
+        const message = {
+            role: role,
+            content: content,
+            timestamp: new Date().toISOString()
+        };
+        
+        this.messages.push(message);
+        
+        // 如果消息超过最大存储数，删除最早的消息
+        if (this.messages.length > AI_CHAT_CONFIG.maxStoredMessages) {
+            this.messages = this.messages.slice(this.messages.length - AI_CHAT_CONFIG.maxStoredMessages);
+        }
+        
+        return message;
+    }
+
+    // 清除所有消息
+    clearMessages() {
+        this.messages = [];
+        // 调用后端API清除历史记录
+        fetch(`/api/ai_chat/clear?session_id=${this.sessionId}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        })
+        .catch(error => console.error('清除历史记录失败:', error));
+    }
+    
+    // 清除用户所有会话历史记录
+    clearAllHistory() {
+        this.messages = [];
+        // 调用后端API清除所有历史记录
+        fetch('/api/ai_chat/clear_history', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                console.log(`清除历史记录成功: ${data.message}`);
+                // 删除cookie中的消息记录
+                this.deleteCookie('messages');
+            } else {
+                console.error(`清除历史记录失败: ${data.message}`);
+            }
+        })
+        .catch(error => console.error('清除所有历史记录失败:', error));
+    }
+    
+    // 获取所有消息
+    getMessages() {
+        return this.messages;
+    }
+    
+    // 从后端加载消息历史
+    loadMessagesFromServer() {
+        // 先尝试从Cookie加载，作为备用方案
+        const cookieMessages = this.loadMessagesFromCookie();
+        if (cookieMessages) {
+            this.messages = cookieMessages;
+        }
+        
+        // 从后端API加载历史记录
+        fetch(`/api/ai_chat/history?session_id=${this.sessionId}`)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('加载历史记录失败');
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.success && data.data && data.data.length > 0) {
+                    this.messages = data.data;
+                    // 如果有UI实例，刷新UI
+                    if (window.aiChat && window.aiChat.ui) {
+                        window.aiChat.ui.refreshMessages();
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('从服务器加载历史记录失败:', error);
+                // 如果从服务器加载失败，就使用Cookie中的数据（如果有）
+            });
+    }
+    
+    // 从Cookie加载消息（作为备用方案）
+    loadMessagesFromCookie() {
+        const messagesJson = this.getCookie('messages');
+        return messagesJson ? JSON.parse(messagesJson) : null;
+    }
+    
+    // 保存消息到Cookie（作为备用方案）
+    saveMessagesToCookie() {
+        const messagesJson = JSON.stringify(this.messages);
+        this.setCookie('messages', messagesJson, AI_CHAT_CONFIG.cookieExpireDays);
+    }
+    
+    // 设置Cookie
+    setCookie(name, value, days) {
+        let expires = '';
+        if (days) {
+            const date = new Date();
+            date.setTime(date.getTime() + (days * 24 * 60 * 60 * 1000));
+            expires = '; expires=' + date.toUTCString();
+        }
+        document.cookie = AI_CHAT_CONFIG.cookiePrefix + name + '=' + encodeURIComponent(value) + expires + '; path=/';
+    }
+    
+    // 获取Cookie
+    getCookie(name) {
+        const nameEQ = AI_CHAT_CONFIG.cookiePrefix + name + '=';
+        const ca = document.cookie.split(';');
+        for (let i = 0; i < ca.length; i++) {
+            let c = ca[i];
+            while (c.charAt(0) === ' ') c = c.substring(1, c.length);
+            if (c.indexOf(nameEQ) === 0) 
+                return decodeURIComponent(c.substring(nameEQ.length, c.length));
+        }
+        return null;
+    }
+    
+    // 删除Cookie
+    deleteCookie(name) {
+        this.setCookie(name, '', -1);
+    }
+}
+
+// AI聊天UI管理
+class AIChatUI {
+    constructor(session) {
+        this.session = session;
+        this.container = document.getElementById('aiChatContainer');
+        this.messagesContainer = document.getElementById('aiChatMessages');
+        this.input = document.getElementById('aiChatInput');
+        this.sendButton = document.getElementById('aiSendButton');
+        this.toggleButton = document.querySelector('.ai-chat-button');
+        
+        this.setupEventListeners();
+        this.initialize();
+    }
+    
+    // 初始化
+    initialize() {
+        // 清空现有消息区域
+        this.clearMessagesUI();
+        
+        // 如果有保存的消息，则加载消息
+        const messages = this.session.getMessages();
+        
+        // 如果没有历史消息，添加初始欢迎消息
+        if (messages.length === 0) {
+            this.addMessageToUI(AI_CHAT_CONFIG.initialBotMessage, 'bot');
+        } else {
+            // 加载保存的消息
+            this.refreshMessages();
+        }
+        
+        // 恢复聊天窗口状态
+        const isOpen = this.session.getCookie('chat_open') === 'true';
+        if (isOpen) {
+            this.openChat();
+        }
+    }
+    
+    // 刷新消息显示
+    refreshMessages() {
+        // 清空消息区域
+        this.clearMessagesUI();
+        
+        // 加载消息
+        const messages = this.session.getMessages();
+        messages.forEach(msg => {
+            this.addMessageToUI(msg.content, msg.role === 'user' ? 'user' : 'bot');
+        });
+        
+        // 滚动到最新消息
+        this.scrollToBottom();
+    }
+    
+    // 设置事件监听器
+    setupEventListeners() {
+        // 发送按钮点击事件
+        if (this.sendButton) {
+            this.sendButton.addEventListener('click', () => this.sendMessage());
+        }
+        
+        // 输入框回车事件
+        if (this.input) {
+            this.input.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    this.sendMessage();
+                }
+            });
+        }
+        
+        // 切换聊天窗口按钮事件
+        if (this.toggleButton) {
+            this.toggleButton.addEventListener('click', () => this.toggleChat());
+        }
+    }
+    
+    // 切换聊天窗口显示/隐藏
+    toggleChat() {
+        if (this.container.style.display === 'none' || this.container.style.display === '') {
+            this.openChat();
+        } else {
+            this.closeChat();
+        }
+    }
+    
+    // 打开聊天窗口
+    openChat() {
+        this.container.style.display = 'flex';
+        this.session.isOpen = true;
+        this.session.setCookie('chat_open', 'true', AI_CHAT_CONFIG.cookieExpireDays);
+        // 滚动到最新消息
+        this.scrollToBottom();
+    }
+    
+    // 关闭聊天窗口
+    closeChat() {
+        this.container.style.display = 'none';
+        this.session.isOpen = false;
+        this.session.setCookie('chat_open', 'false', AI_CHAT_CONFIG.cookieExpireDays);
+    }
+    
+    // 发送消息
+    sendMessage() {
+        if (!this.input) return;
+        
+        const message = this.input.value.trim();
+        if (!message) return;
+        
+        // 清空输入框
+        this.input.value = '';
+        
+        // 添加用户消息到UI
+        this.addMessageToUI(message, 'user');
+        
+        // 添加消息到会话
+        this.session.addMessage(message, 'user');
+        
+        // 禁用输入和按钮
+        this.disableInput(true);
+        
+        // 准备接收AI响应
+        this.receiveAIResponse(message);
+    }
+    
+    // 接收AI响应
+    receiveAIResponse(userMessage) {
+        // 创建AI消息容器
+        const aiMessageDiv = document.createElement('div');
+        aiMessageDiv.className = 'ai-message bot';
+        this.messagesContainer.appendChild(aiMessageDiv);
+        
+        // 滚动到底部
+        this.scrollToBottom();
+        
+        // 创建 EventSource 连接
+        const role = 'student'; // 默认角色，可扩展
+        const eventSource = new EventSource(`/api/ai_chat?message=${encodeURIComponent(userMessage)}&role=${role}&session_id=${this.session.sessionId}`);
+        
+        // 完整的AI响应文本
+        let fullResponse = '';
+        
+        // 处理消息
+        eventSource.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            if (data.error) {
+                aiMessageDiv.textContent = `错误: ${data.error}`;
+                eventSource.close();
+                this.disableInput(false);
+                this.input.focus();
+            } else if (data.content) {
+                fullResponse += data.content;
+                aiMessageDiv.textContent = fullResponse;
+                this.scrollToBottom();
+            }
+        };
+        
+        // 处理结束
+        eventSource.addEventListener('done', () => {
+            eventSource.close();
+            
+            // 存储AI响应到会话
+            if (fullResponse) {
+                this.session.addMessage(fullResponse, 'assistant');
+                // 备份到Cookie
+                this.session.saveMessagesToCookie();
+            }
+            
+            this.disableInput(false);
+            this.input.focus();
+        });
+        
+        // 处理错误
+        eventSource.onerror = () => {
+            eventSource.close();
+            if (!aiMessageDiv.textContent) {
+                aiMessageDiv.textContent = '抱歉，服务出现错误，请稍后再试。';
+            }
+            this.disableInput(false);
+            this.input.focus();
+        };
+    }
+    
+    // 添加消息到UI
+    addMessageToUI(text, type) {
+        const messageDiv = document.createElement('div');
+        messageDiv.className = `ai-message ${type}`;
+        messageDiv.textContent = text;
+        this.messagesContainer.appendChild(messageDiv);
+        this.scrollToBottom();
+    }
+    
+    // 清空消息UI
+    clearMessagesUI() {
+        while (this.messagesContainer.firstChild) {
+            this.messagesContainer.removeChild(this.messagesContainer.firstChild);
+        }
+    }
+    
+    // 滚动到底部
+    scrollToBottom() {
+        this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
+    }
+    
+    // 禁用/启用输入
+    disableInput(disabled) {
+        if (this.input) this.input.disabled = disabled;
+        if (this.sendButton) this.sendButton.disabled = disabled;
+    }
+}
+
+// 初始化
+document.addEventListener('DOMContentLoaded', () => {
+    // 初始化会话
+    const chatSession = new AIChatSession();
+    
+    // 初始化UI
+    const chatUI = new AIChatUI(chatSession);
+    
+    // 将对象挂到全局以便调试和外部访问
+    window.aiChat = {
+        session: chatSession,
+        ui: chatUI,
+        config: AI_CHAT_CONFIG,
+        associationInfo: ASSOCIATION_INFO,
+        
+        // 公共API
+        clearHistory: () => {
+            chatSession.clearMessages();
+            chatUI.clearMessagesUI();
+            chatUI.addMessageToUI(AI_CHAT_CONFIG.initialBotMessage, 'bot');
+        },
+        
+        // 清除所有会话历史
+        clearAllHistory: () => {
+            chatSession.clearAllHistory();
+            chatUI.clearMessagesUI();
+            chatUI.addMessageToUI(AI_CHAT_CONFIG.initialBotMessage, 'bot');
+        },
+        
+        // 获取协会信息
+        getAssociationInfo: () => ASSOCIATION_INFO,
+        
+        // 设置初始消息
+        setInitialMessage: (message) => {
+            AI_CHAT_CONFIG.initialBotMessage = message;
+        }
+    };
+}); 

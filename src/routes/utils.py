@@ -8,7 +8,8 @@ import uuid
 import json
 import random
 import string
-from src.models import Activity, Tag, StudentInfo
+from datetime import datetime
+from src.models import db, Activity, Tag, StudentInfo, SystemLog, Registration, AIChatHistory, AIChatSession
 
 utils_bp = Blueprint('utils', __name__)
 logger = logging.getLogger(__name__)
@@ -199,9 +200,13 @@ def build_activity_context(activities):
 def ai_chat():
     if not current_user.is_authenticated:
         return jsonify({'error': 'AI功能需要登录使用'}), 401
+    
+    # 获取请求参数
     user_message = request.args.get('message', '')
     user_role = request.args.get('role', 'student')
-
+    session_id = request.args.get('session_id', '')
+    
+    # 验证API密钥
     api_key = os.environ.get("ARK_API_KEY")
     if not api_key:
         logger.error("ARK_API_KEY 环境变量未设置")
@@ -210,6 +215,7 @@ def ai_chat():
             'error': 'AI 服务配置错误：API 密钥未设置'
         }), 500
 
+    # API端点
     url = "https://ark.cn-beijing.volces.com/api/v3/chat/completions"
     headers = {
         "Content-Type": "application/json",
@@ -222,7 +228,6 @@ def ai_chat():
     user_tags = [tag.name for tag in student_info.tags] if student_info and student_info.tags else []
     
     # 获取用户参与的活动
-    from src.models import Registration
     participated_activities = Activity.query.join(
         Registration, Activity.id == Registration.activity_id
     ).filter(
@@ -232,7 +237,7 @@ def ai_chat():
     # 获取活跃的活动
     active_activities = Activity.query.filter_by(status='active').order_by(Activity.created_at.desc()).limit(5).all()
     
-    # 构建上下文信息
+    # 构建用户上下文信息
     user_context = f"""
 用户信息：
 - 用户名：{current_user.username}
@@ -243,17 +248,65 @@ def ai_chat():
 {chr(10).join([f'- {a.title}' for a in active_activities[:5]]) if active_activities else '- 暂无活动'}
 """
 
+    # 协会基本信息
+    association_info = """
+重庆师范大学师能素质协会基本信息：
+- 名称：重庆师范大学师能素质协会
+- 描述：致力于提升师范生专业素养和教学能力的学生组织
+- 成立时间：2015年
+- 主要活动：教学技能培训与比赛、师范生素质拓展活动、教育教学研讨会、师范生就业指导、支教与社会实践
+- 联系方式：
+  * 地址：重庆市沙坪坝区大学城中路37号
+  * QQ群：995213034
+  * 电话：023-65362779
+  * 邮箱：shineng@cqnu.edu.cn
+- 协会部门：学习部、组织部、宣传部、外联部、秘书部
+- 协会宗旨：提高师范生专业素养，培养高素质教师人才，服务于教育教学事业
+"""
+
+    # 获取历史消息
+    messages = []
+    
+    # 如果有会话ID，尝试获取该会话的历史消息
+    if session_id:
+        try:
+            # 检查会话是否存在，如果不存在则创建
+            session = AIChatSession.query.get(session_id)
+            if not session:
+                session = AIChatSession(id=session_id, user_id=current_user.id)
+                db.session.add(session)
+                db.session.commit()
+            
+            # 获取该会话的历史消息
+            history_messages = AIChatHistory.query.filter_by(
+                session_id=session_id
+            ).order_by(AIChatHistory.timestamp).limit(20).all()
+            
+            # 将历史消息添加到messages列表
+            for msg in history_messages:
+                messages.append({"role": msg.role, "content": msg.content})
+        except Exception as e:
+            logger.error(f"获取聊天历史记录失败: {str(e)}")
+    
+    # 如果没有历史消息，初始化messages列表
+    if not messages:
+        messages = []
+    
+    # 系统提示词
     if user_role == 'student':
-        system_prompt = f"""您好，欢迎来到重庆师范大学社团活动平台，我是基于deepseek开发的智能助手，我可以为您推荐活动、查询信息等等；有任何问题都可以随时找我，很高兴为您服务！
+        system_prompt = f"""您好，欢迎来到重庆师范大学师能素质协会平台，我是智能助手，我可以为您推荐活动、查询信息等等；有任何问题都可以随时找我，很高兴为您服务！
 
 我可以访问以下信息：
 {user_context}
+
+{association_info}
 
 我可以：
 1. 根据您的兴趣标签推荐相关活动
 2. 回答您关于活动的问题
 3. 提供活动参与建议和报名流程指导
 4. 分析您的参与历史和积分情况
+5. 提供关于重庆师范大学师能素质协会的信息
 
 如果我无法回答您的某些问题，我会建议您联系平台管理员获取更详细的帮助。
 
@@ -262,12 +315,16 @@ def ai_chat():
     else:
         system_prompt = "你是一个智能助手，可以总结反馈信息。你可以：1. 分析活动反馈 2. 总结用户建议 3. 提供改进意见"
 
+    # 添加系统消息
+    messages.insert(0, {"role": "system", "content": system_prompt})
+    
+    # 添加用户当前消息
+    messages.append({"role": "user", "content": user_message})
+
+    # 构建API请求
     payload = {
         "model": "deepseek-r1-distill-qwen-7b-250120",
-        "messages": [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_message}
-        ],
+        "messages": messages,
         "temperature": 0.7,
         "stream": True
     }
@@ -278,6 +335,8 @@ def ai_chat():
             response = requests.post(url, headers=headers, json=payload, timeout=30, stream=True)
             logger.info(f"AI API 响应状态码: {response.status_code}")
             response.raise_for_status()
+            
+            full_response = ""
             
             for line in response.iter_lines():
                 if line:
@@ -291,9 +350,46 @@ def ai_chat():
                             if 'choices' in chunk and len(chunk['choices']) > 0:
                                 content = chunk['choices'][0].get('delta', {}).get('content', '')
                                 if content:
+                                    full_response += content
                                     yield f"data: {json.dumps({'content': content})}\n\n"
                         except json.JSONDecodeError:
                             continue
+                            
+            # 响应结束，保存历史记录
+            if session_id and full_response:
+                try:
+                    # 保存用户消息
+                    user_history = AIChatHistory(
+                        user_id=current_user.id,
+                        session_id=session_id,
+                        role="user",
+                        content=user_message
+                    )
+                    db.session.add(user_history)
+                    
+                    # 保存AI回复
+                    ai_history = AIChatHistory(
+                        user_id=current_user.id,
+                        session_id=session_id,
+                        role="assistant",
+                        content=full_response
+                    )
+                    db.session.add(ai_history)
+                    db.session.commit()
+                    
+                    # 更新会话最后更新时间
+                    session = AIChatSession.query.get(session_id)
+                    if session:
+                        session.updated_at = datetime.now()
+                        db.session.commit()
+                        
+                except Exception as e:
+                    logger.error(f"保存聊天历史记录失败: {str(e)}")
+                    db.session.rollback()
+                    
+            # 发送结束事件
+            yield f"event: done\ndata: {{}}\n\n"
+                    
         except requests.exceptions.RequestException as e:
             logger.error(f"AI API 调用失败: {str(e)}")
             yield f"data: {json.dumps({'error': 'AI 服务调用失败'})}\n\n"
@@ -302,6 +398,140 @@ def ai_chat():
             yield f"data: {json.dumps({'error': '处理 AI 响应时出错'})}\n\n"
 
     return Response(generate(), mimetype='text/event-stream')
+
+# AI聊天历史记录API
+@utils_bp.route('/api/ai_chat/history', methods=['GET'])
+@login_required
+def ai_chat_history():
+    """获取AI聊天历史记录"""
+    session_id = request.args.get('session_id')
+    if not session_id:
+        return jsonify({
+            'success': False,
+            'message': '缺少会话ID参数',
+            'data': []
+        }), 400
+    
+    try:
+        # 查询历史记录
+        history_messages = AIChatHistory.query.filter_by(
+            session_id=session_id,
+            user_id=current_user.id
+        ).order_by(AIChatHistory.timestamp).all()
+        
+        # 格式化消息
+        messages = [
+            {
+                'role': msg.role,
+                'content': msg.content,
+                'timestamp': msg.timestamp.isoformat()
+            }
+            for msg in history_messages
+        ]
+        
+        return jsonify({
+            'success': True,
+            'message': '成功获取历史记录',
+            'data': messages
+        })
+    except Exception as e:
+        logger.error(f"获取AI聊天历史记录失败: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f'获取历史记录失败: {str(e)}',
+            'data': []
+        }), 500
+
+@utils_bp.route('/api/ai_chat/clear', methods=['POST'])
+@login_required
+def ai_chat_clear_history():
+    """清除AI聊天历史记录"""
+    session_id = request.args.get('session_id')
+    if not session_id:
+        return jsonify({
+            'success': False,
+            'message': '缺少会话ID参数'
+        }), 400
+    
+    try:
+        # 查询该会话是否属于当前用户
+        session = AIChatSession.query.filter_by(
+            id=session_id,
+            user_id=current_user.id
+        ).first()
+        
+        if not session:
+            return jsonify({
+                'success': False,
+                'message': '会话不存在或无权限清除'
+            }), 403
+        
+        # 删除历史记录
+        AIChatHistory.query.filter_by(
+            session_id=session_id,
+            user_id=current_user.id
+        ).delete()
+        
+        # 提交更改
+        db.session.commit()
+        
+        # 记录操作日志
+        log_action(
+            action='clear_ai_chat_history',
+            details=f'清除AI聊天历史记录，会话ID: {session_id}'
+        )
+        
+        return jsonify({
+            'success': True,
+            'message': '成功清除历史记录'
+        })
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"清除AI聊天历史记录失败: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f'清除历史记录失败: {str(e)}'
+        }), 500
+
+@utils_bp.route('/api/ai_chat/clear_history', methods=['POST'])
+@login_required
+def ai_chat_clear_all_history():
+    """清除用户所有AI聊天历史记录"""
+    try:
+        # 查询用户的所有会话
+        sessions = AIChatSession.query.filter_by(
+            user_id=current_user.id
+        ).all()
+        
+        # 记录会话数量用于日志
+        session_count = len(sessions)
+        
+        # 删除用户的所有历史记录
+        deleted_count = AIChatHistory.query.filter_by(
+            user_id=current_user.id
+        ).delete()
+        
+        # 提交更改
+        db.session.commit()
+        
+        # 记录操作日志
+        log_action(
+            action='clear_all_ai_chat_history',
+            details=f'清除所有AI聊天历史记录，共删除{deleted_count}条记录，涉及{session_count}个会话'
+        )
+        
+        return jsonify({
+            'success': True,
+            'message': f'成功清除所有历史记录，共{deleted_count}条',
+            'deleted_count': deleted_count
+        })
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"清除所有AI聊天历史记录失败: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f'清除历史记录失败: {str(e)}'
+        }), 500
 
 # 添加random_string函数
 def random_string(length=6):
