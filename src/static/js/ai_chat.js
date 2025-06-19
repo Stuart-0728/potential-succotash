@@ -12,32 +12,31 @@ const AI_CHAT_CONFIG = {
     cookiePrefix: 'cqnu_ai_chat_',
     maxStoredMessages: 50,  // 最大存储消息数
     cookieExpireDays: 7,    // Cookie保存天数
-    initialBotMessage: '您好，欢迎来到重庆师范大学师能素质协会平台，我是智能助手，有什么可以帮助您的吗？'
+    initialBotMessage: '您好，欢迎来到重庆师范大学师能素质协会平台，我是基于DeepSeek大语言模型的智能助手，有什么可以帮助您的吗？'
 };
 
-// 协会基本信息
+// 智能助手信息
 const ASSOCIATION_INFO = {
-    name: '重庆师范大学师能素质协会',
-    description: '致力于提升师范生专业素养和教学能力的学生组织',
-    foundedYear: 2015,
-    mainActivities: [
-        '教学技能培训与比赛',
-        '师范生素质拓展活动',
-        '教育教学研讨会',
-        '师范生就业指导',
-        '支教与社会实践'
+    name: 'DeepSeek AI智能助手',
+    description: '基于DeepSeek大语言模型的智能聊天助手，为师能素质协会平台提供智能服务',
+    model: 'deepseek-r1-distill-qwen-7b-250120',
+    capabilities: [
+        '回答关于活动的问题',
+        '推荐适合您兴趣的活动',
+        '提供活动参与和报名流程指导',
+        '分析参与历史和积分情况',
+        '提供平台使用帮助'
     ],
     contactInfo: {
         address: '重庆市沙坪坝区大学城中路37号',
         qqGroup: '995213034',
-        phone: '023-65362779',
-        email: 'shineng@cqnu.edu.cn',
+        adminEmail: '2023051101095@stu.cqnu.edu.cn',
         website: 'http://shineng.cqnu.edu.cn'
     },
-    departments: [
-        '学习部', '组织部', '宣传部', '外联部', '秘书部'
+    features: [
+        '实时对话', '历史记录保存', '个性化推荐', '多轮交互', '上下文理解'
     ],
-    goals: '提高师范生专业素养，培养高素质教师人才，服务于教育教学事业'
+    disclaimer: '本助手基于人工智能技术，回答可能并非完全准确，如有疑问请联系管理员'
 };
 
 // 会话管理
