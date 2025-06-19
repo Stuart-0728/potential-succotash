@@ -69,13 +69,13 @@
                                 {% endif %}
                             </td>
                             <td>
-                                <div class="btn-group btn-group-sm">
-                                    <a href="{{ url_for('admin.activity_view', id=activity.id) }}" class="btn btn-outline-primary">查看</a>
-                                    <a href="{{ url_for('admin.activity_registrations', id=activity.id) }}" class="btn btn-outline-info">报名</a>
-                                    <a href="{{ url_for('admin.edit_activity', id=activity.id) }}" class="btn btn-outline-secondary">编辑</a>
-                                    <a href="#" class="btn btn-outline-danger" onclick="confirmDeleteActivity({{ activity.id }}, '{{ activity.title }}', {{ activity.registrations.count() if activity.registrations else 0 }}); return false;">删除</a>
-                                    <a href="{{ url_for('admin.activity_reviews', id=activity.id) }}" class="btn btn-outline-info btn-sm ms-2">
-                                        <i class="fas fa-comments"></i> 查看评价
+                                <div class="d-flex flex-column flex-md-row gap-1">
+                                    <a href="{{ url_for('admin.activity_view', id=activity.id) }}" class="btn btn-sm btn-outline-primary mb-1 mb-md-0">查看</a>
+                                    <a href="{{ url_for('admin.activity_registrations', id=activity.id) }}" class="btn btn-sm btn-outline-info mb-1 mb-md-0">报名</a>
+                                    <a href="{{ url_for('admin.edit_activity', id=activity.id) }}" class="btn btn-sm btn-outline-secondary mb-1 mb-md-0">编辑</a>
+                                    <a href="#" class="btn btn-sm btn-outline-danger mb-1 mb-md-0" onclick="confirmDeleteActivity({{ activity.id }}, '{{ activity.title }}', {{ activity.registrations.count() if activity.registrations else 0 }}); return false;">删除</a>
+                                    <a href="{{ url_for('admin.activity_reviews', id=activity.id) }}" class="btn btn-sm btn-outline-info mb-1 mb-md-0">
+                                        <i class="fas fa-comments"></i> 评价
                                     </a>
                                 </div>
                             </td>

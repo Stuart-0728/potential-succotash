@@ -65,24 +65,24 @@
                 </div>
                 <div class="card-body">
                     <div class="row">
-                        <div class="col-md-3 mb-3">
+                        <div class="col-6 col-md-3 mb-3">
                             <a href="{{ url_for('admin.create_activity') }}" class="btn btn-primary d-block">
-                                <i class="fas fa-plus-circle me-2"></i>创建新活动
+                                <i class="fas fa-plus-circle me-1 me-md-2"></i><span class="d-none d-sm-inline">创建新</span>活动
                             </a>
                         </div>
-                        <div class="col-md-3 mb-3">
+                        <div class="col-6 col-md-3 mb-3">
                             <a href="{{ url_for('admin.statistics') }}" class="btn btn-info d-block text-white">
-                                <i class="fas fa-chart-bar me-2"></i>查看数据统计
+                                <i class="fas fa-chart-bar me-1 me-md-2"></i><span class="d-none d-sm-inline">查看</span>统计
                             </a>
                         </div>
-                        <div class="col-md-3 mb-3">
+                        <div class="col-6 col-md-3 mb-3">
                             <a href="{{ url_for('admin.backup_system') }}" class="btn btn-warning d-block">
-                                <i class="fas fa-download me-2"></i>数据备份
+                                <i class="fas fa-download me-1 me-md-2"></i><span class="d-none d-sm-inline">数据</span>备份
                             </a>
                         </div>
-                        <div class="col-md-3 mb-3">
+                        <div class="col-6 col-md-3 mb-3">
                             <a href="{{ url_for('admin.backup_system') }}" class="btn btn-secondary d-block">
-                                <i class="fas fa-history me-2"></i>系统日志
+                                <i class="fas fa-history me-1 me-md-2"></i><span class="d-none d-sm-inline">系统</span>日志
                             </a>
                         </div>
                     </div>
