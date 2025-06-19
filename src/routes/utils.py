@@ -319,11 +319,15 @@ def ai_chat():
 
     # 保存当前用户ID和会话ID，以便在流式响应中使用
     current_user_id = current_user.id if current_user.is_authenticated else None
+    current_message = user_message
+    current_session_id = session_id
     
-    # 获取Flask应用实例
+    # 获取Flask应用实例的引用，避免上下文问题
     from flask import current_app
+    app = current_app._get_current_object()
 
     def generate():
+        nonlocal current_user_id, current_message, current_session_id
         try:
             logger.info(f"发送 AI 请求: URL={url}, Headers={headers}, Payload={payload}")
             response = requests.post(url, headers=headers, json=payload, timeout=30, stream=True)
@@ -348,44 +352,46 @@ def ai_chat():
                                     yield f"data: {json.dumps({'content': content})}\n\n"
                         except json.JSONDecodeError:
                             continue
-                            
+            
             # 响应结束，保存历史记录
-            if session_id and full_response and current_user_id:
-                try:
-                    # 在请求上下文中保存聊天记录
-                    # 检查会话是否存在
-                    session = AIChatSession.query.filter_by(id=session_id).first()
-                    if not session:
-                        # 如果会话不存在，创建新会话
-                        session = AIChatSession(id=session_id, user_id=current_user_id)
-                        db.session.add(session)
+            if current_session_id and full_response and current_user_id:
+                # 使用应用上下文确保数据库操作在正确的上下文中执行
+                with app.app_context():
+                    try:
+                        # 在请求上下文中保存聊天记录
+                        # 检查会话是否存在
+                        session = AIChatSession.query.filter_by(id=current_session_id).first()
+                        if not session:
+                            # 如果会话不存在，创建新会话
+                            session = AIChatSession(id=current_session_id, user_id=current_user_id)
+                            db.session.add(session)
+                            db.session.commit()
+                        
+                        # 保存用户消息
+                        user_history = AIChatHistory(
+                            user_id=current_user_id,
+                            session_id=current_session_id,
+                            role="user",
+                            content=current_message
+                        )
+                        db.session.add(user_history)
+                        
+                        # 保存AI回复
+                        ai_history = AIChatHistory(
+                            user_id=current_user_id,
+                            session_id=current_session_id,
+                            role="assistant",
+                            content=full_response
+                        )
+                        db.session.add(ai_history)
+                        
+                        # 更新会话最后更新时间
+                        session.updated_at = datetime.now()
                         db.session.commit()
-                    
-                    # 保存用户消息
-                    user_history = AIChatHistory(
-                        user_id=current_user_id,
-                        session_id=session_id,
-                        role="user",
-                        content=user_message
-                    )
-                    db.session.add(user_history)
-                    
-                    # 保存AI回复
-                    ai_history = AIChatHistory(
-                        user_id=current_user_id,
-                        session_id=session_id,
-                        role="assistant",
-                        content=full_response
-                    )
-                    db.session.add(ai_history)
-                    
-                    # 更新会话最后更新时间
-                    session.updated_at = datetime.now()
-                    db.session.commit()
-                    
-                except Exception as e:
-                    logger.error(f"保存聊天历史记录失败: {str(e)}")
-                    db.session.rollback()
+                        
+                    except Exception as e:
+                        logger.error(f"保存聊天历史记录失败: {str(e)}")
+                        db.session.rollback()
                     
             # 发送结束事件
             yield f"event: done\ndata: {{}}\n\n"
