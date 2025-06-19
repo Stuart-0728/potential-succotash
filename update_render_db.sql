@@ -120,7 +120,13 @@ CREATE TABLE activity_tags (
     FOREIGN KEY (tag_id) REFERENCES tags (id) ON DELETE CASCADE
 );
 
--- 打印完成消息
+-- 为所有现有用户创建AI用户偏好设置记录（如果不存在）
+INSERT INTO ai_user_preferences (user_id, enable_history, max_history_count)
+SELECT id, true, CASE WHEN role_id = 1 THEN 100 ELSE 50 END
+FROM users
+WHERE id NOT IN (SELECT user_id FROM ai_user_preferences);
+
+-- 完成提示
 DO $$
 BEGIN
     RAISE NOTICE '数据库更新完成';

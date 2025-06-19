@@ -1,7 +1,7 @@
 from flask import Blueprint, render_template, redirect, url_for, flash, request
 from flask_login import login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
-from src.models import db, User, Role, StudentInfo, Tag, StudentInterestTag
+from src.models import db, User, Role, StudentInfo, Tag, StudentInterestTag, AIUserPreferences
 from flask_wtf import FlaskForm
 from wtforms import StringField, PasswordField, SubmitField, SelectField, ValidationError
 from wtforms.validators import DataRequired, Email, EqualTo, Length, Regexp
@@ -133,6 +133,15 @@ def register():
             qq=form.qq.data
         )
         db.session.add(student_info)
+        
+        # 创建AI用户偏好设置
+        ai_preferences = AIUserPreferences(
+            user_id=user.id,
+            enable_history=True,
+            max_history_count=50
+        )
+        db.session.add(ai_preferences)
+        
         db.session.commit()
         
         flash('注册成功，请登录！', 'success')
@@ -254,6 +263,16 @@ def setup_admin():
             role=admin_role
         )
         db.session.add(admin)
+        db.session.flush()  # 获取用户ID
+        
+        # 创建AI用户偏好设置
+        ai_preferences = AIUserPreferences(
+            user_id=admin.id,
+            enable_history=True,
+            max_history_count=100  # 管理员可以存储更多历史记录
+        )
+        db.session.add(ai_preferences)
+        
         db.session.commit()
         
         flash('管理员账户创建成功，请登录！', 'success')
