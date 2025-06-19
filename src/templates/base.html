@@ -155,7 +155,7 @@
         }
     </style>
 </head>
-<body>
+<body data-user-logged-in="{{ 'true' if current_user.is_authenticated else 'false' }}">
     <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
         <div class="container">
             <a class="navbar-brand" href="{{ url_for('main.index') }}">

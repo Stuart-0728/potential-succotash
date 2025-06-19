@@ -5,6 +5,7 @@
  * 1. 聊天历史记录的数据库存储和加载
  * 2. 页面间保持聊天记录
  * 3. 会话管理
+ * 4. Markdown 格式支持
  */
 
 // 配置参数
@@ -12,7 +13,8 @@ const AI_CHAT_CONFIG = {
     cookiePrefix: 'cqnu_ai_chat_',
     maxStoredMessages: 50,  // 最大存储消息数
     cookieExpireDays: 7,    // Cookie保存天数
-    initialBotMessage: '您好，欢迎来到重庆师范大学师能素质协会平台，我是基于DeepSeek大语言模型的智能助手，有什么可以帮助您的吗？'
+    initialBotMessage: '您好，欢迎来到重庆师范大学师能素质协会平台，我是基于DeepSeek大语言模型的智能助手，有什么可以帮助您的吗？',
+    notLoggedInMessage: '您好！AI助手功能需要登录后使用。请先<a href="/login" class="ai-chat-link">登录</a>或<a href="/register" class="ai-chat-link">注册</a>。'
 };
 
 // 智能助手信息
@@ -38,6 +40,23 @@ const ASSOCIATION_INFO = {
     ],
     disclaimer: '本助手基于人工智能技术，回答可能并非完全准确，如有疑问请联系管理员'
 };
+
+// 在文件开头添加marked库的动态加载
+function loadMarkedLibrary() {
+    return new Promise((resolve, reject) => {
+        // 检查是否已加载
+        if (window.marked) {
+            resolve(window.marked);
+            return;
+        }
+        
+        const script = document.createElement('script');
+        script.src = 'https://cdn.jsdelivr.net/npm/marked/marked.min.js';
+        script.onload = () => resolve(window.marked);
+        script.onerror = () => reject(new Error('Failed to load Marked library'));
+        document.head.appendChild(script);
+    });
+}
 
 // 会话管理
 class AIChatSession {
@@ -332,6 +351,16 @@ class AIChatUI {
         // 显示加载指示器
         aiMessageDiv.innerHTML = '<span class="loading-indicator">AI思考中<span class="dot-animation">...</span></span>';
         
+        // 检查用户是否已登录
+        const isLoggedIn = document.body.getAttribute('data-user-logged-in') === 'true';
+        
+        if (!isLoggedIn) {
+            // 如果未登录，显示登录提示信息
+            aiMessageDiv.innerHTML = AI_CHAT_CONFIG.notLoggedInMessage;
+            this.disableInput(false);
+            return;
+        }
+        
         // 创建 EventSource 连接
         const role = 'student'; // 默认角色，可扩展
         const eventSource = new EventSource(`/api/ai_chat?message=${encodeURIComponent(userMessage)}&role=${role}&session_id=${this.session.sessionId}`);
@@ -355,11 +384,35 @@ class AIChatUI {
                 } else if (data.content) {
                     // 移除加载指示器
                     if (fullResponse === '') {
-                        aiMessageDiv.textContent = '';
+                        aiMessageDiv.innerHTML = '';
                     }
                     
                     fullResponse += data.content;
-                    aiMessageDiv.textContent = fullResponse;
+                    
+                    // 使用Markdown渲染响应
+                    if (window.marked) {
+                        aiMessageDiv.innerHTML = window.marked.parse(fullResponse);
+                    } else {
+                        // 如果marked未加载，尝试加载
+                        loadMarkedLibrary()
+                            .then(marked => {
+                                aiMessageDiv.innerHTML = marked.parse(fullResponse);
+                            })
+                            .catch(err => {
+                                console.error('Markdown渲染失败:', err);
+                                aiMessageDiv.textContent = fullResponse;
+                            });
+                    }
+                    
+                    // 为新添加的链接添加样式和目标
+                    const links = aiMessageDiv.querySelectorAll('a');
+                    links.forEach(link => {
+                        if (!link.classList.contains('ai-chat-link')) {
+                            link.classList.add('ai-chat-link');
+                        }
+                        link.setAttribute('target', '_blank');
+                    });
+                    
                     this.scrollToBottom();
                 }
             } catch (e) {
@@ -414,9 +467,41 @@ class AIChatUI {
     addMessageToUI(text, type) {
         const messageDiv = document.createElement('div');
         messageDiv.className = `ai-message ${type}`;
-        messageDiv.textContent = text;
+        
+        // 根据不同类型处理内容
+        if (type === 'bot') {
+            // 使用marked库渲染Markdown（如果已加载）
+            if (window.marked) {
+                messageDiv.innerHTML = window.marked.parse(text);
+            } else {
+                // 尝试加载marked库
+                loadMarkedLibrary()
+                    .then(marked => {
+                        messageDiv.innerHTML = marked.parse(text);
+                    })
+                    .catch(err => {
+                        console.error('Markdown渲染失败:', err);
+                        messageDiv.textContent = text;
+                    });
+            }
+        } else {
+            // 用户消息不渲染Markdown
+            messageDiv.textContent = text;
+        }
+        
         this.messagesContainer.appendChild(messageDiv);
         this.scrollToBottom();
+        
+        // 为消息中的链接添加点击事件
+        if (type === 'bot') {
+            const links = messageDiv.querySelectorAll('a');
+            links.forEach(link => {
+                if (!link.classList.contains('ai-chat-link')) {
+                    link.classList.add('ai-chat-link');
+                }
+                link.setAttribute('target', '_blank');
+            });
+        }
     }
     
     // 清空消息UI
@@ -440,6 +525,9 @@ class AIChatUI {
 
 // 初始化
 document.addEventListener('DOMContentLoaded', () => {
+    // 加载Markdown库
+    loadMarkedLibrary().catch(err => console.warn('Markdown库加载失败:', err));
+    
     // 初始化会话
     const chatSession = new AIChatSession();
     
@@ -475,4 +563,65 @@ document.addEventListener('DOMContentLoaded', () => {
             AI_CHAT_CONFIG.initialBotMessage = message;
         }
     };
+});
+
+// 添加样式
+document.addEventListener('DOMContentLoaded', () => {
+    // 创建样式元素
+    const style = document.createElement('style');
+    style.textContent = `
+        .ai-chat-link {
+            color: #1a73e8;
+            text-decoration: underline;
+            cursor: pointer;
+        }
+        
+        .ai-message.bot a {
+            color: #1a73e8;
+            text-decoration: underline;
+        }
+        
+        .ai-message.bot strong, 
+        .ai-message.bot b {
+            font-weight: bold;
+        }
+        
+        .ai-message.bot em,
+        .ai-message.bot i {
+            font-style: italic;
+        }
+        
+        .ai-message.bot code {
+            background-color: #f5f5f5;
+            padding: 2px 4px;
+            border-radius: 3px;
+            font-family: monospace;
+        }
+        
+        .ai-message.bot pre {
+            background-color: #f5f5f5;
+            padding: 10px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+        
+        .ai-message.bot pre code {
+            background-color: transparent;
+            padding: 0;
+        }
+        
+        .ai-message.bot ul, 
+        .ai-message.bot ol {
+            margin-left: 20px;
+            padding-left: 0;
+        }
+        
+        .ai-message.bot blockquote {
+            border-left: 3px solid #ddd;
+            margin-left: 0;
+            padding-left: 10px;
+            color: #555;
+        }
+    `;
+    document.head.appendChild(style);
 }); 
