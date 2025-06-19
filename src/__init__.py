@@ -4,6 +4,9 @@ from flask_login import LoginManager
 from flask_migrate import Migrate
 from flask_caching import Cache
 from src.config import Config
+import logging
+
+logger = logging.getLogger(__name__)
 
 db = SQLAlchemy()
 login_manager = LoginManager()
@@ -24,6 +27,13 @@ def create_app(config_class=Config):
         'CACHE_TYPE': 'simple',
         'CACHE_DEFAULT_TIMEOUT': 86400  # 24小时 = 86400秒
     })
+    
+    # 确保数据库结构完整
+    try:
+        from scripts.ensure_db_structure import ensure_db_structure
+        ensure_db_structure(app, db)
+    except Exception as e:
+        logger.error(f"确保数据库结构时出错: {e}")
     
     # 注册蓝图
     from src.routes.main import main_bp

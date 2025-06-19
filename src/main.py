@@ -19,6 +19,7 @@ import os
 from werkzeug.security import generate_password_hash
 import pytz
 from src.utils.time_helpers import get_beijing_time
+from sqlalchemy import inspect, text
 
 # 配置日志
 logging.basicConfig(level=logging.INFO, 
@@ -94,8 +95,9 @@ migrate = Migrate(app, db)
 # 确保数据库表存在
 with app.app_context():
     try:
-        db.create_all()
-        logger.info("数据库表初始化完成")
+        # 使用ensure_db_structure函数确保数据库结构完整
+        from scripts.ensure_db_structure import ensure_db_structure
+        ensure_db_structure(app, db)
         
         # 检查是否需要创建默认角色
         if Role.query.count() == 0:
@@ -138,24 +140,6 @@ with app.app_context():
             db.session.add(user)
             db.session.commit()
             logger.info("初始管理员账号已创建：stuart / LYXspassword123")
-
-        # 检查是否已存在管理员账号
-        admin = User.query.filter_by(username='stuart').first()
-        if not admin:
-            admin_role = Role.query.filter_by(name='Admin').first()
-            if not admin_role:
-                admin_role = Role(name='Admin')
-                db.session.add(admin_role)
-                db.session.commit()
-            
-            admin = User(
-                username='stuart',
-                email='stuart@example.com',
-                password_hash=generate_password_hash('LYXspassword123'),
-                role_id=admin_role.id
-            )
-            db.session.add(admin)
-            db.session.commit()
     except Exception as e:
         logger.error(f"数据库初始化错误: {str(e)}")
 

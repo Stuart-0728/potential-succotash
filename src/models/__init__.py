@@ -116,6 +116,7 @@ class Activity(db.Model):
     tags = db.relationship('Tag', secondary=activity_tags, backref=db.backref('activities', lazy='dynamic'))  # 修正多对多关系
     checkin_key = db.Column(db.String(32), nullable=True)  # 签到密钥
     checkin_key_expires = db.Column(db.DateTime, nullable=True)  # 签到密钥过期时间
+    checkin_enabled = db.Column(db.Boolean, default=False)  # 手动签到开关
     
     def __repr__(self):
         return f'<Activity {self.title}>'
