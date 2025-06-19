@@ -346,6 +346,14 @@ def ai_chat():
             # 响应结束，保存历史记录
             if session_id and full_response:
                 try:
+                    # 检查会话是否存在
+                    session = AIChatSession.query.filter_by(id=session_id).first()
+                    if not session:
+                        # 如果会话不存在，创建新会话
+                        session = AIChatSession(id=session_id, user_id=current_user.id)
+                        db.session.add(session)
+                        db.session.commit()
+                    
                     # 保存用户消息
                     user_history = AIChatHistory(
                         user_id=current_user.id,
@@ -366,10 +374,8 @@ def ai_chat():
                     db.session.commit()
                     
                     # 更新会话最后更新时间
-                    session = AIChatSession.query.get(session_id)
-                    if session:
-                        session.updated_at = datetime.now()
-                        db.session.commit()
+                    session.updated_at = datetime.now()
+                    db.session.commit()
                         
                 except Exception as e:
                     logger.error(f"保存聊天历史记录失败: {str(e)}")
