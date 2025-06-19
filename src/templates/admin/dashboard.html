@@ -18,8 +18,8 @@
 
     <!-- 统计卡片 -->
     <div class="row mb-4">
-        <div class="col-md-3">
-            <div class="card text-white bg-primary">
+        <div class="col-6 col-md-3 mb-3">
+            <div class="card text-white bg-primary h-100">
                 <div class="card-body">
                     <h5 class="card-title">总活动数</h5>
                     <p class="card-text display-4">{{ total_activities }}</p>
@@ -27,8 +27,8 @@
                 </div>
             </div>
         </div>
-        <div class="col-md-3">
-            <div class="card text-white bg-success">
+        <div class="col-6 col-md-3 mb-3">
+            <div class="card text-white bg-success h-100">
                 <div class="card-body">
                     <h5 class="card-title">进行中活动</h5>
                     <p class="card-text display-4">{{ active_activities }}</p>
@@ -36,8 +36,8 @@
                 </div>
             </div>
         </div>
-        <div class="col-md-3">
-            <div class="card text-white bg-info">
+        <div class="col-6 col-md-3 mb-3">
+            <div class="card text-white bg-info h-100">
                 <div class="card-body">
                     <h5 class="card-title">总报名人次</h5>
                     <p class="card-text display-4">{{ total_registrations }}</p>
@@ -45,8 +45,8 @@
                 </div>
             </div>
         </div>
-        <div class="col-md-3">
-            <div class="card text-white bg-warning">
+        <div class="col-6 col-md-3 mb-3">
+            <div class="card text-white bg-warning h-100">
                 <div class="card-body">
                     <h5 class="card-title">注册学生数</h5>
                     <p class="card-text display-4">{{ total_students }}</p>
@@ -104,11 +104,11 @@
                             <thead>
                                 <tr>
                                     <th>活动名称</th>
-                                    <th>类型</th>
-                                    <th>开始时间</th>
-                                    <th>结束时间</th>
+                                    <th class="d-none d-md-table-cell">类型</th>
+                                    <th class="d-none d-md-table-cell">开始时间</th>
+                                    <th class="d-none d-md-table-cell">结束时间</th>
                                     <th>状态</th>
-                                    <th>报名人数</th>
+                                    <th class="d-none d-md-table-cell">报名人数</th>
                                     <th>操作</th>
                                 </tr>
                             </thead>
@@ -116,14 +116,16 @@
                                 {% for activity in recent_activities %}
                                 <tr>
                                     <td>{{ activity.title }}</td>
-                                    <td>{{ activity.type }}</td>
-                                    <td>{{ activity.start_time.strftime('%Y-%m-%d %H:%M') }}</td>
-                                    <td>{{ activity.end_time.strftime('%Y-%m-%d %H:%M') }}</td>
+                                    <td class="d-none d-md-table-cell">{{ activity.type }}</td>
+                                    <td class="d-none d-md-table-cell">{{ activity.start_time.strftime('%Y-%m-%d %H:%M') }}</td>
+                                    <td class="d-none d-md-table-cell">{{ activity.end_time.strftime('%Y-%m-%d %H:%M') }}</td>
                                     <td>{% if activity.status == 'active' %}进行中{% elif activity.status == 'completed' %}已结束{% else %}已取消{% endif %}</td>
-                                    <td>{{ activity.registrations.filter_by(status='registered').count() if activity.registrations and activity.registrations.filter_by else 0 }}</td>
+                                    <td class="d-none d-md-table-cell">{{ activity.registrations.filter_by(status='registered').count() if activity.registrations and activity.registrations.filter_by else 0 }}</td>
                                     <td>
-                                        <a href="{{ url_for('admin.edit_activity', id=activity.id) }}" class="btn btn-sm btn-primary">编辑</a>
-                                        <a href="{{ url_for('admin.delete_activity', id=activity.id) }}" class="btn btn-sm btn-danger" onclick="return confirm('确定要删除该活动吗？')">删除</a>
+                                        <div class="btn-group">
+                                            <a href="{{ url_for('admin.edit_activity', id=activity.id) }}" class="btn btn-sm btn-primary">编辑</a>
+                                            <a href="{{ url_for('admin.activity_view', id=activity.id) }}" class="btn btn-sm btn-info">查看</a>
+                                        </div>
                                     </td>
                                 </tr>
                                 {% else %}
