@@ -8,20 +8,20 @@ db = SQLAlchemy()
 
 # 用户与角色关系表
 roles_users = db.Table('roles_users',
-    db.Column('user_id', db.Integer(), db.ForeignKey('user.id')),
-    db.Column('role_id', db.Integer(), db.ForeignKey('role.id'))
+    db.Column('user_id', db.Integer(), db.ForeignKey('users.id')),
+    db.Column('role_id', db.Integer(), db.ForeignKey('roles.id'))
 )
 
 # 学生与标签关系表
 student_tags = db.Table('student_tags',
     db.Column('student_id', db.Integer(), db.ForeignKey('student_info.id')),
-    db.Column('tag_id', db.Integer(), db.ForeignKey('tag.id'))
+    db.Column('tag_id', db.Integer(), db.ForeignKey('tags.id'))
 )
 
 # 活动与标签关系表
 activity_tags = db.Table('activity_tags',
-    db.Column('activity_id', db.Integer(), db.ForeignKey('activity.id')),
-    db.Column('tag_id', db.Integer(), db.ForeignKey('tag.id'))
+    db.Column('activity_id', db.Integer(), db.ForeignKey('activities.id')),
+    db.Column('tag_id', db.Integer(), db.ForeignKey('tags.id'))
 )
 
 # 角色模型
