@@ -6,11 +6,35 @@
 2. 优化了数据库索引以提高查询和删除操作性能
 3. 增加了用户级别的聊天历史管理
 
+## 最新更新（2025-06-20）
+
+本次更新修复了以下问题：
+
+1. **时区问题修复**：确保所有时间相关功能使用北京时间
+2. **活动删除问题修复**：修复了删除活动时的外键约束错误
+
+### 时区修复
+
+- 修改了`get_beijing_time()`函数，确保始终返回正确的北京时间
+- 更新了`LocalizedDateTimeField`类，改进了时区处理逻辑
+- 确保全局上下文中注入的`now`变量使用正确的北京时间
+
+### 积分历史记录外键约束修复
+
+- 修改了`points_history`表的外键约束，添加了`ON DELETE CASCADE`选项
+- 现在可以安全地删除活动，相关的积分历史记录会自动删除
+
 ## 数据库更新步骤
 
 ### 本地开发环境 (SQLite)
 
 本地SQLite数据库不需要额外操作，应用程序启动时会自动创建必要的表和索引。
+
+对于积分历史记录外键约束修复，请执行：
+
+```bash
+sqlite3 instance/cqnu_association.db < scripts/add_points_history_cascade_sqlite.sql
+```
 
 ### 生产环境 (PostgreSQL on Render)
 
@@ -32,6 +56,12 @@ PGPASSWORD=BamPWSRTgj0sPGKM4sGsLDv8sGCPCPzB psql -h dpg-d0sjag49c44c73f7jt4g-a.o
 
 ```sql
 \i scripts/add_ai_chat_user_index.sql
+```
+
+4. 修复积分历史记录外键约束：
+
+```sql
+\i scripts/add_points_history_cascade_postgres.sql
 ```
 
 ## 功能说明
