@@ -8,9 +8,9 @@ def get_beijing_time():
     :return: 当前的北京时间，已本地化的datetime对象
     """
     beijing_tz = pytz.timezone('Asia/Shanghai')
-    # 使用utcnow并添加时区信息，然后转换到北京时区，确保时区转换正确
-    utc_now = datetime.datetime.now(pytz.utc)
-    return utc_now.astimezone(beijing_tz)
+    # 直接使用now()获取当前时间，然后转换为北京时间
+    # 这样可以避免时区转换问题
+    return datetime.datetime.now(beijing_tz)
 
 def localize_time(dt):
     """
@@ -118,15 +118,27 @@ def compare_datetimes(dt1, dt2):
     
     # 由于已经检查了None值，这里可以安全地使用时间戳比较
     try:
-        ts1 = dt1.timestamp()
-        ts2 = dt2.timestamp()
-        
-        if ts1 < ts2:
-            return -1
-        elif ts1 > ts2:
-            return 1
+        # 确保dt1和dt2不为None后再调用timestamp()
+        if dt1 and dt2:
+            ts1 = dt1.timestamp()
+            ts2 = dt2.timestamp()
+            
+            if ts1 < ts2:
+                return -1
+            elif ts1 > ts2:
+                return 1
+            else:
+                return 0
         else:
-            return 0
+            # 如果dt1或dt2为None，使用字符串比较
+            str1 = str(dt1)
+            str2 = str(dt2)
+            if str1 < str2:
+                return -1
+            elif str1 > str2:
+                return 1
+            else:
+                return 0
     except (AttributeError, TypeError):
         # 如果出现错误，回退到字符串比较
         str1 = str(dt1)
