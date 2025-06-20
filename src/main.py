@@ -171,7 +171,7 @@ app.register_blueprint(checkin_bp, url_prefix='/checkin')
 def before_request():
     try:
         if current_user.is_authenticated:
-            current_user.last_login = datetime.now()
+            current_user.last_login = get_beijing_time()
             db.session.commit()
     except Exception as e:
         logger.error(f"Error updating last login: {e}")
