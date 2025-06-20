@@ -3,6 +3,7 @@ from flask_login import UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
 import json
+from ..utils.time_helpers import get_beijing_time
 
 db = SQLAlchemy()
 
@@ -46,7 +47,7 @@ class User(db.Model, UserMixin):
     active = db.Column(db.Boolean, default=True)
     student_info = db.relationship('StudentInfo', backref='user', uselist=False)
     registrations = db.relationship('Registration', backref='user', lazy='dynamic')
-    created_at = db.Column(db.DateTime, default=datetime.now)
+    created_at = db.Column(db.DateTime, default=get_beijing_time)
     last_login = db.Column(db.DateTime)
     
     # AI聊天关联
@@ -92,7 +93,7 @@ class PointsHistory(db.Model):
     points = db.Column(db.Integer)
     reason = db.Column(db.String(200))
     activity_id = db.Column(db.Integer, db.ForeignKey('activities.id'), nullable=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=get_beijing_time)
 
 # 活动模型
 class Activity(db.Model):
@@ -109,9 +110,9 @@ class Activity(db.Model):
     type = db.Column(db.String(50), default='其他')  # 活动类型：讲座、研讨会、实践活动等
     is_featured = db.Column(db.Boolean, default=False)  # 是否为重点活动
     points = db.Column(db.Integer, default=10)  # 参加活动获得的积分值，默认10分
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=get_beijing_time)
     created_by = db.Column(db.Integer, db.ForeignKey('users.id'))
-    updated_at = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now)
+    updated_at = db.Column(db.DateTime, default=get_beijing_time, onupdate=get_beijing_time)
     registrations = db.relationship('Registration', backref='activity', lazy='dynamic')
     tags = db.relationship('Tag', secondary=activity_tags, backref=db.backref('activities', lazy='dynamic'))  # 修正多对多关系
     checkin_key = db.Column(db.String(32), nullable=True)  # 签到密钥
@@ -127,7 +128,7 @@ class Registration(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'))
     activity_id = db.Column(db.Integer, db.ForeignKey('activities.id'))
-    register_time = db.Column(db.DateTime, default=datetime.now)
+    register_time = db.Column(db.DateTime, default=get_beijing_time)
     check_in_time = db.Column(db.DateTime, nullable=True)  # 签到时间
     status = db.Column(db.String(20), default='registered')  # registered, cancelled, attended
     remark = db.Column(db.Text)
@@ -142,8 +143,8 @@ class Announcement(db.Model):
     title = db.Column(db.String(128))
     content = db.Column(db.Text)
     created_by = db.Column(db.Integer, db.ForeignKey('users.id'))
-    created_at = db.Column(db.DateTime, default=datetime.now)
-    updated_at = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now)
+    created_at = db.Column(db.DateTime, default=get_beijing_time)
+    updated_at = db.Column(db.DateTime, default=get_beijing_time, onupdate=get_beijing_time)
     status = db.Column(db.String(20), default='active')  # active, archived
     
     def __repr__(self):
@@ -157,7 +158,7 @@ class SystemLog(db.Model):
     action = db.Column(db.String(64))
     details = db.Column(db.Text)
     ip_address = db.Column(db.String(64))
-    created_at = db.Column(db.DateTime, default=datetime.now)
+    created_at = db.Column(db.DateTime, default=get_beijing_time)
     
     def __repr__(self):
         return f'<SystemLog {self.action}>'
@@ -174,7 +175,7 @@ class ActivityReview(db.Model):
     facility = db.Column(db.Integer)  # 1-5分
     review = db.Column(db.Text, nullable=False)
     is_anonymous = db.Column(db.Boolean, default=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=get_beijing_time)
     
     # 关联
     activity = db.relationship('Activity', backref=db.backref('reviews', lazy='dynamic'))
@@ -194,7 +195,7 @@ class Tag(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(64), unique=True, index=True)
     description = db.Column(db.Text)
-    created_at = db.Column(db.DateTime, default=datetime.now)
+    created_at = db.Column(db.DateTime, default=get_beijing_time)
     color = db.Column(db.String(20), default='primary')  # 默认使用 Bootstrap 的 primary 颜色
     # 不再定义 activities 字段，backref 已自动建立
 
@@ -207,7 +208,7 @@ class ActivityCheckin(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     activity_id = db.Column(db.Integer, db.ForeignKey('activities.id'))
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'))
-    checkin_time = db.Column(db.DateTime, default=datetime.utcnow)
+    checkin_time = db.Column(db.DateTime, default=get_beijing_time)
     status = db.Column(db.String(20), default='checked_in')  # checked_in, late, absent
 
 # 智能推荐系统相关数据结构（预留）
@@ -225,7 +226,7 @@ class AIChatHistory(db.Model):
     session_id = db.Column(db.String(255), nullable=False)
     role = db.Column(db.String(50), nullable=False)  # 'user' 或 'assistant'
     content = db.Column(db.Text, nullable=False)
-    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+    timestamp = db.Column(db.DateTime, default=get_beijing_time)
     
     def __str__(self):
         return f"{self.role}: {self.content[:20]}..."
@@ -235,8 +236,8 @@ class AIChatSession(db.Model):
     __tablename__ = 'ai_chat_session'
     id = db.Column(db.String(255), primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=get_beijing_time)
+    updated_at = db.Column(db.DateTime, default=get_beijing_time, onupdate=get_beijing_time)
     
     # 历史记录关联
     messages = db.relationship('AIChatHistory', backref='session', lazy='dynamic',
