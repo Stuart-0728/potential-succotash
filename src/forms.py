@@ -21,18 +21,15 @@ class LocalizedDateTimeField(DateTimeField):
             # 确保添加正确的时区信息
             if self.data.tzinfo is None:
                 self.data = beijing_tz.localize(self.data)
-            else:
-                self.data = self.data.astimezone(beijing_tz)
     
     def _value(self):
         """格式化时间为表单显示格式"""
         if self.data:
             # 确保时间是北京时间
+            beijing_tz = pytz.timezone('Asia/Shanghai')
             if self.data.tzinfo is None:
-                beijing_tz = pytz.timezone('Asia/Shanghai')
                 self.data = beijing_tz.localize(self.data)
             else:
-                beijing_tz = pytz.timezone('Asia/Shanghai')
                 self.data = self.data.astimezone(beijing_tz)
             # 使用字符串格式而不是列表
             format_str = self.format
