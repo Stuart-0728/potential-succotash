@@ -16,13 +16,17 @@
 ### 时区修复
 
 - 修改了`get_beijing_time()`函数，确保始终返回正确的北京时间
-- 更新了`LocalizedDateTimeField`类，改进了时区处理逻辑
+- 更新了`get_localized_now()`函数，使其调用`get_beijing_time()`保持一致性
+- 改进了`LocalizedDateTimeField`类，确保表单数据正确添加时区信息
 - 确保全局上下文中注入的`now`变量使用正确的北京时间
+- 优化了签到模态框模板，添加了服务器时间显示
 
 ### 积分历史记录外键约束修复
 
 - 修改了`points_history`表的外键约束，添加了`ON DELETE CASCADE`选项
+- 创建了两个SQL脚本：`add_points_history_cascade_sqlite.sql`和`add_points_history_cascade_postgres.sql`
 - 现在可以安全地删除活动，相关的积分历史记录会自动删除
+- 此修复解决了删除活动时出现的外键约束错误
 
 ## 数据库更新步骤
 
@@ -62,6 +66,12 @@ PGPASSWORD=BamPWSRTgj0sPGKM4sGsLDv8sGCPCPzB psql -h dpg-d0sjag49c44c73f7jt4g-a.o
 
 ```sql
 \i scripts/add_points_history_cascade_postgres.sql
+```
+
+5. 验证外键约束已正确修改：
+
+```sql
+SELECT conname, pg_get_constraintdef(oid) FROM pg_constraint WHERE conrelid = 'points_history'::regclass;
 ```
 
 ## 功能说明
