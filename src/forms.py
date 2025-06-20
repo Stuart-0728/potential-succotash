@@ -4,6 +4,7 @@ from wtforms.validators import DataRequired, Length, Optional, NumberRange
 from .models import Tag  # Import the Tag model
 import pytz
 from datetime import datetime
+from .utils.time_helpers import get_beijing_time, localize_time
 
 class LocalizedDateTimeField(DateTimeField):
     """本地化的日期时间字段，自动处理时区转换"""
@@ -17,7 +18,11 @@ class LocalizedDateTimeField(DateTimeField):
         if self.data:
             # 将时间视为北京时间，添加时区信息
             beijing_tz = pytz.timezone('Asia/Shanghai')
-            self.data = beijing_tz.localize(self.data)
+            # 确保添加正确的时区信息
+            if self.data.tzinfo is None:
+                self.data = beijing_tz.localize(self.data)
+            else:
+                self.data = self.data.astimezone(beijing_tz)
     
     def _value(self):
         """格式化时间为表单显示格式"""

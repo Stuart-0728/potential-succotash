@@ -190,6 +190,7 @@ def internal_server_error(e):
 # 添加全局上下文处理器
 @app.context_processor
 def inject_now():
+    """向所有模板注入当前北京时间"""
     return {'now': get_beijing_time()}
 
 # 初始化数据库和创建管理员账户

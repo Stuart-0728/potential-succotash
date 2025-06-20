@@ -23,8 +23,8 @@ logger = logging.getLogger(__name__)
 # 一个辅助函数，确保时间的时区一致性
 def get_localized_now():
     """获取本地时间，与数据库中的时间使用相同的时区处理方式"""
-    # 因为数据库中存储的是datetime.now()，所以我们也使用相同的方式
-    return datetime.now()
+    # 使用time_helpers中的函数以确保时区处理一致
+    return get_beijing_time()
 
 @admin_bp.route('/dashboard')
 @admin_required
@@ -251,6 +251,8 @@ def delete_activity(id):
         with db.session.begin_nested():
             if force_delete:
                 # 强制删除活动及相关数据
+                # 先删除积分历史记录
+                PointsHistory.query.filter_by(activity_id=activity.id).delete()
                 Registration.query.filter_by(activity_id=activity.id).delete()
                 ActivityReview.query.filter_by(activity_id=activity.id).delete()
                 ActivityCheckin.query.filter_by(activity_id=activity.id).delete()
@@ -264,6 +266,8 @@ def delete_activity(id):
                 flash('活动已永久删除', 'success')
             elif Registration.query.filter_by(activity_id=activity.id).count() == 0:
                 # 如果没有报名记录，直接删除活动
+                # 先删除积分历史记录
+                PointsHistory.query.filter_by(activity_id=activity.id).delete()
                 ActivityReview.query.filter_by(activity_id=activity.id).delete()
                 ActivityCheckin.query.filter_by(activity_id=activity.id).delete()
                 
