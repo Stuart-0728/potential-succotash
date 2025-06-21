@@ -10,7 +10,7 @@ from sqlalchemy import func, desc, or_, and_, not_
 from wtforms import StringField, TextAreaField, IntegerField, SelectField, SubmitField, RadioField, BooleanField, HiddenField
 from wtforms.validators import DataRequired, Length, Optional, NumberRange, Email, Regexp
 from flask_wtf import FlaskForm
-from src.utils.time_helpers import get_localized_now, get_beijing_time
+from src.utils.time_helpers import get_localized_now, get_beijing_time, ensure_timezone_aware
 
 logger = logging.getLogger(__name__)
 
@@ -66,7 +66,7 @@ def dashboard():
             Activity, Registration.activity_id == Activity.id
         ).filter(
             Registration.user_id == current_user.id,
-            Activity.start_time > datetime.now()
+            Activity.start_time > ensure_timezone_aware(datetime.now())
         ).count()
         
         return render_template('student/dashboard.html',
@@ -76,7 +76,7 @@ def dashboard():
                              upcoming_activities=recommended_activities,
                              total_activities=total_activities,
                              ongoing_activities=ongoing_activities,
-                             now=datetime.now())
+                             now=ensure_timezone_aware(datetime.now()))
     except Exception as e:
         logger.error(f"Error in student dashboard: {e}")
         flash('加载面板时发生错误', 'danger')
@@ -250,7 +250,7 @@ def cancel_registration(id):
         
         # 检查活动是否已开始
         activity = Activity.query.get(id)
-        if activity.start_time <= datetime.now():
+        if activity.start_time <= ensure_timezone_aware(datetime.now()):
             flash('活动已开始，无法取消报名', 'danger')
             return redirect(url_for('student.activity_detail', id=id))
         
@@ -280,7 +280,7 @@ def my_activities():
         if status == 'upcoming':
             # 获取即将开始的活动ID
             upcoming_activity_ids = db.session.query(Activity.id).filter(
-                Activity.start_time > datetime.now(),
+                Activity.start_time > ensure_timezone_aware(datetime.now()),
                 Activity.status == 'active'
             ).all()
             upcoming_activity_ids = [a[0] for a in upcoming_activity_ids]
@@ -293,7 +293,7 @@ def my_activities():
         elif status == 'past':
             # 获取已结束的活动ID
             past_activity_ids = db.session.query(Activity.id).filter(
-                Activity.end_time < datetime.now()
+                Activity.end_time < ensure_timezone_aware(datetime.now())
             ).all()
             past_activity_ids = [a[0] for a in past_activity_ids]
             
@@ -319,7 +319,7 @@ def my_activities():
                               registrations=registrations_page,
                               activities=activities_dict,
                               current_status=status,
-                              now=datetime.now())
+                              now=ensure_timezone_aware(datetime.now()))
     except Exception as e:
         logger.error(f"Error in my activities: {e}")
         flash('加载我的活动时发生错误', 'danger')

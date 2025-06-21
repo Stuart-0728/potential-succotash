@@ -4,7 +4,7 @@ from src.models import db, Activity, Registration, User
 from datetime import datetime, timedelta
 import logging
 from src.routes.utils import log_action
-from src.utils.time_helpers import get_beijing_time
+from src.utils.time_helpers import get_beijing_time, ensure_timezone_aware
 from sqlalchemy import func, desc, text
 
 logger = logging.getLogger(__name__)
@@ -156,7 +156,7 @@ def activity_detail(id):
                 # 检查是否可以报名
                 can_register = (
                     activity.status == 'active' and
-                    activity.registration_deadline >= datetime.now() and
+                    activity.registration_deadline >= ensure_timezone_aware(datetime.now()) and
                     (not registration or registration.status == 'cancelled')
                 )
                 
@@ -187,7 +187,7 @@ def activity_detail(id):
                               is_student=is_student,
                               registration_count=registration_count,
                               creator=creator,
-                              now=datetime.now())
+                              now=ensure_timezone_aware(datetime.now()))
     except Exception as e:
         logger.error(f"Error in activity_detail: {e}")
         flash('查看活动详情时发生错误', 'danger')
