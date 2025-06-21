@@ -380,7 +380,7 @@ def ai_chat():
     current_session_id = session_id
     
     # 获取Flask应用实例的引用，避免上下文问题
-    app = current_app
+    app = current_app._get_current_object()  # 获取实际的应用对象而不是代理
 
     def generate():
         nonlocal current_user_id, current_message, current_session_id
@@ -411,10 +411,9 @@ def ai_chat():
             
             # 响应结束，保存历史记录
             if current_session_id and full_response and current_user_id:
-                # 使用应用上下文确保数据库操作在正确的上下文中执行
-                with app.app_context():
-                    try:
-                        # 在请求上下文中保存聊天记录
+                try:
+                    # 创建一个新的请求上下文
+                    with app.app_context():
                         # 检查会话是否存在
                         session = AIChatSession.query.filter_by(id=current_session_id).first()
                         if not session:
@@ -444,10 +443,10 @@ def ai_chat():
                         # 更新会话最后更新时间
                         session.updated_at = datetime.now()
                         db.session.commit()
-                        
-                    except Exception as e:
-                        logger.error(f"保存聊天历史记录失败: {str(e)}")
-                        db.session.rollback()
+                        logger.info(f"已保存聊天历史记录，会话ID: {current_session_id}")
+                except Exception as e:
+                    logger.error(f"保存聊天历史记录失败: {str(e)}")
+                    db.session.rollback()
                     
             # 发送结束事件
             yield f"event: done\ndata: {{}}\n\n"
