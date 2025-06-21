@@ -3,7 +3,7 @@ from flask_login import login_required, current_user
 from src.models import db, Activity, ActivityCheckin, Registration, StudentInfo, PointsHistory
 from datetime import datetime, timezone, timedelta
 import logging
-from src.utils.time_helpers import get_localized_now, localize_time, ensure_timezone_aware
+from src.utils.time_helpers import get_localized_now, localize_time, ensure_timezone_aware, get_beijing_time
 
 logger = logging.getLogger(__name__)
 checkin_bp = Blueprint('checkin', __name__, url_prefix='/checkin')
@@ -40,12 +40,12 @@ def scan_checkin(activity_id, checkin_key):
         
         # 验证签到密钥是否有效
         valid_key = False
-        now = get_localized_now()
+        now = get_beijing_time()
         
         # 确保checkin_key_expires有时区信息
         expires_time = activity.checkin_key_expires
         if expires_time and expires_time.tzinfo is None:
-            expires_time = localize_time(expires_time)
+            expires_time = ensure_timezone_aware(expires_time)
         
         if activity.checkin_key == checkin_key and expires_time and expires_time >= now:
             valid_key = True
@@ -122,7 +122,6 @@ def scan_checkin(activity_id, checkin_key):
         return redirect(url_for('student.activity_detail', id=activity_id))
         
     except Exception as e:
-        db.session.rollback()
         logger.error(f"扫码签到失败: {e}")
         flash('签到失败，请重试', 'danger')
         return redirect(url_for('student.activities'))

@@ -79,11 +79,11 @@ def format_datetime(dt, format_str='%Y-%m-%d %H:%M'):
 
 def is_naive_datetime(dt):
     """
-    检查一个datetime对象是否是naive的（没有时区信息）
+    检查一个datetime对象是否没有时区信息
     :param dt: datetime对象
-    :return: 如果是naive的返回True，否则返回False
+    :return: 如果没有时区信息，返回True；否则返回False
     """
-    return dt.tzinfo is None
+    return dt.tzinfo is None or dt.tzinfo.utcoffset(dt) is None
 
 def ensure_timezone_aware(dt, default_timezone='Asia/Shanghai'):
     """
@@ -150,4 +150,21 @@ def compare_datetimes(dt1, dt2):
         elif str1 > str2:
             return 1
         else:
-            return 0 
+            return 0
+
+def safe_compare(dt1, dt2):
+    """
+    安全比较两个日期时间，处理时区问题
+    :param dt1: 第一个datetime对象
+    :param dt2: 第二个datetime对象
+    :return: 比较结果 (True/False)
+    """
+    # 确保两个时间都是timezone aware的
+    dt1_aware = ensure_timezone_aware(dt1) if dt1 else None
+    dt2_aware = ensure_timezone_aware(dt2) if dt2 else None
+    
+    # 如果任一为None，则无法比较
+    if dt1_aware is None or dt2_aware is None:
+        return False
+    
+    return dt1_aware == dt2_aware 
