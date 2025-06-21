@@ -3,7 +3,7 @@ from flask_login import login_required, current_user
 from src.models import db, Activity, ActivityCheckin, Registration, StudentInfo, PointsHistory
 from datetime import datetime, timezone, timedelta
 import logging
-from src.utils.time_helpers import get_localized_now, localize_time, ensure_timezone_aware, get_beijing_time
+from src.utils.time_helpers import get_beijing_time, localize_time, ensure_timezone_aware
 
 logger = logging.getLogger(__name__)
 checkin_bp = Blueprint('checkin', __name__, url_prefix='/checkin')
@@ -23,7 +23,7 @@ def checkin(activity_id):
     checkin_record = ActivityCheckin(
         activity_id=activity_id,
         user_id=current_user.id,
-        checkin_time=get_localized_now(),
+        checkin_time=datetime.now(),  # 使用模型中的normalize_datetime_for_db函数处理
         status='checked_in'
     )
     db.session.add(checkin_record)
@@ -44,7 +44,7 @@ def scan_checkin(activity_id, checkin_key):
         
         # 确保checkin_key_expires有时区信息
         expires_time = activity.checkin_key_expires
-        if expires_time and expires_time.tzinfo is None:
+        if expires_time:
             expires_time = ensure_timezone_aware(expires_time)
         
         if activity.checkin_key == checkin_key and expires_time and expires_time >= now:
@@ -65,7 +65,7 @@ def scan_checkin(activity_id, checkin_key):
         
         # 如果没有手动开启签到，则验证当前时间是否在活动时间范围内
         if not checkin_enabled:
-            # 确保活动时间有时区信息
+            # 确保活动时间有时区信息，并且都转换为北京时间进行比较
             start_time = ensure_timezone_aware(activity.start_time) if activity.start_time else now
             end_time = ensure_timezone_aware(activity.end_time) if activity.end_time else now + timedelta(hours=2)
                 
@@ -73,7 +73,7 @@ def scan_checkin(activity_id, checkin_key):
             start_time_buffer = start_time - timedelta(minutes=30)
             end_time_buffer = end_time + timedelta(minutes=30)
         
-            logger.info(f"签到时间检查: 当前时间={now}, 活动开始时间={start_time}, 活动结束时间={end_time}")
+            logger.info(f"签到时间检查: 当前北京时间={now}, 活动开始时间={start_time}, 活动结束时间={end_time}")
             
             if now < start_time_buffer or now > end_time_buffer:
                 flash('不在活动签到时间范围内', 'warning')
@@ -98,7 +98,7 @@ def scan_checkin(activity_id, checkin_key):
             return redirect(url_for('student.activity_detail', id=activity_id))
         
         # 更新签到状态
-        registration.check_in_time = now
+        registration.check_in_time = datetime.now()  # 使用模型中的normalize_datetime_for_db函数处理
         registration.status = 'attended'
         
         # 添加积分奖励

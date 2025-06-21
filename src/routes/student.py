@@ -10,7 +10,7 @@ from sqlalchemy import func, desc, or_, and_, not_
 from wtforms import StringField, TextAreaField, IntegerField, SelectField, SubmitField, RadioField, BooleanField, HiddenField
 from wtforms.validators import DataRequired, Length, Optional, NumberRange, Email, Regexp
 from flask_wtf import FlaskForm
-from src.utils.time_helpers import get_localized_now
+from src.utils.time_helpers import get_localized_now, get_beijing_time
 
 logger = logging.getLogger(__name__)
 
@@ -89,6 +89,9 @@ def activities():
         page = request.args.get('page', 1, type=int)
         status = request.args.get('status', 'active')
         
+        # 获取当前北京时间
+        now = get_beijing_time()
+        
         # 基本查询
         query = Activity.query
         
@@ -96,12 +99,12 @@ def activities():
         if status == 'active':
             query = query.filter(
                 Activity.status == 'active',
-                Activity.registration_deadline >= datetime.now()
+                Activity.registration_deadline >= now
             )
         elif status == 'past':
             query = query.filter(
                 (Activity.status == 'completed') | 
-                (Activity.registration_deadline < datetime.now())
+                (Activity.registration_deadline < now)
             )
         
         # 获取活动列表
@@ -118,7 +121,7 @@ def activities():
                               activities=activities_list, 
                               current_status=status,
                               registered_activity_ids=registered_activity_ids,
-                              now=datetime.now())
+                              now=now)
     except Exception as e:
         logger.error(f"Error in student activities: {e}")
         flash('加载活动列表时发生错误', 'danger')
@@ -161,7 +164,7 @@ def activity_detail(id):
         registered_count = Registration.query.filter_by(activity_id=id, status='registered').count()
         
         # 检查是否可以报名
-        now = datetime.now()
+        now = get_beijing_time()
         can_register = (
             activity.status == 'active' and 
             activity.registration_deadline >= now and 
@@ -192,56 +195,49 @@ def register_activity(id):
     try:
         activity = Activity.query.get_or_404(id)
         
+        # 使用北京时间进行判断
+        now = get_beijing_time()
+        
         # 检查活动是否可报名
-        if activity.status != 'active' or activity.registration_deadline < datetime.now():
+        if activity.status != 'active' or activity.registration_deadline < now:
             flash('该活动已结束报名', 'danger')
             return redirect(url_for('student.activity_detail', id=id))
         
         # 检查是否已报名
         existing_registration = Registration.query.filter_by(
-            user_id=current_user.id,
-            activity_id=activity.id
+            activity_id=id,
+            user_id=current_user.id
         ).first()
-        
-        if existing_registration and existing_registration.status == 'registered':
-            flash('您已报名过该活动', 'warning')
-            return redirect(url_for('student.activity_detail', id=id))
-        elif existing_registration and existing_registration.status == 'cancelled':
-            # 如果之前取消过报名，则重新激活
-            existing_registration.status = 'registered'
-            existing_registration.register_time = datetime.now()
-            db.session.commit()
-            flash('重新报名成功！', 'success')
+        if existing_registration:
+            flash('您已报名此活动', 'info')
             return redirect(url_for('student.activity_detail', id=id))
         
-        # 检查是否已达到人数上限
+        # 检查人数限制
         if activity.max_participants > 0:
-            current_participants = Registration.query.filter_by(
-                activity_id=activity.id,
+            registered_count = Registration.query.filter_by(
+                activity_id=id, 
                 status='registered'
             ).count()
-            if current_participants >= activity.max_participants:
-                flash('该活动报名人数已达上限', 'danger')
+            if registered_count >= activity.max_participants:
+                flash('报名人数已满', 'danger')
                 return redirect(url_for('student.activity_detail', id=id))
         
-        # 创建报名记录
+        # 创建新报名记录
         registration = Registration(
+            activity_id=id,
             user_id=current_user.id,
-            activity_id=activity.id,
-            register_time=datetime.now(),
             status='registered'
         )
-        
         db.session.add(registration)
         db.session.commit()
         
         flash('报名成功！', 'success')
         return redirect(url_for('student.activity_detail', id=id))
     except Exception as e:
-        logger.error(f"Error in register activity: {e}")
+        logger.error(f"Error in register_activity: {e}")
         db.session.rollback()
-        flash('报名过程中发生错误，请稍后再试', 'danger')
-        return redirect(url_for('student.activity_detail', id=id))
+        flash('报名失败，请稍后再试', 'danger')
+        return redirect(url_for('student.activities'))
 
 @student_bp.route('/activity/<int:id>/cancel', methods=['POST'])
 @student_required
