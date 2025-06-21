@@ -53,20 +53,20 @@
                 <table class="table table-hover align-middle mb-0">
                     <thead class="table-light">
                         <tr>
-                            <th>活动标题</th>
-                            <th>地点</th>
-                            <th>开始时间</th>
-                            <th>报名截止</th>
-                            <th>状态</th>
-                            <th>报名人数</th>
-                            <th>操作</th>
+                            <th style="width: 25%;">活动标题</th>
+                            <th style="width: 15%;">地点</th>
+                            <th style="width: 15%;">开始时间</th>
+                            <th style="width: 15%;">报名截止</th>
+                            <th style="width: 8%;">状态</th>
+                            <th style="width: 8%;">报名人数</th>
+                            <th style="width: 14%;">操作</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for activity in activities.items %}
                         <tr>
-                            <td class="fw-medium">{{ activity.title }}</td>
-                            <td>{{ activity.location }}</td>
+                            <td class="fw-medium text-truncate" style="max-width: 200px;" title="{{ activity.title }}">{{ activity.title }}</td>
+                            <td class="text-truncate" style="max-width: 120px;" title="{{ activity.location }}">{{ activity.location }}</td>
                             <td>{{ activity.start_time.strftime('%Y-%m-%d %H:%M') }}</td>
                             <td>{{ activity.registration_deadline.strftime('%Y-%m-%d %H:%M') }}</td>
                             <td>
@@ -74,7 +74,7 @@
                                     {% if activity.status == 'active' %}进行中{% elif activity.status == 'completed' %}已结束{% else %}已取消{% endif %}
                                 </span>
                             </td>
-                            <td>
+                            <td class="text-center">
                                 {% if activity.max_participants > 0 %}
                                     <span class="badge bg-primary rounded-pill">
                                         {{ activity.registrations.filter_by(status='registered').count() if activity.registrations and activity.registrations.filter_by else 0 }}/{{ activity.max_participants }}
