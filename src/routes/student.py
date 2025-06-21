@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify
 from flask_login import login_required, current_user
-from src.models import db, Activity, Registration, User, StudentInfo, PointsHistory, ActivityReview
+from src.models import db, Activity, Registration, User, StudentInfo, PointsHistory, ActivityReview, Tag
 from datetime import datetime, timedelta
 import logging
 import json
@@ -373,6 +373,16 @@ def edit_profile():
             student_info.phone = form.phone.data
             student_info.qq = form.qq.data
             
+            # 处理标签
+            tag_ids = request.form.getlist('tags')
+            if tag_ids:
+                student_info.tags = []
+                for tag_id in tag_ids:
+                    tag = Tag.query.get(int(tag_id))
+                    if tag:
+                        student_info.tags.append(tag)
+                student_info.has_selected_tags = True
+            
             db.session.commit()
             flash('个人信息更新成功！', 'success')
             return redirect(url_for('student.profile'))
@@ -386,7 +396,11 @@ def edit_profile():
             form.phone.data = student_info.phone
             form.qq.data = student_info.qq
         
-        return render_template('student/edit_profile.html', form=form)
+        # 获取所有标签和已选标签ID
+        all_tags = Tag.query.all()
+        selected_tag_ids = [tag.id for tag in student_info.tags] if student_info.tags else []
+        
+        return render_template('student/edit_profile.html', form=form, all_tags=all_tags, selected_tag_ids=selected_tag_ids)
     except Exception as e:
         logger.error(f"Error in edit profile: {e}")
         flash('编辑个人资料时发生错误', 'danger')
@@ -665,20 +679,32 @@ def checkin():
                 'message': '活动未在进行中'
             }), 400
         
+        # 检查是否手动开启了签到
+        checkin_enabled = getattr(activity, 'checkin_enabled', False)
+        logger.info(f"活动签到状态: 活动ID={activity_id}, 签到已手动开启={checkin_enabled}")
+        
         # 验证当前时间是否在活动时间范围内
         now = get_localized_now()
         
+        # 确保活动时间有时区信息
+        from src.utils.time_helpers import ensure_timezone_aware
+        start_time = ensure_timezone_aware(activity.start_time)
+        end_time = ensure_timezone_aware(activity.end_time)
+        
         # 添加灵活度：允许活动开始前30分钟和结束后30分钟的签到
-        start_time_buffer = activity.start_time - timedelta(minutes=30)
-        end_time_buffer = activity.end_time + timedelta(minutes=30)
+        start_time_buffer = start_time - timedelta(minutes=30)
+        end_time_buffer = end_time + timedelta(minutes=30)
         
-        logger.info(f"API签到时间检查: 当前时间={now}, 活动开始时间={activity.start_time}, 活动结束时间={activity.end_time}")
+        logger.info(f"API签到时间检查: 当前时间={now}, 活动开始时间={start_time}, 活动结束时间={end_time}")
         
-        if now < start_time_buffer or now > end_time_buffer:
+        # 如果没有手动开启签到，则验证当前时间是否在活动时间范围内
+        if not checkin_enabled and (now < start_time_buffer or now > end_time_buffer):
             return jsonify({
                 'success': False,
                 'message': '不在活动签到时间范围内'
             }), 400
+        else:
+            logger.info(f"签到时间检查已忽略: 活动ID={activity_id}，已手动开启签到")
         
         # 验证用户是否已报名
         registration = Registration.query.filter_by(
@@ -702,13 +728,48 @@ def checkin():
         
         # 验证二维码数据
         try:
-            qr_data_dict = json.loads(qr_data)
-            if str(qr_data_dict.get('activity_id')) != str(activity_id):
-                return jsonify({
-                    'success': False,
-                    'message': '无效的签到二维码'
-                }), 400
-        except:
+            # 尝试解析URL路径
+            if qr_data.startswith('http') and '/checkin/scan/' in qr_data:
+                # 提取URL中的活动ID和签到密钥
+                parts = qr_data.split('/checkin/scan/')
+                if len(parts) > 1:
+                    scan_parts = parts[1].split('/')
+                    if len(scan_parts) >= 2:
+                        scan_activity_id = scan_parts[0]
+                        if str(scan_activity_id) == str(activity_id):
+                            # 验证通过
+                            pass
+                        else:
+                            return jsonify({
+                                'success': False,
+                                'message': '二维码与当前活动不匹配'
+                            }), 400
+                    else:
+                        return jsonify({
+                            'success': False,
+                            'message': '无效的签到二维码URL格式'
+                        }), 400
+                else:
+                    return jsonify({
+                        'success': False,
+                        'message': '无效的签到二维码URL'
+                    }), 400
+            else:
+                # 尝试解析JSON格式
+                try:
+                    qr_data_dict = json.loads(qr_data)
+                    if str(qr_data_dict.get('activity_id')) != str(activity_id):
+                        return jsonify({
+                            'success': False,
+                            'message': '无效的签到二维码数据'
+                        }), 400
+                except:
+                    return jsonify({
+                        'success': False,
+                        'message': '无效的签到二维码格式'
+                    }), 400
+        except Exception as e:
+            logger.error(f"解析二维码数据失败: {e}")
             return jsonify({
                 'success': False,
                 'message': '无效的签到二维码'
@@ -716,7 +777,7 @@ def checkin():
         
         # 更新签到状态
         registration.check_in_time = now
-        registration.status = 'checked_in'
+        registration.status = 'attended'
         
         # 添加积分奖励
         points = activity.points or (20 if activity.is_featured else 10)  # 使用活动自定义积分或默认值

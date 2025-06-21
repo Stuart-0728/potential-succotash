@@ -1,4 +1,4 @@
-from flask import Blueprint, redirect, url_for, flash, request, jsonify, abort, Response
+from flask import Blueprint, redirect, url_for, flash, request, jsonify, abort, Response, render_template, current_app as app
 from flask_login import login_required, current_user
 from functools import wraps
 import logging
@@ -8,8 +8,9 @@ import uuid
 import json
 import random
 import string
-from datetime import datetime
-from src.models import db, Activity, Tag, StudentInfo, SystemLog, Registration, AIChatHistory, AIChatSession
+from datetime import datetime, timedelta
+from src.models import db, Activity, Tag, StudentInfo, SystemLog, Registration, AIChatHistory, AIChatSession, activity_tags
+from src.utils.time_helpers import get_beijing_time
 
 utils_bp = Blueprint('utils', __name__)
 logger = logging.getLogger(__name__)
@@ -203,9 +204,8 @@ def ai_chat():
     
     # 获取请求参数
     user_message = request.args.get('message', '')
-    user_role = request.args.get('role', 'student')
     session_id = request.args.get('session_id', '')
-    
+
     # 验证API密钥
     api_key = os.environ.get("ARK_API_KEY")
     if not api_key:
@@ -224,28 +224,78 @@ def ai_chat():
     }
 
     # 获取用户信息
-    student_info = StudentInfo.query.filter_by(user_id=current_user.id).first()
-    user_tags = [tag.name for tag in student_info.tags] if student_info and student_info.tags else []
-    
-    # 获取用户参与的活动
-    participated_activities = Activity.query.join(
-        Registration, Activity.id == Registration.activity_id
-    ).filter(
-        Registration.user_id == current_user.id
-    ).all()
-    
-    # 获取活跃的活动
-    active_activities = Activity.query.filter_by(status='active').order_by(Activity.created_at.desc()).limit(5).all()
-    
+    student_info = None
+    if hasattr(current_user, 'student_info'):
+        student_info = current_user.student_info
+
+    # 确定用户角色
+    is_admin = False
+    if hasattr(current_user, 'role') and current_user.role:
+        is_admin = current_user.role.name == 'Admin'
+
     # 构建用户上下文信息
-    user_context = f"""
+    user_context = ""
+    if student_info:  # 学生用户
+        # 获取学生标签
+        user_tags = [tag.name for tag in student_info.tags] if student_info.tags else []
+        
+        # 获取用户参与的活动
+        participated_activities = Activity.query.join(
+            Registration, Activity.id == Registration.activity_id
+        ).filter(
+            Registration.user_id == current_user.id
+        ).all()
+        
+        # 获取活跃的活动
+        active_activities = Activity.query.filter_by(status='active').order_by(Activity.created_at.desc()).limit(5).all()
+        
+        user_context = f"""
+用户角色：学生
 用户信息：
 - 用户名：{current_user.username}
+- 姓名：{student_info.real_name if student_info.real_name else '未设置'}
+- 学院：{student_info.college if student_info.college else '未设置'}
+- 专业：{student_info.major if student_info.major else '未设置'}
 - 兴趣标签：{', '.join(user_tags) if user_tags else '暂无'}
 - 已参与活动：{len(participated_activities)}个
+- 积分：{student_info.points or 0}分
 
 最近活动：
-{chr(10).join([f'- {a.title}' for a in active_activities[:5]]) if active_activities else '- 暂无活动'}
+{chr(10).join([f'- {a.title} ({a.start_time.strftime("%Y-%m-%d")})' for a in active_activities[:5]]) if active_activities else '- 暂无活动'}
+"""
+    else:  # 管理员用户
+        # 获取统计数据
+        total_activities = Activity.query.count()
+        active_activities = Activity.query.filter_by(status='active').count()
+        completed_activities = Activity.query.filter_by(status='completed').count()
+        total_students = StudentInfo.query.count()
+        total_registrations = Registration.query.count()
+        attended_registrations = Registration.query.filter_by(status='checked_in').count()
+        
+        # 获取活动参与度
+        if total_registrations > 0:
+            attendance_rate = f"{(attended_registrations / total_registrations) * 100:.1f}%"
+        else:
+            attendance_rate = "0%"
+        
+        # 最受欢迎的活动标签
+        popular_tags = db.session.query(
+            Tag.name, db.func.count(activity_tags.c.activity_id).label('count')
+        ).join(activity_tags).group_by(Tag.id).order_by(db.text('count DESC')).limit(5).all()
+        
+        user_context = f"""
+用户角色：管理员
+平台统计数据：
+- 总活动数：{total_activities}个
+- 进行中活动：{active_activities}个
+- 已结束活动：{completed_activities}个
+- 注册学生数：{total_students}人
+- 总报名人次：{total_registrations}次
+- 实际参与人次：{attended_registrations}次
+- 活动参与率：{attendance_rate}
+
+热门标签：
+{chr(10).join([f'- {tag[0]}: {tag[1]}次使用' for tag in popular_tags]) if popular_tags else '- 暂无数据'}
 """
 
     # 获取历史消息
@@ -277,7 +327,22 @@ def ai_chat():
         messages = []
     
     # 系统提示词
-    if user_role == 'student':
+    if is_admin:
+        system_prompt = f"""您好，我是基于DeepSeek大语言模型的智能助手，为重庆师范大学师能素质协会平台的管理员提供服务。
+
+我使用的是DeepSeek-r1-distill-qwen-7b-250120模型，可以为您这位管理员提供以下帮助：
+1. 分析活动参与数据和学生参与情况
+2. 提供平台用户活跃度和活动参与度分析
+3. 根据标签数据提供活动规划建议
+4. 协助管理员工作，提供数据洞察
+5. 生成数据摘要和报告
+
+我可以访问以下信息：
+{user_context}
+
+您可以询问我关于平台数据的分析、学生参与情况、活动建议等方面的问题。
+"""
+    else:
         system_prompt = f"""您好，我是基于DeepSeek大语言模型的智能助手，为重庆师范大学师能素质协会平台提供服务。
 
 我使用的是DeepSeek-r1-distill-qwen-7b-250120模型，可以为您提供以下帮助：
@@ -294,14 +359,6 @@ def ai_chat():
 
 请告诉我您需要什么帮助？
 """
-    else:
-        system_prompt = """你是一个基于DeepSeek大语言模型的智能助手，可以帮助管理员处理活动和学生信息。你可以：
-1. 分析活动反馈和参与数据
-2. 总结用户建议和评价
-3. 提供平台改进意见
-4. 协助管理员工作
-
-如有问题，可以建议联系平台管理员邮箱：2023051101095@stu.cqnu.edu.cn"""
 
     # 添加系统消息
     messages.insert(0, {"role": "system", "content": system_prompt})
@@ -323,7 +380,6 @@ def ai_chat():
     current_session_id = session_id
     
     # 获取Flask应用实例的引用，避免上下文问题
-    from flask import current_app
     app = current_app._get_current_object()
 
     def generate():

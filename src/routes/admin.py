@@ -351,37 +351,61 @@ def delete_student(id):
         flash('删除学生账号时出错', 'danger')
         return redirect(url_for('admin.students'))
 
-@admin_bp.route('/student/<int:id>/view')
+@admin_bp.route('/student/<int:id>')
 @admin_required
 def student_view(id):
+    student = StudentInfo.query.get_or_404(id)
+    user = User.query.get(student.user_id)
+    points_history = PointsHistory.query.filter_by(student_id=student.id).order_by(PointsHistory.created_at.desc()).all()
+    registrations = Registration.query.filter_by(user_id=user.id).all()
+    
+    # 处理注册信息，添加活动标题
+    for reg in registrations:
+        activity = Activity.query.get(reg.activity_id)
+        if activity:
+            reg.activity_title = activity.title
+        else:
+            reg.activity_title = "未知活动"
+    
+    # 获取学生的标签
+    selected_tag_ids = [tag.id for tag in student.tags] if student.tags else []
+    
+    # 获取所有标签
+    all_tags = Tag.query.all()
+    
+    return render_template('admin/student_view.html', student=student, user=user, 
+                           points_history=points_history, registrations=registrations,
+                           selected_tag_ids=selected_tag_ids, all_tags=all_tags)
+
+@admin_bp.route('/student/<int:id>/update-tags', methods=['POST'])
+@admin_required
+def update_student_tags(id):
+    student = StudentInfo.query.get_or_404(id)
+    
     try:
-        student_info = StudentInfo.query.get_or_404(id)
-        user = User.query.get(student_info.user_id)
+        # 获取提交的标签ID
+        tag_ids = request.form.getlist('tags')
         
-        # 获取积分历史
-        points_history = PointsHistory.query.filter_by(student_id=id)\
-            .order_by(PointsHistory.created_at.desc()).all()
+        # 清除原有标签关联
+        student.tags = []
         
-        # 获取参加的活动
-        registrations = Registration.query.filter_by(user_id=student_info.user_id)\
-            .join(Activity, Registration.activity_id == Activity.id)\
-            .add_columns(
-                Activity.id.label('activity_id'),
-                Activity.title.label('activity_title'),
-                Registration.register_time,
-                Registration.check_in_time,
-                Registration.status
-            ).order_by(Registration.register_time.desc()).all()
+        # 添加新的标签关联
+        for tag_id in tag_ids:
+            tag = Tag.query.get(int(tag_id))
+            if tag:
+                student.tags.append(tag)
         
-        return render_template('admin/student_view.html', 
-                              student=student_info, 
-                              user=user,
-                              points_history=points_history,
-                              registrations=registrations)
+        # 更新学生标签选择状态
+        student.has_selected_tags = True if tag_ids else False
+        db.session.commit()
+        
+        flash('学生标签更新成功！', 'success')
     except Exception as e:
-        logger.error(f"Error in student_view: {e}")
-        flash('查看学生详情时出错', 'danger')
-        return redirect(url_for('admin.students'))
+        db.session.rollback()
+        logger.error(f"更新学生标签时出错: {e}")
+        flash('更新学生标签时出错', 'danger')
+    
+    return redirect(url_for('admin.student_view', id=id))
 
 @admin_bp.route('/student/<int:id>/adjust_points', methods=['POST'])
 @admin_required

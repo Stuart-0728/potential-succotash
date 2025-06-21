@@ -3,27 +3,32 @@
 {% block title %}个人资料 - 重庆师范大学师能素质协会{% endblock %}
 
 {% block content %}
-<div class="container mt-4">
+<div class="container py-4">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{{ url_for('student.dashboard') }}">控制台</a></li>
+            <li class="breadcrumb-item active">个人资料</li>
+        </ol>
+    </nav>
+
     <div class="row">
         <div class="col-md-3">
-            <div class="card mb-4">
-                <div class="card-header bg-primary text-white">
-                    <h5 class="mb-0">个人中心</h5>
-                </div>
-                <div class="list-group list-group-flush">
-                    <a href="{{ url_for('student.dashboard') }}" class="list-group-item list-group-item-action">
-                        <i class="fas fa-tachometer-alt me-2"></i>我的面板
-                    </a>
-                    <a href="{{ url_for('student.my_activities') }}" class="list-group-item list-group-item-action">
-                        <i class="fas fa-calendar-check me-2"></i>我的活动
-                    </a>
-                    <a href="{{ url_for('student.profile') }}" class="list-group-item list-group-item-action active">
-                        <i class="fas fa-user me-2"></i>个人资料
-                    </a>
-                </div>
+            <div class="list-group mb-4">
+                <a href="{{ url_for('student.dashboard') }}" class="list-group-item list-group-item-action">
+                    <i class="fas fa-home me-2"></i> 控制台
+                </a>
+                <a href="{{ url_for('student.my_activities') }}" class="list-group-item list-group-item-action">
+                    <i class="fas fa-calendar-alt me-2"></i> 我的活动
+                </a>
+                <a href="{{ url_for('student.profile') }}" class="list-group-item list-group-item-action active">
+                    <i class="fas fa-user me-2"></i> 个人资料
+                </a>
+                <a href="{{ url_for('student.points') }}" class="list-group-item list-group-item-action">
+                    <i class="fas fa-star me-2"></i> 我的积分
+                </a>
             </div>
         </div>
-        
+
         <div class="col-md-9">
             <div class="card">
                 <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
@@ -43,153 +48,83 @@
                         </div>
                         <div class="col-md-8">
                             <table class="table">
-                                <tbody>
-                                    <tr>
-                                        <th style="width: 30%">姓名</th>
-                                        <td>{{ current_user.student_info.real_name }}</td>
-                                    </tr>
-                                    <tr>
-                                        <th>学号</th>
-                                        <td>{{ current_user.student_info.student_id }}</td>
-                                    </tr>
-                                    <tr>
-                                        <th>年级</th>
-                                        <td>{{ current_user.student_info.grade }}</td>
-                                    </tr>
-                                    <tr>
-                                        <th>专业</th>
-                                        <td>{{ current_user.student_info.major }}</td>
-                                    </tr>
-                                    <tr>
-                                        <th>学院</th>
-                                        <td>{{ current_user.student_info.college }}</td>
-                                    </tr>
-                                    <tr>
-                                        <th>手机号</th>
-                                        <td>{{ current_user.student_info.phone }}</td>
-                                    </tr>
-                                    <tr>
-                                        <th>QQ号</th>
-                                        <td>{{ current_user.student_info.qq }}</td>
-                                    </tr>
-                                    <tr>
-                                        <th>注册时间</th>
-                                        <td>{{ current_user.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
-                                    </tr>
-                                    <tr>
-                                        <th>最后登录</th>
-                                        <td>{{ current_user.last_login.strftime('%Y-%m-%d %H:%M') if current_user.last_login else '未记录' }}</td>
-                                    </tr>
-                                </tbody>
+                                <tr>
+                                    <th width="30%">姓名</th>
+                                    <td>{{ student_info.real_name or '未填写' }}</td>
+                                </tr>
+                                <tr>
+                                    <th>学号</th>
+                                    <td>{{ student_info.student_id }}</td>
+                                </tr>
+                                <tr>
+                                    <th>年级</th>
+                                    <td>{{ student_info.grade or '未填写' }}</td>
+                                </tr>
+                                <tr>
+                                    <th>学院</th>
+                                    <td>{{ student_info.college or '未填写' }}</td>
+                                </tr>
+                                <tr>
+                                    <th>专业</th>
+                                    <td>{{ student_info.major or '未填写' }}</td>
+                                </tr>
+                                <tr>
+                                    <th>手机号</th>
+                                    <td>{{ student_info.phone or '未填写' }}</td>
+                                </tr>
+                                <tr>
+                                    <th>QQ</th>
+                                    <td>{{ student_info.qq or '未填写' }}</td>
+                                </tr>
+                                <tr>
+                                    <th>积分</th>
+                                    <td>{{ student_info.points or 0 }} <a href="{{ url_for('student.points') }}" class="ms-2 small text-decoration-none"><i class="fas fa-history"></i> 积分详情</a></td>
+                                </tr>
                             </table>
                         </div>
                     </div>
                     
-                    <hr>
-                    
-                    <div class="row">
-                        <div class="col-md-12">
-                            <h5 class="text-danger">危险操作</h5>
-                            <p>注销账号将删除您的所有个人信息和活动报名记录，此操作不可撤销。</p>
-                            <button type="button" class="btn btn-danger" id="showDeactivateModal">
-                                <i class="fas fa-user-slash me-2"></i>注销我的账号
-                            </button>
+                    <!-- 兴趣标签部分 -->
+                    <div class="mb-4">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h5 class="mb-0">兴趣标签</h5>
+                            <a href="{{ url_for('auth.select_tags') }}" class="btn btn-sm btn-outline-primary">
+                                <i class="fas fa-edit me-1"></i>修改标签
+                            </a>
+                        </div>
+                        <div class="d-flex flex-wrap gap-2">
+                            {% if student_info.tags %}
+                                {% for tag in student_info.tags %}
+                                    <span class="badge bg-{{ tag.color }} tag-badge">{{ tag.name }}</span>
+                                {% endfor %}
+                            {% else %}
+                                <p class="text-muted">您还没有选择兴趣标签。</p>
+                            {% endif %}
                         </div>
                     </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- 注销账号确认模态框 -->
-<div class="modal fade" id="deactivateAccountModal" tabindex="-1" aria-labelledby="deactivateAccountModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="deactivateAccountModalLabel">确认注销账号</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <div class="alert alert-danger">
-                    <i class="fas fa-exclamation-triangle me-2"></i>
-                    <strong>警告：</strong> 注销账号将永久删除您的所有个人信息和活动报名记录，此操作不可撤销！
-                </div>
-                <p>请输入您的用户名 <strong>{{ current_user.username }}</strong> 以确认注销：</p>
-                <form id="deleteAccountForm" action="{{ url_for('student.delete_account') }}" method="post">
-                    <div class="mb-3">
-                        <input type="text" class="form-control" id="confirmUsername" name="confirm_username" required>
+                    
+                    <div class="alert alert-info mb-0">
+                        <i class="fas fa-info-circle me-2"></i> 请确保您的个人信息真实有效，这将有助于活动通知及证书发放。
                     </div>
-                </form>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
-                <button type="submit" form="deleteAccountForm" class="btn btn-danger">确认注销</button>
+                </div>
             </div>
         </div>
     </div>
 </div>
-{% endblock %}
 
-{% block styles %}
 <style>
     .avatar-circle {
         width: 100px;
         height: 100px;
         background-color: #007bff;
         border-radius: 50%;
-        margin: 0 auto;
+        color: #fff;
         display: flex;
         align-items: center;
         justify-content: center;
-    }
-    
-    .avatar-text {
-        color: white;
-        font-size: 42px;
+        font-size: 48px;
         font-weight: bold;
+        margin: 0 auto;
     }
 </style>
-{% endblock %}
-
-{% block scripts %}
-<script>
-    document.addEventListener('DOMContentLoaded', function() {
-        // 使用变量保存模态框实例
-        let deactivateModal = null;
-        
-        // 点击按钮时初始化并显示模态框
-        document.getElementById('showDeactivateModal').addEventListener('click', function() {
-            // 如果模态框实例已存在，先销毁它
-            if (deactivateModal) {
-                deactivateModal.dispose();
-                deactivateModal = null;
-            }
-            
-            // 创建新的模态框实例
-            const modalElement = document.getElementById('deactivateAccountModal');
-            deactivateModal = new bootstrap.Modal(modalElement, {
-                backdrop: 'static',
-                keyboard: false
-            });
-            
-            // 显示模态框
-            deactivateModal.show();
-            
-            // 清空输入框
-            document.getElementById('confirmUsername').value = '';
-            
-            // 模态框隐藏后的清理
-            modalElement.addEventListener('hidden.bs.modal', function() {
-                // 延迟销毁模态框实例，避免内存泄漏
-                setTimeout(function() {
-                    if (deactivateModal) {
-                        deactivateModal.dispose();
-                        deactivateModal = null;
-                    }
-                }, 100);
-            }, { once: true });
-        });
-    });
-</script>
 {% endblock %}
