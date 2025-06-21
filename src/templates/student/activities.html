@@ -3,62 +3,95 @@
 {% block title %}活动列表 - 重庆师范大学师能素质协会{% endblock %}
 
 {% block content %}
-<div class="container mt-4">
-    <h2 class="mb-4">活动列表</h2>
+<div class="container py-4">
+    <div class="d-flex align-items-center justify-content-between mb-4">
+        <div class="d-flex align-items-center">
+            <div class="bg-primary bg-opacity-10 rounded-circle p-2 me-2">
+                <i class="fas fa-calendar-alt text-primary"></i>
+            </div>
+            <h2 class="mb-0 fw-bold">活动列表</h2>
+        </div>
+        <div class="d-flex gap-2">
+            <a href="{{ url_for('student.dashboard') }}" class="btn btn-sm btn-outline-primary">
+                <i class="fas fa-tachometer-alt me-1"></i>返回面板
+            </a>
+        </div>
+    </div>
     
-    <div class="card shadow-sm mb-4">
-        <div class="card-header bg-white">
-            <ul class="nav nav-tabs card-header-tabs">
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-white p-0">
+            <ul class="nav nav-tabs card-header-tabs border-0">
                 <li class="nav-item">
-                    <a class="nav-link {% if current_status == 'active' %}active{% endif %}" href="{{ url_for('student.activities', status='active') }}">进行中的活动</a>
+                    <a class="nav-link {% if current_status == 'active' %}active fw-medium{% endif %}" href="{{ url_for('student.activities', status='active') }}">
+                        <i class="fas fa-play-circle me-1"></i>进行中的活动
+                    </a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link {% if current_status == 'past' %}active{% endif %}" href="{{ url_for('student.activities', status='past') }}">已结束的活动</a>
+                    <a class="nav-link {% if current_status == 'past' %}active fw-medium{% endif %}" href="{{ url_for('student.activities', status='past') }}">
+                        <i class="fas fa-history me-1"></i>已结束的活动
+                    </a>
                 </li>
             </ul>
         </div>
-        <div class="card-body">
+        <div class="card-body p-0">
             {% if activities.items %}
-                <div class="list-group">
+                <div class="list-group list-group-flush">
                     {% for activity in activities.items %}
-                        <div class="list-group-item list-group-item-action">
-                            <div class="d-flex w-100 justify-content-between flex-wrap">
-                                <h5 class="mb-1">{{ activity.title }}</h5>
-                                <small>
-                                    {% if activity.status == 'active' %}
-                                        {% if activity.registration_deadline >= now %}
-                                            <span class="badge bg-success">报名中</span>
-                                        {% else %}
-                                            <span class="badge bg-warning text-dark">报名已截止</span>
+                        <div class="list-group-item list-group-item-action border-0 p-4">
+                            <div class="row">
+                                <div class="col-md-8">
+                                    <div class="d-flex align-items-center mb-2">
+                                        <h5 class="mb-0 fw-bold">{{ activity.title }}</h5>
+                                        <div class="ms-3">
+                                            {% if activity.status == 'active' %}
+                                                {% if activity.registration_deadline >= now %}
+                                                    <span class="badge bg-success rounded-pill">报名中</span>
+                                                {% else %}
+                                                    <span class="badge bg-warning text-dark rounded-pill">报名已截止</span>
+                                                {% endif %}
+                                            {% elif activity.status == 'completed' %}
+                                                <span class="badge bg-secondary rounded-pill">已结束</span>
+                                            {% elif activity.status == 'cancelled' %}
+                                                <span class="badge bg-danger rounded-pill">已取消</span>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    <div class="d-flex align-items-center text-muted mb-2">
+                                        <i class="fas fa-map-marker-alt me-2"></i>
+                                        <span>{{ activity.location }}</span>
+                                    </div>
+                                    <div class="d-flex align-items-center text-muted mb-3">
+                                        <i class="fas fa-clock me-2"></i>
+                                        <span>{{ activity.start_time.strftime('%Y-%m-%d %H:%M') }} 至 {{ activity.end_time.strftime('%Y-%m-%d %H:%M') }}</span>
+                                    </div>
+                                    <div class="d-flex align-items-center text-muted">
+                                        <i class="fas fa-hourglass-end me-2"></i>
+                                        <span>
+                                            {% if activity.registration_deadline >= now and activity.status == 'active' %}
+                                                报名截止: {{ activity.registration_deadline.strftime('%Y-%m-%d %H:%M') }}
+                                            {% else %}
+                                                报名已截止
+                                            {% endif %}
+                                        </span>
+                                    </div>
+                                </div>
+                                <div class="col-md-4 d-flex flex-column justify-content-center align-items-end mt-3 mt-md-0">
+                                    <div class="d-flex gap-2 flex-wrap justify-content-end">
+                                        {% if activity.id in registered_activity_ids %}
+                                            <span class="badge bg-info rounded-pill px-3 py-2 mb-2">
+                                                <i class="fas fa-check-circle me-1"></i>已报名
+                                            </span>
+                                        {% elif activity.status == 'active' and activity.registration_deadline >= now %}
+                                            <form method="post" action="{{ url_for('student.register_activity', id=activity.id) }}" class="d-inline">
+                                                <button type="submit" class="btn btn-primary">
+                                                    <i class="fas fa-user-plus me-1"></i>立即报名
+                                                </button>
+                                            </form>
                                         {% endif %}
-                                    {% elif activity.status == 'completed' %}
-                                        <span class="badge bg-secondary">已结束</span>
-                                    {% elif activity.status == 'cancelled' %}
-                                        <span class="badge bg-danger">已取消</span>
-                                    {% endif %}
-                                </small>
-                            </div>
-                            <p class="mb-1">
-                                <i class="bi bi-geo-alt"></i> {{ activity.location }}<br>
-                                <i class="bi bi-calendar-event"></i> {{ activity.start_time.strftime('%Y-%m-%d %H:%M') }} 至 {{ activity.end_time.strftime('%Y-%m-%d %H:%M') }}
-                            </p>
-                            <div class="d-flex justify-content-between align-items-center mt-2 flex-wrap">
-                                <small class="text-muted mb-2 mb-md-0">
-                                    {% if activity.registration_deadline >= now and activity.status == 'active' %}
-                                        报名截止: {{ activity.registration_deadline.strftime('%Y-%m-%d %H:%M') }}
-                                    {% else %}
-                                        报名已截止
-                                    {% endif %}
-                                </small>
-                                <div class="action-buttons">
-                                    {% if activity.id in registered_activity_ids %}
-                                        <span class="badge bg-info me-2">已报名</span>
-                                    {% elif activity.status == 'active' and activity.registration_deadline >= now %}
-                                        <form method="post" action="{{ url_for('student.register_activity', id=activity.id) }}" class="d-inline">
-                                            <button type="submit" class="btn btn-sm btn-primary">立即报名</button>
-                                        </form>
-                                    {% endif %}
-                                    <a href="{{ url_for('student.activity_detail', id=activity.id) }}" class="btn btn-sm btn-outline-primary">查看详情</a>
+                                        <a href="{{ url_for('student.activity_detail', id=activity.id) }}" class="btn btn-outline-primary">
+                                            <i class="fas fa-info-circle me-1"></i>查看详情
+                                        </a>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -67,54 +100,59 @@
                 
                 <!-- 分页 -->
                 {% if activities.pages > 1 %}
-                <nav aria-label="Page navigation" class="mt-4">
-                    <ul class="pagination justify-content-center flex-wrap">
-                        {% if activities.has_prev %}
-                            <li class="page-item">
-                                <a class="page-link" href="{{ url_for('student.activities', page=activities.prev_num, status=current_status) }}" aria-label="Previous">
-                                    <span aria-hidden="true">&laquo;</span>
-                                </a>
-                            </li>
-                        {% else %}
-                            <li class="page-item disabled">
-                                <a class="page-link" href="#" aria-label="Previous">
-                                    <span aria-hidden="true">&laquo;</span>
-                                </a>
-                            </li>
-                        {% endif %}
-                        
-                        {% for page_num in activities.iter_pages() %}
-                            {% if page_num %}
-                                <li class="page-item {% if page_num == activities.page %}active{% endif %}">
-                                    <a class="page-link" href="{{ url_for('student.activities', page=page_num, status=current_status) }}">{{ page_num }}</a>
+                <div class="p-3">
+                    <nav aria-label="Page navigation">
+                        <ul class="pagination justify-content-center flex-wrap mb-0">
+                            {% if activities.has_prev %}
+                                <li class="page-item">
+                                    <a class="page-link" href="{{ url_for('student.activities', page=activities.prev_num, status=current_status) }}" aria-label="Previous">
+                                        <span aria-hidden="true">&laquo;</span>
+                                    </a>
                                 </li>
                             {% else %}
                                 <li class="page-item disabled">
-                                    <a class="page-link" href="#">...</a>
+                                    <a class="page-link" href="#" aria-label="Previous">
+                                        <span aria-hidden="true">&laquo;</span>
+                                    </a>
                                 </li>
                             {% endif %}
-                        {% endfor %}
-                        
-                        {% if activities.has_next %}
-                            <li class="page-item">
-                                <a class="page-link" href="{{ url_for('student.activities', page=activities.next_num, status=current_status) }}" aria-label="Next">
-                                    <span aria-hidden="true">&raquo;</span>
-                                </a>
-                            </li>
-                        {% else %}
-                            <li class="page-item disabled">
-                                <a class="page-link" href="#" aria-label="Next">
-                                    <span aria-hidden="true">&raquo;</span>
-                                </a>
-                            </li>
-                        {% endif %}
-                    </ul>
-                </nav>
+                            
+                            {% for page_num in activities.iter_pages() %}
+                                {% if page_num %}
+                                    <li class="page-item {% if page_num == activities.page %}active{% endif %}">
+                                        <a class="page-link" href="{{ url_for('student.activities', page=page_num, status=current_status) }}">{{ page_num }}</a>
+                                    </li>
+                                {% else %}
+                                    <li class="page-item disabled">
+                                        <a class="page-link" href="#">...</a>
+                                    </li>
+                                {% endif %}
+                            {% endfor %}
+                            
+                            {% if activities.has_next %}
+                                <li class="page-item">
+                                    <a class="page-link" href="{{ url_for('student.activities', page=activities.next_num, status=current_status) }}" aria-label="Next">
+                                        <span aria-hidden="true">&raquo;</span>
+                                    </a>
+                                </li>
+                            {% else %}
+                                <li class="page-item disabled">
+                                    <a class="page-link" href="#" aria-label="Next">
+                                        <span aria-hidden="true">&raquo;</span>
+                                    </a>
+                                </li>
+                            {% endif %}
+                        </ul>
+                    </nav>
+                </div>
                 {% endif %}
             {% else %}
                 <div class="text-center py-5">
-                    <i class="bi bi-calendar-x" style="font-size: 3rem;"></i>
-                    <p class="mt-3">暂无相关活动</p>
+                    <div class="bg-light rounded-circle mx-auto mb-3 d-flex align-items-center justify-content-center" style="width: 80px; height: 80px;">
+                        <i class="fas fa-calendar-times text-muted fs-2"></i>
+                    </div>
+                    <h5 class="text-muted mb-1">暂无相关活动</h5>
+                    <p class="text-muted">请稍后再来查看</p>
                 </div>
             {% endif %}
         </div>

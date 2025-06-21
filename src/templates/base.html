@@ -85,29 +85,218 @@
         /* 按钮样式优化 */
         .btn {
             font-weight: 500;
-            border-radius: var(--border-radius);
+            border-radius: 0.5rem;
             padding: 0.5rem 1.25rem;
-            transition: var(--transition);
+            transition: all 0.3s ease;
+            border: none;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            position: relative;
+            overflow: hidden;
+            z-index: 1;
+        }
+        
+        .btn::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.1);
+            z-index: -1;
+            transform: scale(0);
+            transition: transform 0.3s ease;
+            border-radius: inherit;
+        }
+        
+        .btn:hover::after {
+            transform: scale(1);
+        }
+        
+        .btn:active {
+            transform: translateY(1px);
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
         }
         
         .btn-primary {
-            background-color: var(--primary-color);
-            border-color: var(--primary-color);
+            background: linear-gradient(135deg, var(--primary-color), var(--primary-hover));
+            color: #fff;
         }
         
         .btn-primary:hover {
-            background-color: var(--primary-hover);
-            border-color: var(--primary-hover);
+            background: linear-gradient(135deg, var(--primary-hover), var(--primary-color));
+            color: #fff;
+        }
+        
+        .btn-secondary {
+            background: linear-gradient(135deg, var(--secondary-color), #3730b5);
+            color: #fff;
+        }
+        
+        .btn-secondary:hover {
+            background: linear-gradient(135deg, #3730b5, var(--secondary-color));
+            color: #fff;
+        }
+        
+        .btn-success {
+            background: linear-gradient(135deg, #2ecc71, #27ae60);
+            color: #fff;
+        }
+        
+        .btn-success:hover {
+            background: linear-gradient(135deg, #27ae60, #2ecc71);
+            color: #fff;
+        }
+        
+        .btn-danger {
+            background: linear-gradient(135deg, var(--danger-color), #d32f2f);
+            color: #fff;
+        }
+        
+        .btn-danger:hover {
+            background: linear-gradient(135deg, #d32f2f, var(--danger-color));
+            color: #fff;
+        }
+        
+        .btn-warning {
+            background: linear-gradient(135deg, #f39c12, #e67e22);
+            color: #fff;
+        }
+        
+        .btn-warning:hover {
+            background: linear-gradient(135deg, #e67e22, #f39c12);
+            color: #fff;
+        }
+        
+        .btn-info {
+            background: linear-gradient(135deg, var(--accent-color), #3498db);
+            color: #fff;
+        }
+        
+        .btn-info:hover {
+            background: linear-gradient(135deg, #3498db, var(--accent-color));
+            color: #fff;
+        }
+        
+        .btn-light {
+            background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+            color: var(--text-color);
+        }
+        
+        .btn-light:hover {
+            background: linear-gradient(135deg, #e9ecef, #f8f9fa);
+            color: var(--text-color);
+        }
+        
+        .btn-dark {
+            background: linear-gradient(135deg, #343a40, #212529);
+            color: #fff;
+        }
+        
+        .btn-dark:hover {
+            background: linear-gradient(135deg, #212529, #343a40);
+            color: #fff;
         }
         
         .btn-outline-primary {
+            background: transparent;
+            border: 1px solid var(--primary-color);
             color: var(--primary-color);
-            border-color: var(--primary-color);
         }
         
         .btn-outline-primary:hover {
-            background-color: var(--primary-color);
+            background: var(--primary-color);
             color: #fff;
+        }
+        
+        .btn-outline-secondary {
+            background: transparent;
+            border: 1px solid var(--secondary-color);
+            color: var(--secondary-color);
+        }
+        
+        .btn-outline-secondary:hover {
+            background: var(--secondary-color);
+            color: #fff;
+        }
+        
+        .btn-outline-success {
+            background: transparent;
+            border: 1px solid #2ecc71;
+            color: #2ecc71;
+        }
+        
+        .btn-outline-success:hover {
+            background: #2ecc71;
+            color: #fff;
+        }
+        
+        .btn-outline-danger {
+            background: transparent;
+            border: 1px solid var(--danger-color);
+            color: var(--danger-color);
+        }
+        
+        .btn-outline-danger:hover {
+            background: var(--danger-color);
+            color: #fff;
+        }
+        
+        .btn-outline-warning {
+            background: transparent;
+            border: 1px solid #f39c12;
+            color: #f39c12;
+        }
+        
+        .btn-outline-warning:hover {
+            background: #f39c12;
+            color: #fff;
+        }
+        
+        .btn-outline-info {
+            background: transparent;
+            border: 1px solid var(--accent-color);
+            color: var(--accent-color);
+        }
+        
+        .btn-outline-info:hover {
+            background: var(--accent-color);
+            color: #fff;
+        }
+        
+        .btn-sm {
+            padding: 0.25rem 0.75rem;
+            font-size: 0.875rem;
+        }
+        
+        .btn-lg {
+            padding: 0.75rem 1.5rem;
+            font-size: 1.125rem;
+        }
+        
+        .btn-group {
+            box-shadow: var(--box-shadow);
+            border-radius: var(--border-radius);
+            overflow: hidden;
+        }
+        
+        .btn-group .btn {
+            box-shadow: none;
+            border-radius: 0;
+        }
+        
+        .btn-group .btn:first-child {
+            border-top-left-radius: var(--border-radius);
+            border-bottom-left-radius: var(--border-radius);
+        }
+        
+        .btn-group .btn:last-child {
+            border-top-right-radius: var(--border-radius);
+            border-bottom-right-radius: var(--border-radius);
         }
         
         /* 表格样式优化 */
@@ -499,90 +688,42 @@
             <a href="javascript:void(0);" onclick="toggleAIChatInfo()">关于智能助手</a>
         </div>
         <div class="ai-chat-input">
-            <input type="text" id="aiChatInput" placeholder="输入你的问题..." {% if not current_user.is_authenticated %}disabled{% endif %}>
-            <button id="aiSendButton" {% if not current_user.is_authenticated %}disabled{% endif %}>发送</button>
+            <input type="text" id="aiChatInput" placeholder="请输入您的问题..." autocomplete="off">
+            <button id="aiChatSendBtn">发送</button>
+        </div>
+    </div>
+
+    <!-- AI聊天信息模态框 -->
+    <div class="modal fade" id="aiChatInfoModal" tabindex="-1" aria-labelledby="aiChatInfoModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="aiChatInfoModalLabel">关于智能助手</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p>智能助手是一个基于人工智能的聊天工具，可以回答您关于协会活动、学分积分、报名流程等问题。</p>
+                    <p>您可以询问以下内容：</p>
+                    <ul>
+                        <li>活动报名和签到流程</li>
+                        <li>积分规则和兑换方式</li>
+                        <li>协会介绍和加入方式</li>
+                        <li>系统使用相关问题</li>
+                    </ul>
+                    <p class="text-muted small">注意：智能助手可能无法回答所有问题，如有重要事项请联系协会管理员。</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+                </div>
+            </div>
         </div>
     </div>
 
     <script>
-        // 这个脚本处理AI聊天组件的初始配置
-        document.addEventListener('DOMContentLoaded', function() {
-            // 如果未登录，显示登录提示
-            {% if not current_user.is_authenticated %}
-            setTimeout(function() {
-                if (window.aiChat && window.aiChat.ui) {
-                    window.aiChat.ui.clearMessagesUI();
-                    window.aiChat.ui.addMessageToUI('您好！AI助手功能需要登录后使用。请先<a href="{{ url_for('auth.login') }}">登录</a>或<a href="{{ url_for('auth.register') }}">注册</a>。', 'bot');
-                }
-            }, 100);
-            {% endif %}
-            
-            // 确保关闭按钮正常工作
-            const closeBtn = document.getElementById('aiChatCloseBtn');
-            if (closeBtn) {
-                closeBtn.addEventListener('click', function() {
-                    const container = document.getElementById('aiChatContainer');
-                    if (container) {
-                        container.style.display = 'none';
-                        // 如果aiChat对象存在，也设置其状态
-                        if (window.aiChat && window.aiChat.session) {
-                            window.aiChat.session.isOpen = false;
-                            window.aiChat.session.setCookie('chat_open', 'false', 7);
-                        }
-                    }
-                });
-            }
-            
-            // 关于智能助手的信息弹窗
-            window.toggleAIChatInfo = function() {
-                // 获取关于智能助手的信息
-                const info = window.aiChat.associationInfo;
-                const infoHtml = `
-                <div class="modal fade" id="aiChatInfoModal" tabindex="-1" aria-hidden="true">
-                    <div class="modal-dialog">
-                        <div class="modal-content">
-                            <div class="modal-header">
-                                <h5 class="modal-title">关于智能助手</h5>
-                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                            </div>
-                            <div class="modal-body">
-                                <h6>${info.name}</h6>
-                                <p>${info.description}</p>
-                                <p><strong>使用模型：</strong>${info.model}</p>
-                                <h6>主要功能</h6>
-                                <ul>
-                                    ${info.capabilities.map(capability => `<li>${capability}</li>`).join('')}
-                                </ul>
-                                <h6>技术特点</h6>
-                                <p>${info.features.join('、')}</p>
-                                <h6>联系方式</h6>
-                                <p><i class="fas fa-envelope me-2"></i>管理员邮箱：${info.contactInfo.adminEmail}</p>
-                                <p><i class="fab fa-qq me-2"></i>QQ群：${info.contactInfo.qqGroup}</p>
-                                <p class="mt-3 text-muted small">${info.disclaimer}</p>
-                            </div>
-                            <div class="modal-footer">
-                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                `;
-                
-                // 添加模态框到页面
-                const modalContainer = document.createElement('div');
-                modalContainer.innerHTML = infoHtml;
-                document.body.appendChild(modalContainer);
-                
-                // 显示模态框
-                const modal = new bootstrap.Modal(document.getElementById('aiChatInfoModal'));
-                modal.show();
-                
-                // 模态框关闭后移除
-                document.getElementById('aiChatInfoModal').addEventListener('hidden.bs.modal', function() {
-                    document.body.removeChild(modalContainer);
-                });
-            };
-        });
+        function toggleAIChatInfo() {
+            const modal = new bootstrap.Modal(document.getElementById('aiChatInfoModal'));
+            modal.show();
+        }
     </script>
 </body>
 </html>

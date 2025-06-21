@@ -3,41 +3,54 @@
 {% block title %}活动管理 - 重庆师范大学师能素质协会{% endblock %}
 
 {% block content %}
-<div class="container mt-4">
-    <nav aria-label="breadcrumb">
+<div class="container py-4">
+    <nav aria-label="breadcrumb" class="mb-3">
         <ol class="breadcrumb">
-            <li class="breadcrumb-item"><a href="{{ url_for('admin.dashboard') }}">管理面板</a></li>
-            <li class="breadcrumb-item active" aria-current="page">活动管理</li>
+            <li class="breadcrumb-item"><a href="{{ url_for('admin.dashboard') }}" class="text-decoration-none">管理面板</a></li>
+            <li class="breadcrumb-item active fw-medium" aria-current="page">活动管理</li>
         </ol>
     </nav>
 
-    <div class="card shadow-sm mb-4">
-        <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-            <h4 class="mb-0">活动管理</h4>
-            <a href="{{ url_for('admin.create_activity') }}" class="btn btn-light btn-sm">
-                <i class="bi bi-plus-circle"></i> 创建新活动
-            </a>
-        </div>
-        <div class="card-body">
-            <div class="mb-3">
-                <ul class="nav nav-tabs">
-                    <li class="nav-item">
-                        <a class="nav-link {% if current_status == 'all' %}active{% endif %}" href="{{ url_for('admin.activities', status='all') }}">全部</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link {% if current_status == 'active' %}active{% endif %}" href="{{ url_for('admin.activities', status='active') }}">进行中</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link {% if current_status == 'completed' %}active{% endif %}" href="{{ url_for('admin.activities', status='completed') }}">已结束</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link {% if current_status == 'cancelled' %}active{% endif %}" href="{{ url_for('admin.activities', status='cancelled') }}">已取消</a>
-                    </li>
-                </ul>
+    <div class="d-flex align-items-center justify-content-between mb-4">
+        <div class="d-flex align-items-center">
+            <div class="bg-primary bg-opacity-10 rounded-circle p-2 me-2">
+                <i class="fas fa-calendar-alt text-primary"></i>
             </div>
+            <h2 class="mb-0 fw-bold">活动管理</h2>
+        </div>
+        <a href="{{ url_for('admin.create_activity') }}" class="btn btn-primary">
+            <i class="fas fa-plus-circle me-1"></i> 创建新活动
+        </a>
+    </div>
 
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-white p-0">
+            <ul class="nav nav-tabs card-header-tabs border-0">
+                <li class="nav-item">
+                    <a class="nav-link {% if current_status == 'all' %}active fw-medium{% endif %}" href="{{ url_for('admin.activities', status='all') }}">
+                        <i class="fas fa-list me-1"></i>全部
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if current_status == 'active' %}active fw-medium{% endif %}" href="{{ url_for('admin.activities', status='active') }}">
+                        <i class="fas fa-play-circle me-1"></i>进行中
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if current_status == 'completed' %}active fw-medium{% endif %}" href="{{ url_for('admin.activities', status='completed') }}">
+                        <i class="fas fa-check-circle me-1"></i>已结束
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if current_status == 'cancelled' %}active fw-medium{% endif %}" href="{{ url_for('admin.activities', status='cancelled') }}">
+                        <i class="fas fa-ban me-1"></i>已取消
+                    </a>
+                </li>
+            </ul>
+        </div>
+        <div class="card-body p-0">
             <div class="table-responsive">
-                <table class="table table-hover">
+                <table class="table table-hover align-middle mb-0">
                     <thead class="table-light">
                         <tr>
                             <th>活动标题</th>
@@ -52,46 +65,56 @@
                     <tbody>
                         {% for activity in activities.items %}
                         <tr>
-                            <td>{{ activity.title }}</td>
+                            <td class="fw-medium">{{ activity.title }}</td>
                             <td>{{ activity.location }}</td>
                             <td>{{ activity.start_time.strftime('%Y-%m-%d %H:%M') }}</td>
                             <td>{{ activity.registration_deadline.strftime('%Y-%m-%d %H:%M') }}</td>
                             <td>
-                                <span class="badge {% if activity.status == 'active' %}bg-success{% elif activity.status == 'completed' %}bg-secondary{% else %}bg-danger{% endif %}">
+                                <span class="badge {% if activity.status == 'active' %}bg-success{% elif activity.status == 'completed' %}bg-secondary{% else %}bg-danger{% endif %} rounded-pill">
                                     {% if activity.status == 'active' %}进行中{% elif activity.status == 'completed' %}已结束{% else %}已取消{% endif %}
                                 </span>
                             </td>
                             <td>
                                 {% if activity.max_participants > 0 %}
-                                    {{ activity.registrations.filter_by(status='registered').count() if activity.registrations and activity.registrations.filter_by else 0 }}/{{ activity.max_participants }}
+                                    <span class="badge bg-primary rounded-pill">
+                                        {{ activity.registrations.filter_by(status='registered').count() if activity.registrations and activity.registrations.filter_by else 0 }}/{{ activity.max_participants }}
+                                    </span>
                                 {% else %}
-                                    {{ activity.registrations.filter_by(status='registered').count() if activity.registrations and activity.registrations.filter_by else 0 }} (不限)
+                                    <span class="badge bg-primary rounded-pill">
+                                        {{ activity.registrations.filter_by(status='registered').count() if activity.registrations and activity.registrations.filter_by else 0 }} (不限)
+                                    </span>
                                 {% endif %}
                             </td>
                             <td>
-                                <div class="d-flex flex-column flex-md-row gap-1">
-                                    <a href="{{ url_for('admin.activity_view', id=activity.id) }}" class="btn btn-sm btn-info">查看</a>
-                                    <a href="{{ url_for('admin.activity_registrations', id=activity.id) }}" class="btn btn-sm btn-primary">报名</a>
-                                    <a href="{{ url_for('admin.edit_activity', id=activity.id) }}" class="btn btn-sm btn-warning">编辑</a>
-                                    <form action="{{ url_for('admin.delete_activity', id=activity.id) }}" method="post" class="d-inline" onsubmit="return confirm('确定要删除该活动吗？')">
-                                        <button type="submit" class="btn btn-sm btn-danger">删除</button>
-                                    </form>
-                                    <form action="{{ url_for('admin.delete_activity', id=activity.id) }}?force=true" method="post" class="d-inline" onsubmit="return confirm('确定要永久删除该活动吗？此操作不可恢复！')">
-                                        <button type="submit" class="btn btn-sm btn-danger">永久删除</button>
-                                    </form>
-                                    <a href="{{ url_for('admin.activity_reviews', id=activity.id) }}" class="btn btn-sm btn-secondary">评价</a>
+                                <div class="btn-group">
+                                    <a href="{{ url_for('admin.activity_view', id=activity.id) }}" class="btn btn-sm btn-outline-info" title="查看详情">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                    <a href="{{ url_for('admin.activity_registrations', id=activity.id) }}" class="btn btn-sm btn-outline-primary" title="管理报名">
+                                        <i class="fas fa-users"></i>
+                                    </a>
+                                    <a href="{{ url_for('admin.edit_activity', id=activity.id) }}" class="btn btn-sm btn-outline-warning" title="编辑活动">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                    <a href="{{ url_for('admin.activity_reviews', id=activity.id) }}" class="btn btn-sm btn-outline-secondary" title="查看评价">
+                                        <i class="fas fa-star"></i>
+                                    </a>
+                                    <button type="button" class="btn btn-sm btn-outline-danger" title="删除活动" 
+                                            onclick="confirmDeleteActivity('{{ activity.id }}', '{{ activity.title }}', {{ activity.registrations.filter_by(status='registered').count() if activity.registrations and activity.registrations.filter_by else 0 }})">
+                                        <i class="fas fa-trash-alt"></i>
+                                    </button>
                                 </div>
                             </td>
                         </tr>
                         {% else %}
                         <tr>
-                            <td colspan="7" class="text-center py-4">
-                                <div class="text-muted">
-                                    <i class="bi bi-calendar-x fs-4 d-block mb-2"></i>
-                                    暂无活动
+                            <td colspan="7" class="text-center py-5">
+                                <div class="bg-light rounded-circle mx-auto mb-3 d-flex align-items-center justify-content-center" style="width: 80px; height: 80px;">
+                                    <i class="fas fa-calendar-times text-muted fs-2"></i>
                                 </div>
+                                <h5 class="text-muted mb-2">暂无活动</h5>
                                 <a href="{{ url_for('admin.create_activity') }}" class="btn btn-primary btn-sm mt-2">
-                                    <i class="bi bi-plus-circle"></i> 创建新活动
+                                    <i class="fas fa-plus-circle me-1"></i> 创建新活动
                                 </a>
                             </td>
                         </tr>
@@ -102,52 +125,98 @@
 
             <!-- 分页 -->
             {% if activities.pages > 1 %}
-            <nav aria-label="Page navigation">
-                <ul class="pagination justify-content-center">
-                    <li class="page-item {% if not activities.has_prev %}disabled{% endif %}">
-                        <a class="page-link" href="{{ url_for('admin.activities', status=current_status, page=activities.prev_num) if activities.has_prev else '#' }}">上一页</a>
-                    </li>
-                    
-                    {% for page_num in activities.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
-                        {% if page_num %}
-                            <li class="page-item {% if page_num == activities.page %}active{% endif %}">
-                                <a class="page-link" href="{{ url_for('admin.activities', status=current_status, page=page_num) }}">{{ page_num }}</a>
-                            </li>
-                        {% else %}
-                            <li class="page-item disabled">
-                                <span class="page-link">...</span>
-                            </li>
-                        {% endif %}
-                    {% endfor %}
-                    
-                    <li class="page-item {% if not activities.has_next %}disabled{% endif %}">
-                        <a class="page-link" href="{{ url_for('admin.activities', status=current_status, page=activities.next_num) if activities.has_next else '#' }}">下一页</a>
-                    </li>
-                </ul>
-            </nav>
+            <div class="p-3">
+                <nav aria-label="Page navigation">
+                    <ul class="pagination justify-content-center mb-0">
+                        <li class="page-item {% if not activities.has_prev %}disabled{% endif %}">
+                            <a class="page-link" href="{{ url_for('admin.activities', status=current_status, page=activities.prev_num) if activities.has_prev else '#' }}">
+                                <i class="fas fa-chevron-left"></i>
+                            </a>
+                        </li>
+                        
+                        {% for page_num in activities.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+                            {% if page_num %}
+                                <li class="page-item {% if page_num == activities.page %}active{% endif %}">
+                                    <a class="page-link" href="{{ url_for('admin.activities', status=current_status, page=page_num) }}">{{ page_num }}</a>
+                                </li>
+                            {% else %}
+                                <li class="page-item disabled">
+                                    <span class="page-link">...</span>
+                                </li>
+                            {% endif %}
+                        {% endfor %}
+                        
+                        <li class="page-item {% if not activities.has_next %}disabled{% endif %}">
+                            <a class="page-link" href="{{ url_for('admin.activities', status=current_status, page=activities.next_num) if activities.has_next else '#' }}">
+                                <i class="fas fa-chevron-right"></i>
+                            </a>
+                        </li>
+                    </ul>
+                </nav>
+            </div>
             {% endif %}
         </div>
     </div>
 </div>
 
+<!-- 删除确认模态框 -->
+<div class="modal fade" id="deleteActivityModal" tabindex="-1" aria-labelledby="deleteActivityModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-light">
+                <h5 class="modal-title fw-bold" id="deleteActivityModalLabel">
+                    <i class="fas fa-trash-alt text-danger me-2"></i>确认删除活动
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    <span id="deleteActivityWarning">确定要删除此活动吗？</span>
+                </div>
+                <p class="mb-0">删除后将标记为已取消，相关报名记录将保留。如需彻底删除，请点击"永久删除"。</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-danger" id="confirmDelete">
+                    <i class="fas fa-trash-alt me-1"></i>删除
+                </button>
+                <button type="button" class="btn btn-danger" id="confirmForceDelete">
+                    <i class="fas fa-trash-alt me-1"></i>永久删除
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- 删除确认表单 -->
-<form id="deleteActivityForm" method="post" style="display: none;">
-</form>
+<form id="deleteActivityForm" method="post" style="display: none;"></form>
+<form id="forceDeleteActivityForm" method="post" style="display: none;"></form>
 
 <script>
 function confirmDeleteActivity(activityId, activityTitle, registrationCount) {
-    let message = `确定要删除活动"${activityTitle}"吗？`;
+    // 设置模态框内容
+    document.getElementById('deleteActivityWarning').innerHTML = 
+        `确定要删除活动 <strong>${activityTitle}</strong> 吗？` + 
+        (registrationCount > 0 ? `<br><br>注意：该活动已有 ${registrationCount} 人报名。` : '');
     
-    if (registrationCount > 0) {
-        message += `\n\n注意：该活动已有 ${registrationCount} 人报名，删除后将标记为已取消而非彻底删除。`;
-    }
-    
-    if (confirm(message)) {
-        // 设置表单action并提交
+    // 设置删除按钮点击事件
+    document.getElementById('confirmDelete').onclick = function() {
         const form = document.getElementById('deleteActivityForm');
         form.action = "{{ url_for('admin.delete_activity', id=0) }}".replace('0', activityId);
         form.submit();
-    }
+    };
+    
+    // 设置永久删除按钮点击事件
+    document.getElementById('confirmForceDelete').onclick = function() {
+        const form = document.getElementById('forceDeleteActivityForm');
+        form.action = "{{ url_for('admin.delete_activity', id=0) }}?force=true".replace('0', activityId);
+        form.submit();
+    };
+    
+    // 显示模态框
+    const modal = new bootstrap.Modal(document.getElementById('deleteActivityModal'));
+    modal.show();
 }
 </script>
 {% endblock %}
