@@ -1,9 +1,11 @@
 from flask import Blueprint, render_template, redirect, url_for, flash, request, current_app, abort
 from flask_login import login_required, current_user
 from src.models import db, Activity, Registration, User
-from datetime import datetime
+from datetime import datetime, timedelta
 import logging
 from src.routes.utils import log_action
+from src.utils.time_helpers import get_beijing_time
+from sqlalchemy import func, desc, text
 
 logger = logging.getLogger(__name__)
 
@@ -12,64 +14,96 @@ main_bp = Blueprint('main', __name__)
 @main_bp.route('/')
 def index():
     try:
-        # 获取最新活动
-        latest_activities = Activity.query.filter_by(status='active').order_by(Activity.created_at.desc()).limit(6).all()
+        now = get_beijing_time()
         
-        # 获取即将截止报名的活动
-        deadline_soon = Activity.query.filter(
-            Activity.status == 'active',
-            Activity.registration_deadline >= datetime.now()
-        ).order_by(Activity.registration_deadline).limit(3).all()
+        # 获取特色活动（按创建时间最新）
+        featured_activities = Activity.query.filter_by(
+            is_featured=True, 
+            status='active'
+        ).filter(
+            Activity.registration_deadline >= now
+        ).order_by(Activity.created_at.desc()).limit(4).all()
         
-        # 获取热门活动（报名人数最多的）
-        popular_activities = Activity.query.join(
-            Registration, Activity.id == Registration.activity_id
+        # 获取即将开始的活动
+        upcoming_activities = Activity.query.filter_by(
+            status='active'
+        ).filter(
+            Activity.start_time >= now,
+            Activity.registration_deadline >= now
+        ).order_by(Activity.start_time).limit(6).all()
+        
+        # 获取热门活动（报名人数最多）
+        popular_activities_subquery = db.session.query(
+            Registration.activity_id, 
+            func.count(Registration.id).label('reg_count')
+        ).filter(
+            Registration.status == 'registered'
+        ).group_by(Registration.activity_id).subquery()
+        
+        popular_activities = db.session.query(
+            Activity
+        ).join(
+            popular_activities_subquery, 
+            Activity.id == popular_activities_subquery.c.activity_id
         ).filter(
             Activity.status == 'active',
-            Registration.status == 'registered'
-        ).group_by(Activity.id).order_by(
-            db.func.count(Registration.id).desc()
+            Activity.registration_deadline >= now
+        ).order_by(
+            desc(popular_activities_subquery.c.reg_count)
         ).limit(3).all()
         
-        return render_template('main/index.html', 
-                              latest_activities=latest_activities,
-                              deadline_soon=deadline_soon,
+        return render_template('main/index.html',
+                              featured_activities=featured_activities,
+                              upcoming_activities=upcoming_activities,
                               popular_activities=popular_activities,
-                              now=datetime.now())
+                              now=now)
     except Exception as e:
         logger.error(f"Error in index: {e}")
-        flash('加载首页时发生错误', 'danger')
         return render_template('main/index.html', 
-                              latest_activities=[],
-                              deadline_soon=[],
-                              popular_activities=[],
-                              now=datetime.now())
+                              featured_activities=[],
+                              upcoming_activities=[],
+                              popular_activities=[])
 
 @main_bp.route('/activities')
 def activities():
     try:
+        # 获取当前北京时间
+        now = get_beijing_time()
+        
+        # 获取分页参数
         page = request.args.get('page', 1, type=int)
+        search_query = request.args.get('search', '')
         status = request.args.get('status', 'active')
         
         # 基本查询
         query = Activity.query
         
+        # 搜索功能
+        if search_query:
+            query = query.filter(
+                (Activity.title.ilike(f'%{search_query}%')) |
+                (Activity.description.ilike(f'%{search_query}%')) |
+                (Activity.location.ilike(f'%{search_query}%'))
+            )
+        
         # 根据状态筛选
         if status == 'active':
             query = query.filter(
                 Activity.status == 'active',
-                Activity.registration_deadline >= datetime.now()
+                Activity.registration_deadline >= now
             )
         elif status == 'past':
             query = query.filter(
-                (Activity.status == 'completed') | 
-                (Activity.registration_deadline < datetime.now())
+                (Activity.status == 'completed') |
+                (Activity.registration_deadline < now)
             )
         
-        # 获取活动列表
-        activities_list = query.order_by(Activity.created_at.desc()).paginate(page=page, per_page=9)
+        # 分页
+        activities_list = query.order_by(Activity.created_at.desc()).paginate(
+            page=page, per_page=9, error_out=False
+        )
         
-        # 获取用户已报名的活动ID列表（如果已登录）
+        # 获取用户已报名的活动ID列表
         registered_activity_ids = []
         if current_user.is_authenticated:
             registered = db.session.query(Registration.activity_id).filter(
@@ -78,15 +112,20 @@ def activities():
             ).all()
             registered_activity_ids = [r[0] for r in registered]
         
-        return render_template('main/activities.html', 
-                              activities=activities_list, 
-                              current_status=status,
-                              registered_activity_ids=registered_activity_ids,
-                              now=datetime.now())
+        return render_template('main/search.html',
+                               activities=activities_list,
+                               search_query=search_query,
+                               current_status=status,
+                               registered_activity_ids=registered_activity_ids,
+                               now=now)
+        
     except Exception as e:
-        logger.error(f"Error in activities: {e}")
+        logger.error(f"Error in activities page: {e}")
         flash('加载活动列表时发生错误', 'danger')
-        return redirect(url_for('main.index'))
+        return render_template('main/search.html', 
+                               activities=None,
+                               search_query='',
+                               current_status='active')
 
 @main_bp.route('/activity/<int:id>')
 def activity_detail(id):
