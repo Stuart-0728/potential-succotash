@@ -215,8 +215,47 @@ function confirmDeleteActivity(activityId, activityTitle, registrationCount) {
     };
     
     // 显示模态框
-    const modal = new bootstrap.Modal(document.getElementById('deleteActivityModal'));
+    const modalElement = document.getElementById('deleteActivityModal');
+    const modal = new bootstrap.Modal(modalElement);
+    
+    // 添加动画完成事件监听器
+    modalElement.addEventListener('shown.bs.modal', function() {
+        // 模态框完全显示后的操作
+        document.getElementById('confirmDelete').focus();
+    });
+    
+    modalElement.addEventListener('hidden.bs.modal', function() {
+        // 模态框完全隐藏后的操作
+        // 清空警告内容，避免闪烁
+        setTimeout(() => {
+            document.getElementById('deleteActivityWarning').innerHTML = '';
+        }, 300);
+    });
+    
     modal.show();
 }
+
+// 添加自定义样式以优化模态框过渡效果
+document.addEventListener('DOMContentLoaded', function() {
+    const style = document.createElement('style');
+    style.textContent = `
+        .modal.fade .modal-dialog {
+            transition: transform 0.3s ease-out, opacity 0.3s ease;
+            transform: translateY(-20px);
+            opacity: 0;
+        }
+        .modal.show .modal-dialog {
+            transform: translateY(0);
+            opacity: 1;
+        }
+        .modal-backdrop.fade {
+            transition: opacity 0.3s ease;
+        }
+        .btn-close:focus {
+            box-shadow: none;
+        }
+    `;
+    document.head.appendChild(style);
+});
 </script>
 {% endblock %}
