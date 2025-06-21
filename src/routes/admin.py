@@ -1034,6 +1034,22 @@ def update_registration_status(id):
             flash('无效的状态值', 'danger')
             return redirect(url_for('admin.activity_registrations', id=registration.activity_id))
         
+        # 处理积分变更
+        activity = Activity.query.get(registration.activity_id)
+        student_info = StudentInfo.query.join(User).filter(User.id == registration.user_id).first()
+        
+        if student_info and activity:
+            points = activity.points or (20 if activity.is_featured else 10)
+            
+            # 已参加 → 取消参加/已报名：扣除积分
+            if old_status == 'attended' and new_status in ['registered', 'cancelled']:
+                add_points(student_info.id, -points, f"取消参加活动：{activity.title}", activity.id)
+                
+            # 已报名/已取消 → 已参加：添加积分
+            elif old_status in ['registered', 'cancelled'] and new_status == 'attended':
+                add_points(student_info.id, points, f"参与活动：{activity.title}", activity.id)
+        
+        # 更新状态
         registration.status = new_status
         
         # 如果状态改为已参加，设置签到时间
@@ -1043,7 +1059,7 @@ def update_registration_status(id):
         
         db.session.commit()
         
-        log_action('update_registration', f'更新报名状态: ID {id} 到 {new_status}')
+        log_action('update_registration', f'更新报名状态: ID {id} 从 {old_status} 到 {new_status}')
         flash('报名状态已更新', 'success')
         return redirect(url_for('admin.activity_registrations', id=registration.activity_id))
     except Exception as e:

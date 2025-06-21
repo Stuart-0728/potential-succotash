@@ -137,6 +137,13 @@
                                                     <i class="fas fa-times"></i>
                                                 </button>
                                             </form>
+                                        {% elif reg.status == 'attended' %}
+                                            <form action="{{ url_for('admin.update_registration_status', id=reg.registration_id) }}" method="post" style="display:inline;">
+                                                <input type="hidden" name="status" value="registered">
+                                                <button type="submit" class="btn btn-outline-primary" title="恢复为已报名">
+                                                    <i class="fas fa-undo"></i>
+                                                </button>
+                                            </form>
                                         {% elif reg.status == 'cancelled' %}
                                             <form action="{{ url_for('admin.update_registration_status', id=reg.registration_id) }}" method="post" style="display:inline;">
                                                 <input type="hidden" name="status" value="registered">
@@ -144,11 +151,10 @@
                                                     <i class="fas fa-undo"></i>
                                                 </button>
                                             </form>
-                                        {% elif reg.status == 'attended' %}
                                             <form action="{{ url_for('admin.update_registration_status', id=reg.registration_id) }}" method="post" style="display:inline;">
-                                                <input type="hidden" name="status" value="registered">
-                                                <button type="submit" class="btn btn-outline-primary" title="恢复为已报名">
-                                                    <i class="fas fa-undo"></i>
+                                                <input type="hidden" name="status" value="attended">
+                                                <button type="submit" class="btn btn-outline-success" title="标记为已参加">
+                                                    <i class="fas fa-check"></i>
                                                 </button>
                                             </form>
                                         {% endif %}
