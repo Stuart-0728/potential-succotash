@@ -42,8 +42,11 @@ function initializeCharts() {
                 },
                 options: {
                     responsive: true,
-                    maintainAspectRatio: false,
+                    maintainAspectRatio: true,
                     cutout: '65%',
+                    layout: {
+                        padding: 20
+                    },
                     plugins: {
                         legend: {
                             position: 'bottom',
@@ -71,7 +74,7 @@ function initializeCharts() {
                                     const label = context.label || '';
                                     const value = context.raw || 0;
                                     const total = context.dataset.data.reduce((a, b) => a + b, 0);
-                                    const percentage = Math.round((value / total) * 100);
+                                    const percentage = total > 0 ? Math.round((value / total) * 100) : 0;
                                     return `${label}: ${value} (${percentage}%)`;
                                 }
                             }
@@ -79,7 +82,8 @@ function initializeCharts() {
                     },
                     animation: {
                         animateScale: true,
-                        animateRotate: true
+                        animateRotate: true,
+                        duration: 1000
                     }
                 }
             });
@@ -106,7 +110,10 @@ function initializeCharts() {
                 },
                 options: {
                     responsive: true,
-                    maintainAspectRatio: false,
+                    maintainAspectRatio: true,
+                    layout: {
+                        padding: 20
+                    },
                     plugins: {
                         legend: {
                             position: 'bottom',
@@ -134,7 +141,7 @@ function initializeCharts() {
                                     const label = context.label || '';
                                     const value = context.raw || 0;
                                     const total = context.dataset.data.reduce((a, b) => a + b, 0);
-                                    const percentage = Math.round((value / total) * 100);
+                                    const percentage = total > 0 ? Math.round((value / total) * 100) : 0;
                                     return `${label}: ${value} (${percentage}%)`;
                                 }
                             }
@@ -142,49 +149,50 @@ function initializeCharts() {
                     },
                     animation: {
                         animateScale: true,
-                        animateRotate: true
+                        animateRotate: true,
+                        duration: 1000
                     }
                 }
             });
 
-            // 月度统计图表
+            // 月度统计图表 - 使用双Y轴解决数量级不同的问题
             const monthlyCtx = document.getElementById('monthlyChart').getContext('2d');
             new Chart(monthlyCtx, {
-                type: 'line',
+                type: 'bar',
                 data: {
                     labels: data.monthly_stats.labels,
                     datasets: [
                         {
                             label: '活动数量',
                             data: data.monthly_stats.activities,
+                            backgroundColor: 'rgba(54, 162, 235, 0.7)',
                             borderColor: 'rgba(54, 162, 235, 1)',
-                            backgroundColor: 'rgba(54, 162, 235, 0.3)',
-                            fill: true,
-                            tension: 0.4,
-                            pointBackgroundColor: 'rgba(54, 162, 235, 1)',
-                            pointBorderColor: '#fff',
-                            pointBorderWidth: 2,
-                            pointRadius: 5,
-                            pointHoverRadius: 7
+                            borderWidth: 1,
+                            borderRadius: 4,
+                            yAxisID: 'y-activities'
                         },
                         {
                             label: '报名人数',
                             data: data.monthly_stats.registrations,
+                            backgroundColor: 'rgba(255, 99, 132, 0.7)',
                             borderColor: 'rgba(255, 99, 132, 1)',
-                            backgroundColor: 'rgba(255, 99, 132, 0.3)',
-                            fill: true,
-                            tension: 0.4,
-                            pointBackgroundColor: 'rgba(255, 99, 132, 1)',
-                            pointBorderColor: '#fff',
-                            pointBorderWidth: 2,
-                            pointRadius: 5,
-                            pointHoverRadius: 7
+                            borderWidth: 1,
+                            borderRadius: 4,
+                            yAxisID: 'y-registrations'
                         }
                     ]
                 },
                 options: {
                     responsive: true,
-                    maintainAspectRatio: false,
+                    maintainAspectRatio: true,
+                    layout: {
+                        padding: {
+                            top: 10,
+                            right: 25,
+                            bottom: 10,
+                            left: 10
+                        }
+                    },
                     interaction: {
                         mode: 'index',
                         intersect: false
@@ -212,13 +220,38 @@ function initializeCharts() {
                         }
                     },
                     scales: {
-                        y: {
+                        'y-activities': {
+                            type: 'linear',
+                            position: 'left',
                             beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: '活动数量',
+                                color: 'rgba(54, 162, 235, 1)'
+                            },
                             grid: {
-                                color: 'rgba(0, 0, 0, 0.05)'
+                                display: false
                             },
                             ticks: {
-                                precision: 0
+                                precision: 0,
+                                color: 'rgba(54, 162, 235, 1)'
+                            }
+                        },
+                        'y-registrations': {
+                            type: 'linear',
+                            position: 'right',
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: '报名人数',
+                                color: 'rgba(255, 99, 132, 1)'
+                            },
+                            grid: {
+                                display: false
+                            },
+                            ticks: {
+                                precision: 0,
+                                color: 'rgba(255, 99, 132, 1)'
                             }
                         },
                         x: {
@@ -263,8 +296,16 @@ function initializeCharts() {
                 },
                 options: {
                     responsive: true,
-                    maintainAspectRatio: false,
+                    maintainAspectRatio: true,
                     indexAxis: 'y',
+                    layout: {
+                        padding: {
+                            top: 10,
+                            right: 10,
+                            bottom: 10,
+                            left: 10
+                        }
+                    },
                     plugins: {
                         legend: { display: false },
                         title: { 
@@ -299,8 +340,17 @@ function initializeCharts() {
                 }
             });
             
-            // 积分分布
+            // 积分分布 - 修复百分比计算
             const pointsDistCtx = document.getElementById('pointsDistChart').getContext('2d');
+            
+            // 计算学生总数
+            const totalStudents = ext.points_dist.data.reduce((a, b) => a + b, 0);
+            
+            // 计算每个区间的百分比
+            const percentages = ext.points_dist.data.map(count => 
+                totalStudents > 0 ? ((count / totalStudents) * 100).toFixed(1) : 0
+            );
+            
             new Chart(pointsDistCtx, {
                 type: 'bar',
                 data: {
@@ -317,7 +367,15 @@ function initializeCharts() {
                 },
                 options: {
                     responsive: true,
-                    maintainAspectRatio: false,
+                    maintainAspectRatio: true,
+                    layout: {
+                        padding: {
+                            top: 10,
+                            right: 10,
+                            bottom: 10,
+                            left: 10
+                        }
+                    },
                     plugins: {
                         legend: { display: false },
                         title: { 
@@ -331,6 +389,15 @@ function initializeCharts() {
                                 top: 10,
                                 bottom: 20
                             }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const value = context.raw || 0;
+                                    const percentage = percentages[context.dataIndex];
+                                    return `学生数: ${value} (${percentage}%)`;
+                                }
+                            }
                         }
                     },
                     scales: { 
@@ -341,11 +408,19 @@ function initializeCharts() {
                             },
                             ticks: {
                                 precision: 0
+                            },
+                            title: {
+                                display: true,
+                                text: '学生数量'
                             }
                         },
                         x: {
                             grid: {
                                 display: false
+                            },
+                            title: {
+                                display: true,
+                                text: '积分区间'
                             }
                         }
                     }

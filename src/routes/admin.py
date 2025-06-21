@@ -1182,16 +1182,20 @@ def api_statistics_ext():
         from src.models import StudentInfo
         points_bins = [0, 10, 30, 50, 100, 200, 500, 1000]
         bin_labels = [f'{points_bins[i]}-{points_bins[i+1]-1}' for i in range(len(points_bins)-1)] + [f'{points_bins[-1]}+']
-        bin_counts = [0] * len(points_bins)
+        bin_counts = [0] * len(bin_labels)  # 修正：使用bin_labels的长度
         
         for stu in StudentInfo.query.all():
             points = stu.points or 0  # 处理None值
-            for i, bin_start in enumerate(points_bins):
-                if i == len(points_bins) - 1:  # 最后一个区间
-                    if points >= bin_start:
-                        bin_counts[i] += 1
-                        break
-                elif bin_start <= points < points_bins[i+1]:  # 中间区间
+            bin_found = False  # 确保每个学生只被计入一个区间
+            
+            # 检查最后一个区间（特殊情况）
+            if points >= points_bins[-1]:
+                bin_counts[-1] += 1
+                continue
+                
+            # 检查其他区间
+            for i in range(len(points_bins) - 1):
+                if points_bins[i] <= points < points_bins[i+1]:
                     bin_counts[i] += 1
                     break
         
@@ -1264,10 +1268,10 @@ def generate_checkin_qrcode(id):
         img_buffer.seek(0)
         qr_base64 = base64.b64encode(img_buffer.getvalue()).decode('utf-8')
         
-        # 返回JSON格式的二维码数据
+        # 返回JSON格式的二维码数据，包含data:image/png;base64前缀
         return jsonify({
             'success': True,
-            'qrcode': qr_base64,
+            'qrcode': f"data:image/png;base64,{qr_base64}",
             'expires_in': 300,  # 5分钟，单位秒
             'generated_at': now.strftime('%Y-%m-%d %H:%M:%S')
         })

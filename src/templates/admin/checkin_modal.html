@@ -218,7 +218,7 @@
                     const container = document.getElementById('qrcode-container');
                     container.innerHTML = `
                         <div class="qrcode-wrapper bg-white p-3 d-inline-block rounded shadow-sm">
-                            <img src="data:image/png;base64,${data.qrcode}" class="img-fluid" alt="签到二维码">
+                            <img src="${data.qrcode}" class="img-fluid" alt="签到二维码">
                         </div>
                         <p class="text-success mt-3">
                             <i class="fas fa-check-circle me-1"></i> 二维码已生成
