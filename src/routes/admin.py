@@ -63,25 +63,32 @@ def dashboard():
 def activities(status='all'):
     try:
         page = request.args.get('page', 1, type=int)
-        per_page = 10
         
-        # 根据状态筛选活动
+        query = Activity.query
+        
+        # 根据状态筛选
         if status == 'active':
-            query = Activity.query.filter_by(status='active')
+            query = query.filter_by(status='active')
         elif status == 'completed':
-            query = Activity.query.filter_by(status='completed')
+            query = query.filter_by(status='completed')
         elif status == 'cancelled':
-            query = Activity.query.filter_by(status='cancelled')
-        else:
-            query = Activity.query
-            status = 'all'  # 确保状态值有效
+            query = query.filter_by(status='cancelled')
         
         # 分页查询
-        activities = query.order_by(Activity.start_time.desc()).paginate(page=page, per_page=per_page)
+        activities = query.order_by(Activity.created_at.desc()).paginate(page=page, per_page=10)
         
-        return render_template('admin/activities.html', activities=activities, current_status=status)
+        # 为每个活动提前统计报名人数，避免模板中重复查询
+        registration_counts = {}
+        for activity in activities.items:
+            count = Registration.query.filter_by(activity_id=activity.id, status='registered').count()
+            registration_counts[activity.id] = count
+        
+        return render_template('admin/activities.html', 
+                              activities=activities, 
+                              current_status=status,
+                              registration_counts=registration_counts)
     except Exception as e:
-        logger.error(f"Error in activities: {e}")
+        logger.error(f"Error in activities page: {e}")
         flash('加载活动列表时出错', 'danger')
         return redirect(url_for('admin.dashboard'))
 

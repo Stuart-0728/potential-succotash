@@ -77,11 +77,11 @@
                             <td class="text-center">
                                 {% if activity.max_participants > 0 %}
                                     <span class="badge bg-primary rounded-pill">
-                                        {{ activity.registrations.filter_by(status='registered').count() if activity.registrations and activity.registrations.filter_by else 0 }}/{{ activity.max_participants }}
+                                        {{ registration_counts[activity.id] }}/{{ activity.max_participants }}
                                     </span>
                                 {% else %}
                                     <span class="badge bg-primary rounded-pill">
-                                        {{ activity.registrations.filter_by(status='registered').count() if activity.registrations and activity.registrations.filter_by else 0 }} (不限)
+                                        {{ registration_counts[activity.id] }} (不限)
                                     </span>
                                 {% endif %}
                             </td>
@@ -100,7 +100,7 @@
                                         <i class="fas fa-star"></i>
                                     </a>
                                     <button type="button" class="btn btn-sm btn-outline-danger" title="删除活动" 
-                                            onclick="confirmDeleteActivity('{{ activity.id }}', '{{ activity.title }}', {{ activity.registrations.filter_by(status='registered').count() if activity.registrations and activity.registrations.filter_by else 0 }})">
+                                            onclick="confirmDeleteActivity('{{ activity.id }}', '{{ activity.title }}', {{ registration_counts[activity.id] if registration_counts[activity.id] else 0 }})">
                                         <i class="fas fa-trash-alt"></i>
                                     </button>
                                 </div>
