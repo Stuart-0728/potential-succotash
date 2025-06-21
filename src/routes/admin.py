@@ -1,13 +1,13 @@
-from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify, send_file, current_app
+from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify, send_file, current_app, abort
 from flask_login import login_required, current_user
 from src.models import User, Activity, Registration, StudentInfo, db, Tag, ActivityReview, ActivityCheckin, Role, PointsHistory, SystemLog, activity_tags, student_tags
-from src.routes.utils import admin_required, log_action
+from src.routes.utils import admin_required, log_action, add_points
 from datetime import datetime, timedelta
 import pandas as pd
 import io
 import logging
 import json
-from sqlalchemy import func, desc, and_
+from sqlalchemy import func, desc, and_, or_, not_
 from src.forms import ActivityForm, SearchForm
 import os
 import shutil
@@ -15,7 +15,7 @@ from werkzeug.utils import secure_filename
 import qrcode
 from io import BytesIO
 import hashlib
-from src.utils.time_helpers import get_localized_now, get_beijing_time, localize_time, is_render_environment, normalize_datetime_for_db
+from src.utils.time_helpers import get_localized_now, get_beijing_time, localize_time, is_render_environment, normalize_datetime_for_db, ensure_timezone_aware
 import base64
 import random
 import string
@@ -502,7 +502,7 @@ def statistics():
         total_students = User.query.filter_by(role_id=2).count()
         
         # 计算近30天活跃学生数
-        thirty_days_ago = datetime.now() - timedelta(days=30)
+        thirty_days_ago = normalize_datetime_for_db(datetime.now()) - timedelta(days=30)
         active_students = Registration.query.filter(
             Registration.register_time >= thirty_days_ago
         ).with_entities(Registration.user_id).distinct().count()
@@ -536,7 +536,7 @@ def statistics():
         # 获取近30天的报名趋势数据
         registration_trend = []
         for i in range(30, -1, -1):
-            date = datetime.now() - timedelta(days=i)
+            date = normalize_datetime_for_db(datetime.now()) - timedelta(days=i)
             date_str = date.strftime('%Y-%m-%d')
             
             count = Registration.query.filter(
@@ -630,7 +630,7 @@ def api_statistics():
         
         for i in range(5, -1, -1):
             # 获取过去6个月的数据
-            current_month = datetime.now().replace(day=1) - timedelta(days=i*30)
+            current_month = normalize_datetime_for_db(datetime.now()).replace(day=1) - timedelta(days=i*30)
             month_start = current_month.replace(day=1)
             if current_month.month == 12:
                 month_end = current_month.replace(year=current_month.year+1, month=1, day=1)
@@ -931,7 +931,7 @@ def backup_system():
 @admin_required
 def create_backup():
     try:
-        backup_name = request.form.get('backup_name', f"backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}")
+        backup_name = request.form.get('backup_name', f"backup_{normalize_datetime_for_db(datetime.now()).strftime('%Y%m%d_%H%M%S')}")
         include_users = 'include_users' in request.form
         include_activities = 'include_activities' in request.form
         include_registrations = 'include_registrations' in request.form
@@ -940,7 +940,7 @@ def create_backup():
         # 准备备份数据
         backup_data = {
             'version': '1.0',
-            'created_at': datetime.now().isoformat(),
+            'created_at': normalize_datetime_for_db(datetime.now()).isoformat(),
             'created_by': current_user.username,
             'data': {}
         }
@@ -1027,7 +1027,7 @@ def create_backup():
                 # 添加README文件
                 with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt') as temp_readme:
                     temp_readme.write(f"重庆师范大学师能素质协会系统备份\n")
-                    temp_readme.write(f"创建时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+                    temp_readme.write(f"创建时间: {normalize_datetime_for_db(datetime.now()).strftime('%Y-%m-%d %H:%M:%S')}\n")
                     temp_readme.write(f"创建者: {current_user.username}\n\n")
                     temp_readme.write("备份内容:\n")
                     if include_users:
@@ -1539,7 +1539,7 @@ def download_logs():
             log_file,
             mimetype='text/plain',
             as_attachment=True,
-            download_name=f'system_logs_{datetime.now().strftime("%Y%m%d_%H%M%S")}.log'
+            download_name=f'system_logs_{normalize_datetime_for_db(datetime.now()).strftime("%Y%m%d_%H%M%S")}.log'
         )
     except Exception as e:
         logger.error(f"Error downloading logs: {e}")
@@ -1556,7 +1556,7 @@ def clear_logs():
         if os.path.exists(log_file):
             # 清空日志文件内容
             with open(log_file, 'w') as f:
-                f.write(f"日志已于 {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} 被管理员清空\n")
+                f.write(f"日志已于 {normalize_datetime_for_db(datetime.now()).strftime('%Y-%m-%d %H:%M:%S')} 被管理员清空\n")
         
         # 记录操作日志
         log_action('clear_logs', '清空系统日志')
@@ -1662,7 +1662,7 @@ def reset_system():
         reset_logs = 'reset_logs' in request.form
         
         # 创建备份
-        backup_name = f"pre_reset_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        backup_name = f"pre_reset_{normalize_datetime_for_db(datetime.now()).strftime('%Y%m%d_%H%M%S')}"
         backup_data = {'data': {}}
         
         # 备份用户数据
@@ -1824,7 +1824,7 @@ def reset_system():
             log_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'logs', 'cqnu_association.log')
             if os.path.exists(log_file):
                 with open(log_file, 'w') as f:
-                    f.write(f"日志已于 {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} 被管理员重置\n")
+                    f.write(f"日志已于 {normalize_datetime_for_db(datetime.now()).strftime('%Y-%m-%d %H:%M:%S')} 被管理员重置\n")
             
             # 清空系统日志表
             SystemLog.query.delete()

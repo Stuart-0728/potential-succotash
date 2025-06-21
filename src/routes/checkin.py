@@ -3,7 +3,7 @@ from flask_login import login_required, current_user
 from src.models import db, Activity, ActivityCheckin, Registration, StudentInfo, PointsHistory
 from datetime import datetime, timezone, timedelta
 import logging
-from src.utils.time_helpers import get_beijing_time, localize_time, ensure_timezone_aware
+from src.utils.time_helpers import get_beijing_time, localize_time, ensure_timezone_aware, normalize_datetime_for_db
 
 logger = logging.getLogger(__name__)
 checkin_bp = Blueprint('checkin', __name__, url_prefix='/checkin')
@@ -23,7 +23,7 @@ def checkin(activity_id):
     checkin_record = ActivityCheckin(
         activity_id=activity_id,
         user_id=current_user.id,
-        checkin_time=datetime.now(),  # 使用模型中的normalize_datetime_for_db函数处理
+        checkin_time=normalize_datetime_for_db(datetime.now()),  # 使用normalize_datetime_for_db函数处理
         status='checked_in'
     )
     db.session.add(checkin_record)
@@ -98,7 +98,7 @@ def scan_checkin(activity_id, checkin_key):
             return redirect(url_for('student.activity_detail', id=activity_id))
         
         # 更新签到状态
-        registration.check_in_time = datetime.now()  # 使用模型中的normalize_datetime_for_db函数处理
+        registration.check_in_time = normalize_datetime_for_db(datetime.now())  # 使用normalize_datetime_for_db函数处理
         registration.status = 'attended'
         
         # 添加积分奖励
