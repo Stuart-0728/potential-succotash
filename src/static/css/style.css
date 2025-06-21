@@ -21,14 +21,14 @@
     --gradient-pink: linear-gradient(135deg, #e91e63, #c2185b);
     --gradient-teal: linear-gradient(135deg, #009688, #00796b);
     
-    /* 图标背景色定义 */
+    /* 图标背景色定义 - 更美观的配色 */
     --icon-bg-primary: #e3f2fd;
-    --icon-bg-secondary: #eceff1;
+    --icon-bg-secondary: #f5f5f5;
     --icon-bg-success: #e8f5e9;
-    --icon-bg-danger: #ffebee;
-    --icon-bg-warning: #fff3e0;
-    --icon-bg-info: #e1f5fe;
-    --icon-bg-light: #f5f5f5;
+    --icon-bg-danger: #fff8f8;
+    --icon-bg-warning: #fff8eb;
+    --icon-bg-info: #e6f7ff;
+    --icon-bg-light: #f8f9fa;
 }
 
 body {
@@ -723,38 +723,65 @@ footer {
     border-left: 3px solid #f44336;
 }
 
-/* 修改图标背景颜色，取消渐变色 */
+/* 修改图标背景颜色，使用更美观的单色背景 */
 .bg-primary.bg-opacity-10 {
     background-color: var(--icon-bg-primary) !important;
     background-image: none !important;
+    border-radius: 8px !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    transition: all 0.3s ease;
 }
 
 .bg-secondary.bg-opacity-10 {
     background-color: var(--icon-bg-secondary) !important;
     background-image: none !important;
+    border-radius: 8px !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    transition: all 0.3s ease;
 }
 
 .bg-success.bg-opacity-10 {
     background-color: var(--icon-bg-success) !important;
     background-image: none !important;
+    border-radius: 8px !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    transition: all 0.3s ease;
 }
 
 .bg-danger.bg-opacity-10 {
     background-color: var(--icon-bg-danger) !important;
     background-image: none !important;
+    border-radius: 8px !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    transition: all 0.3s ease;
 }
 
 .bg-warning.bg-opacity-10 {
     background-color: var(--icon-bg-warning) !important;
     background-image: none !important;
+    border-radius: 8px !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    transition: all 0.3s ease;
 }
 
 .bg-info.bg-opacity-10 {
     background-color: var(--icon-bg-info) !important;
     background-image: none !important;
+    border-radius: 8px !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    transition: all 0.3s ease;
 }
 
 .bg-light.bg-opacity-10 {
     background-color: var(--icon-bg-light) !important;
     background-image: none !important;
+    border-radius: 8px !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    transition: all 0.3s ease;
+}
+
+/* 图标悬停效果 */
+.bg-opacity-10:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
