@@ -121,7 +121,7 @@
                                     </button>
                                 </form>
                             {% else %}
-                                {% if activity.status == 'active' and (now >= activity.start_time and now <= activity.end_time or activity.checkin_enabled) and not current_user_registration.check_in_time %}
+                                {% if activity.status == 'active' and ((now >= activity.start_time and now <= activity.end_time) or activity.checkin_enabled == True) and not current_user_registration.check_in_time %}
                                 <button type="button" class="btn btn-success" onclick="showQRScanner()">
                                     <i class="fas fa-qrcode me-1"></i>扫码签到
                                 </button>

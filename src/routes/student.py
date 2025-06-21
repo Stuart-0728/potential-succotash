@@ -333,7 +333,13 @@ def my_activities():
 @student_required
 def profile():
     try:
-        return render_template('student/profile.html')
+        # 获取学生信息
+        student_info = StudentInfo.query.filter_by(user_id=current_user.id).first()
+        if not student_info:
+            flash('请先完善个人信息', 'warning')
+            return redirect(url_for('student.edit_profile'))
+        
+        return render_template('student/profile.html', student_info=student_info)
     except Exception as e:
         logger.error(f"Error in profile: {e}")
         flash('加载个人资料时发生错误', 'danger')
