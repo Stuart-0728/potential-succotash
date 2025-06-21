@@ -1451,8 +1451,51 @@ def generate_checkin_qrcode(id):
 @admin_bp.route('/checkin/modal/<int:id>')
 @admin_required
 def checkin_modal(id):
-    activity = Activity.query.get_or_404(id)
-    return render_template('admin/checkin_modal.html', activity=activity)
+    try:
+        activity = Activity.query.get_or_404(id)
+        
+        # 获取报名人数
+        registration_count = Registration.query.filter_by(
+            activity_id=id,
+            status='registered'
+        ).count()
+        
+        # 获取签到人数
+        checkin_count = Registration.query.filter(
+            Registration.activity_id == id,
+            Registration.check_in_time.isnot(None)
+        ).count()
+        
+        # 获取签到记录
+        checkins = db.session.query(
+            Registration.id,
+            Registration.check_in_time,
+            StudentInfo.student_id,
+            StudentInfo.real_name,
+            StudentInfo.college,
+            StudentInfo.major
+        ).join(
+            User, Registration.user_id == User.id
+        ).join(
+            StudentInfo, User.id == StudentInfo.user_id
+        ).filter(
+            Registration.activity_id == id,
+            Registration.check_in_time.isnot(None)
+        ).all()
+        
+        # 获取当前北京时间
+        now = get_beijing_time()
+        
+        return render_template('admin/checkin_modal.html', 
+                              activity=activity,
+                              registration_count=registration_count,
+                              checkin_count=checkin_count,
+                              checkins=checkins,
+                              now=now)
+    except Exception as e:
+        logger.error(f"Error in checkin_modal: {e}")
+        flash('加载签到页面时出错', 'danger')
+        return redirect(url_for('admin.activity_view', id=id))
 
 # 切换活动签到状态
 @admin_bp.route('/activity/<int:id>/toggle-checkin', methods=['POST'])
