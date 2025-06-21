@@ -16,6 +16,7 @@ import qrcode
 from io import BytesIO
 import hashlib
 from src.utils.time_helpers import get_localized_now, get_beijing_time, localize_time
+import base64
 
 admin_bp = Blueprint('admin', __name__)
 logger = logging.getLogger(__name__)
@@ -1223,7 +1224,7 @@ def generate_checkin_qrcode(id):
         activity = Activity.query.get_or_404(id)
         
         # 获取当前本地化时间
-        now = get_localized_now()
+        now = get_beijing_time()
         
         # 生成唯一签到密钥，确保时效性和安全性
         checkin_key = hashlib.sha256(f"{activity.id}:{now.timestamp()}:{current_app.config['SECRET_KEY']}".encode()).hexdigest()[:16]
@@ -1231,7 +1232,7 @@ def generate_checkin_qrcode(id):
         # 优先使用数据库存储
         try:
             activity.checkin_key = checkin_key
-            activity.checkin_key_expires = now + timedelta(hours=24)  # 24小时有效期
+            activity.checkin_key_expires = now + timedelta(minutes=5)  # 5分钟有效期
             db.session.commit()
         except Exception as e:
             logger.error(f"无法存储签到密钥到数据库: {e}")
@@ -1257,21 +1258,23 @@ def generate_checkin_qrcode(id):
         # 创建图像
         qr_image = qr.make_image(fill_color="black", back_color="white")
         
-        # 保存到内存
+        # 保存到内存并转为base64
         img_buffer = BytesIO()
         qr_image.save(img_buffer, format='PNG')
         img_buffer.seek(0)
+        qr_base64 = base64.b64encode(img_buffer.getvalue()).decode('utf-8')
         
-        return send_file(
-            img_buffer,
-            mimetype='image/png',
-            as_attachment=False,
-            download_name='checkin_qrcode.png'
-        )
+        # 返回JSON格式的二维码数据
+        return jsonify({
+            'success': True,
+            'qrcode': qr_base64,
+            'expires_in': 300,  # 5分钟，单位秒
+            'generated_at': now.strftime('%Y-%m-%d %H:%M:%S')
+        })
         
     except Exception as e:
         logger.error(f"生成签到二维码时出错: {e}")
-        return jsonify({'error': '生成二维码失败'}), 500
+        return jsonify({'success': False, 'message': '生成二维码失败'}), 500
 
 # 添加二维码签到跳转路由
 @admin_bp.route('/checkin/modal/<int:id>')
