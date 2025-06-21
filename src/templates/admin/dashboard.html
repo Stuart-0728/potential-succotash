@@ -3,14 +3,21 @@
 {% block title %}管理员面板 - 重庆师范大学师能素质协会{% endblock %}
 
 {% block content %}
-<div class="container">
+<div class="container py-4">
     <div class="row mb-4">
         <div class="col-md-12">
-            <h2 class="mb-3">管理员控制面板</h2>
+            <h2 class="mb-3 fw-bold">管理员控制面板</h2>
             <div class="card">
                 <div class="card-body">
-                    <h5 class="card-title">欢迎回来，{{ current_user.username }}</h5>
-                    <p class="card-text">您可以在这里管理协会活动、查看报名情况和学生信息。</p>
+                    <div class="d-flex align-items-center">
+                        <div class="bg-primary bg-opacity-10 rounded-circle p-3 me-3">
+                            <i class="fas fa-user-shield text-primary fs-3"></i>
+                        </div>
+                        <div>
+                            <h5 class="card-title mb-1">欢迎回来，{{ current_user.username }}</h5>
+                            <p class="card-text text-muted mb-0">您可以在这里管理协会活动、查看报名情况和学生信息。</p>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -19,38 +26,70 @@
     <!-- 统计卡片 -->
     <div class="row mb-4">
         <div class="col-6 col-md-3 mb-3">
-            <div class="card text-white bg-primary h-100">
+            <div class="card h-100 border-0">
                 <div class="card-body">
-                    <h5 class="card-title">总活动数</h5>
-                    <p class="card-text display-4">{{ total_activities }}</p>
-                    <a href="{{ url_for('admin.activities') }}" class="text-white">查看所有活动 <i class="fas fa-arrow-right"></i></a>
+                    <div class="d-flex align-items-center mb-3">
+                        <div class="bg-primary bg-opacity-10 rounded p-2 me-3">
+                            <i class="fas fa-calendar-alt text-primary"></i>
+                        </div>
+                        <h5 class="card-title mb-0 fs-6">总活动数</h5>
+                    </div>
+                    <p class="card-text display-5 fw-bold mb-2">{{ total_activities }}</p>
+                    <a href="{{ url_for('admin.activities') }}" class="text-decoration-none d-flex align-items-center">
+                        <span class="me-1">查看所有活动</span>
+                        <i class="fas fa-arrow-right small"></i>
+                    </a>
                 </div>
             </div>
         </div>
         <div class="col-6 col-md-3 mb-3">
-            <div class="card text-white bg-success h-100">
+            <div class="card h-100 border-0">
                 <div class="card-body">
-                    <h5 class="card-title">进行中活动</h5>
-                    <p class="card-text display-4">{{ active_activities }}</p>
-                    <a href="{{ url_for('admin.activities', status='active') }}" class="text-white">查看进行中活动 <i class="fas fa-arrow-right"></i></a>
+                    <div class="d-flex align-items-center mb-3">
+                        <div class="bg-success bg-opacity-10 rounded p-2 me-3">
+                            <i class="fas fa-play-circle text-success"></i>
+                        </div>
+                        <h5 class="card-title mb-0 fs-6">进行中活动</h5>
+                    </div>
+                    <p class="card-text display-5 fw-bold mb-2">{{ active_activities }}</p>
+                    <a href="{{ url_for('admin.activities', status='active') }}" class="text-decoration-none d-flex align-items-center">
+                        <span class="me-1">查看进行中活动</span>
+                        <i class="fas fa-arrow-right small"></i>
+                    </a>
                 </div>
             </div>
         </div>
         <div class="col-6 col-md-3 mb-3">
-            <div class="card text-white bg-info h-100">
+            <div class="card h-100 border-0">
                 <div class="card-body">
-                    <h5 class="card-title">总报名人次</h5>
-                    <p class="card-text display-4">{{ total_registrations }}</p>
-                    <a href="{{ url_for('admin.statistics') }}" class="text-white">查看统计数据 <i class="fas fa-arrow-right"></i></a>
+                    <div class="d-flex align-items-center mb-3">
+                        <div class="bg-info bg-opacity-10 rounded p-2 me-3">
+                            <i class="fas fa-users text-info"></i>
+                        </div>
+                        <h5 class="card-title mb-0 fs-6">总报名人次</h5>
+                    </div>
+                    <p class="card-text display-5 fw-bold mb-2">{{ total_registrations }}</p>
+                    <a href="{{ url_for('admin.statistics') }}" class="text-decoration-none d-flex align-items-center">
+                        <span class="me-1">查看统计数据</span>
+                        <i class="fas fa-arrow-right small"></i>
+                    </a>
                 </div>
             </div>
         </div>
         <div class="col-6 col-md-3 mb-3">
-            <div class="card text-white bg-warning h-100">
+            <div class="card h-100 border-0">
                 <div class="card-body">
-                    <h5 class="card-title">注册学生数</h5>
-                    <p class="card-text display-4">{{ total_students }}</p>
-                    <a href="{{ url_for('admin.students') }}" class="text-white">查看所有学生 <i class="fas fa-arrow-right"></i></a>
+                    <div class="d-flex align-items-center mb-3">
+                        <div class="bg-warning bg-opacity-10 rounded p-2 me-3">
+                            <i class="fas fa-user-graduate text-warning"></i>
+                        </div>
+                        <h5 class="card-title mb-0 fs-6">注册学生数</h5>
+                    </div>
+                    <p class="card-text display-5 fw-bold mb-2">{{ total_students }}</p>
+                    <a href="{{ url_for('admin.students') }}" class="text-decoration-none d-flex align-items-center">
+                        <span class="me-1">查看所有学生</span>
+                        <i class="fas fa-arrow-right small"></i>
+                    </a>
                 </div>
             </div>
         </div>
@@ -59,30 +98,38 @@
     <!-- 快捷操作 -->
     <div class="row mb-4">
         <div class="col-md-12">
-            <div class="card">
-                <div class="card-header">
+            <div class="card border-0">
+                <div class="card-header bg-white">
                     <h5 class="mb-0">快捷操作</h5>
                 </div>
                 <div class="card-body">
                     <div class="row">
                         <div class="col-6 col-md-3 mb-3">
-                            <a href="{{ url_for('admin.create_activity') }}" class="btn btn-primary d-block">
-                                <i class="fas fa-plus-circle me-1 me-md-2"></i><span class="d-none d-sm-inline">创建新</span>活动
+                            <a href="{{ url_for('admin.create_activity') }}" class="btn btn-primary d-flex align-items-center justify-content-center gap-2 w-100">
+                                <i class="fas fa-plus-circle"></i>
+                                <span class="d-none d-sm-inline">创建新活动</span>
+                                <span class="d-inline d-sm-none">新活动</span>
                             </a>
                         </div>
                         <div class="col-6 col-md-3 mb-3">
-                            <a href="{{ url_for('admin.statistics') }}" class="btn btn-info d-block text-white">
-                                <i class="fas fa-chart-bar me-1 me-md-2"></i><span class="d-none d-sm-inline">查看</span>统计
+                            <a href="{{ url_for('admin.statistics') }}" class="btn btn-info text-white d-flex align-items-center justify-content-center gap-2 w-100">
+                                <i class="fas fa-chart-bar"></i>
+                                <span class="d-none d-sm-inline">查看统计</span>
+                                <span class="d-inline d-sm-none">统计</span>
                             </a>
                         </div>
                         <div class="col-6 col-md-3 mb-3">
-                            <a href="{{ url_for('admin.backup_system') }}" class="btn btn-warning d-block">
-                                <i class="fas fa-download me-1 me-md-2"></i><span class="d-none d-sm-inline">数据</span>备份
+                            <a href="{{ url_for('admin.backup_system') }}" class="btn btn-warning d-flex align-items-center justify-content-center gap-2 w-100">
+                                <i class="fas fa-download"></i>
+                                <span class="d-none d-sm-inline">数据备份</span>
+                                <span class="d-inline d-sm-none">备份</span>
                             </a>
                         </div>
                         <div class="col-6 col-md-3 mb-3">
-                            <a href="{{ url_for('admin.backup_system') }}" class="btn btn-secondary d-block">
-                                <i class="fas fa-history me-1 me-md-2"></i><span class="d-none d-sm-inline">系统</span>日志
+                            <a href="{{ url_for('admin.backup_system') }}" class="btn btn-secondary d-flex align-items-center justify-content-center gap-2 w-100">
+                                <i class="fas fa-history"></i>
+                                <span class="d-none d-sm-inline">系统日志</span>
+                                <span class="d-inline d-sm-none">日志</span>
                             </a>
                         </div>
                     </div>
@@ -94,14 +141,15 @@
     <!-- 最近活动 -->
     <div class="row mb-4">
         <div class="col-md-12">
-            <div class="card">
-                <div class="card-header">
+            <div class="card border-0">
+                <div class="card-header bg-white d-flex justify-content-between align-items-center">
                     <h5 class="mb-0">最近活动</h5>
+                    <a href="{{ url_for('admin.activities') }}" class="btn btn-sm btn-outline-primary">查看全部</a>
                 </div>
                 <div class="card-body">
                     <div class="table-responsive">
-                        <table class="table table-striped">
-                            <thead>
+                        <table class="table table-hover align-middle">
+                            <thead class="table-light">
                                 <tr>
                                     <th>活动名称</th>
                                     <th class="d-none d-md-table-cell">类型</th>
@@ -115,22 +163,36 @@
                             <tbody>
                                 {% for activity in recent_activities %}
                                 <tr>
-                                    <td>{{ activity.title }}</td>
+                                    <td>
+                                        <div class="fw-medium">{{ activity.title }}</div>
+                                    </td>
                                     <td class="d-none d-md-table-cell">{{ activity.type }}</td>
                                     <td class="d-none d-md-table-cell">{{ activity.start_time.strftime('%Y-%m-%d %H:%M') }}</td>
                                     <td class="d-none d-md-table-cell">{{ activity.end_time.strftime('%Y-%m-%d %H:%M') }}</td>
-                                    <td>{% if activity.status == 'active' %}进行中{% elif activity.status == 'completed' %}已结束{% else %}已取消{% endif %}</td>
+                                    <td>
+                                        {% if activity.status == 'active' %}
+                                            <span class="badge bg-success rounded-pill">进行中</span>
+                                        {% elif activity.status == 'completed' %}
+                                            <span class="badge bg-secondary rounded-pill">已结束</span>
+                                        {% else %}
+                                            <span class="badge bg-danger rounded-pill">已取消</span>
+                                        {% endif %}
+                                    </td>
                                     <td class="d-none d-md-table-cell">{{ activity.registrations.filter_by(status='registered').count() if activity.registrations and activity.registrations.filter_by else 0 }}</td>
                                     <td>
                                         <div class="btn-group">
-                                            <a href="{{ url_for('admin.edit_activity', id=activity.id) }}" class="btn btn-sm btn-primary">编辑</a>
-                                            <a href="{{ url_for('admin.activity_view', id=activity.id) }}" class="btn btn-sm btn-info">查看</a>
+                                            <a href="{{ url_for('admin.edit_activity', id=activity.id) }}" class="btn btn-sm btn-outline-primary">
+                                                <i class="fas fa-edit"></i>
+                                            </a>
+                                            <a href="{{ url_for('admin.activity_view', id=activity.id) }}" class="btn btn-sm btn-outline-info">
+                                                <i class="fas fa-eye"></i>
+                                            </a>
                                         </div>
                                     </td>
                                 </tr>
                                 {% else %}
                                 <tr>
-                                    <td colspan="7" class="text-center">暂无活动</td>
+                                    <td colspan="7" class="text-center py-4 text-muted">暂无活动</td>
                                 </tr>
                                 {% endfor %}
                             </tbody>
