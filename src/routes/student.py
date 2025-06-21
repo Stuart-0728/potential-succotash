@@ -506,9 +506,8 @@ def review_activity(activity_id):
         # 检查是否已参加活动
         registration = Registration.query.filter_by(
             activity_id=activity_id,
-            user_id=current_user.id,
-            status='checked_in'
-        ).first()
+            user_id=current_user.id
+        ).filter(Registration.status.in_(['checked_in', 'attended'])).first()
         
         if not registration:
             flash('只有参加过活动的学生才能评价', 'warning')
