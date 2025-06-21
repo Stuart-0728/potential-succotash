@@ -196,7 +196,8 @@ def activity_detail(id):
 @main_bp.route('/about')
 def about():
     try:
-        return render_template('main/about.html')
+        now = get_beijing_time()
+        return render_template('main/about.html', now=now)
     except Exception as e:
         logger.error(f"Error in about: {e}")
         flash('加载关于页面时发生错误', 'danger')

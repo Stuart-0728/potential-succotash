@@ -652,7 +652,7 @@
             </div>
             <hr>
             <div class="text-center">
-                <p>&copy; {{ now.year }} 重庆师范大学师能素质协会. 保留所有权利.</p>
+                <p>&copy; {% if now is defined %}{{ now.year }}{% else %}2025{% endif %} 重庆师范大学师能素质协会. 保留所有权利.</p>
             </div>
         </div>
     </footer>

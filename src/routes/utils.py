@@ -1,4 +1,4 @@
-from flask import Blueprint, redirect, url_for, flash, request, jsonify, abort, Response, render_template, current_app as app
+from flask import Blueprint, redirect, url_for, flash, request, jsonify, abort, Response, render_template, current_app
 from flask_login import login_required, current_user
 from functools import wraps
 import logging
@@ -380,7 +380,7 @@ def ai_chat():
     current_session_id = session_id
     
     # 获取Flask应用实例的引用，避免上下文问题
-    app = current_app._get_current_object()
+    app = current_app
 
     def generate():
         nonlocal current_user_id, current_message, current_session_id
