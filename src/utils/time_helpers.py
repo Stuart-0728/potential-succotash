@@ -55,9 +55,19 @@ def convert_to_utc(dt):
         return dt.astimezone(pytz.utc)
     
     # 如果dt没有时区，假设它是北京时间，然后转换为UTC
-    beijing_tz = pytz.timezone('Asia/Shanghai')
-    localized_dt = beijing_tz.localize(dt)
-    return localized_dt.astimezone(pytz.utc)
+    # 注意：如果代码运行在Render服务器上，默认使用UTC时间，这里需要正确处理
+    # 这里我们应该查看数据库中的时间是如何存储的
+    # 如果数据库中时间没有时区信息，并且应用程序将其视为UTC，则应该直接添加UTC时区标记
+    
+    # 检查是否在Render环境下（假设Render环境中已正确设置环境变量）
+    if current_app.config.get('IS_RENDER_ENVIRONMENT', False):
+        # 在Render环境中，假设输入的dt已经是UTC时间，只需添加时区信息
+        return pytz.utc.localize(dt)
+    else:
+        # 在本地环境中，假设输入的dt是北京时间，需要转换为UTC
+        beijing_tz = pytz.timezone('Asia/Shanghai')
+        localized_dt = beijing_tz.localize(dt)
+        return localized_dt.astimezone(pytz.utc)
 
 def format_datetime(dt, format_str='%Y-%m-%d %H:%M'):
     """
@@ -70,12 +80,15 @@ def format_datetime(dt, format_str='%Y-%m-%d %H:%M'):
         return ''
     
     # 确保时间是北京时间
+    beijing_time = dt
     if dt.tzinfo is None:
-        dt = pytz.utc.localize(dt).astimezone(pytz.timezone('Asia/Shanghai'))
+        # 如果没有时区信息，假设它是UTC时间，转换为北京时间
+        beijing_time = pytz.utc.localize(dt).astimezone(pytz.timezone('Asia/Shanghai'))
     elif dt.tzinfo != pytz.timezone('Asia/Shanghai'):
-        dt = dt.astimezone(pytz.timezone('Asia/Shanghai'))
+        # 如果有时区信息但不是北京时间，转换为北京时间
+        beijing_time = dt.astimezone(pytz.timezone('Asia/Shanghai'))
         
-    return dt.strftime(format_str)
+    return beijing_time.strftime(format_str)
 
 def is_naive_datetime(dt):
     """
@@ -96,8 +109,14 @@ def ensure_timezone_aware(dt, default_timezone='Asia/Shanghai'):
         return None
         
     if is_naive_datetime(dt):
-        tz = pytz.timezone(default_timezone)
-        return tz.localize(dt)
+        # 检查是否在Render环境下
+        if current_app.config.get('IS_RENDER_ENVIRONMENT', False):
+            # 在Render环境中，假设naive时间已经是UTC
+            return pytz.utc.localize(dt)
+        else:
+            # 在本地环境，按照默认时区处理
+            tz = pytz.timezone(default_timezone)
+            return tz.localize(dt)
     return dt
 
 def compare_datetimes(dt1, dt2):
