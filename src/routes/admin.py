@@ -1871,35 +1871,41 @@ def reset_system():
             admin_email = current_user.email
             admin_password = current_user.password_hash
             
-            # 删除所有用户相关数据
-            StudentInfo.query.delete()
-            User.query.delete()
-            db.session.commit()
-            
-            # 重新创建角色
-            admin_role = Role.query.filter_by(name='Admin').first()
-            if not admin_role:
-                admin_role = Role(name='Admin', description='管理员')
-                db.session.add(admin_role)
-            
-            student_role = Role.query.filter_by(name='Student').first()
-            if not student_role:
-                student_role = Role(name='Student', description='学生')
-                db.session.add(student_role)
-            
-            db.session.commit()
-            
-            # 重新创建管理员账号
-            admin = User(
-                username=admin_username,
-                email=admin_email,
-                password_hash=admin_password,
-                role_id=admin_role.id
-            )
-            db.session.add(admin)
-            db.session.commit()
-            
-            flash('用户数据已重置，管理员账号已保留', 'success')
+            try:
+                # 删除所有用户相关数据 - 按照正确的顺序处理外键依赖
+                # 首先删除积分历史记录
+                logger.info("删除积分历史记录")
+                PointsHistory.query.delete()
+                db.session.commit()
+                
+                # 然后删除学生信息
+                logger.info("删除学生信息")
+                StudentInfo.query.delete()
+                db.session.commit()
+                
+                # 最后删除用户账号（除了当前管理员）
+                logger.info("删除用户账号")
+                User.query.filter(User.id != current_user.id).delete()
+                db.session.commit()
+                
+                # 重新创建角色
+                admin_role = Role.query.filter_by(name='Admin').first()
+                if not admin_role:
+                    admin_role = Role(name='Admin', description='管理员')
+                    db.session.add(admin_role)
+                
+                student_role = Role.query.filter_by(name='Student').first()
+                if not student_role:
+                    student_role = Role(name='Student', description='学生')
+                    db.session.add(student_role)
+                
+                db.session.commit()
+                
+                flash('用户数据已重置，管理员账号已保留', 'success')
+            except Exception as e:
+                db.session.rollback()
+                logger.error(f"重置用户数据时出错: {str(e)}")
+                flash(f'重置用户数据时出错: {str(e)}', 'danger')
         
         if reset_logs:
             # 清空日志文件
