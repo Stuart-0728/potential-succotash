@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify, send_file, current_app, abort
 from flask_login import login_required, current_user
-from src.models import User, Activity, Registration, StudentInfo, db, Tag, ActivityReview, ActivityCheckin, Role, PointsHistory, SystemLog, activity_tags, student_tags
+from src.models import User, Activity, Registration, StudentInfo, db, Tag, ActivityReview, ActivityCheckin, Role, PointsHistory, SystemLog, activity_tags, student_tags, AIUserPreferences, AIChatHistory, AIChatSession
 from src.routes.utils import admin_required, log_action, add_points
 from datetime import datetime, timedelta
 import pandas as pd
@@ -384,17 +384,76 @@ def delete_student(id):
             flash('只能删除学生账号', 'danger')
             return redirect(url_for('admin.students'))
         
-        # 删除关联的学生信息
+        # 按照正确的顺序删除关联数据，避免外键约束错误
+        
+        # 1. 删除AI用户偏好设置
+        ai_preferences = AIUserPreferences.query.filter_by(user_id=id).first()
+        if ai_preferences:
+            logger.info(f"删除用户 {user.username} 的AI偏好设置")
+            db.session.delete(ai_preferences)
+            db.session.commit()
+        
+        # 2. 删除AI聊天历史记录
+        ai_chat_histories = AIChatHistory.query.filter_by(user_id=id).all()
+        if ai_chat_histories:
+            logger.info(f"删除用户 {user.username} 的AI聊天历史记录: {len(ai_chat_histories)}条")
+            for history in ai_chat_histories:
+                db.session.delete(history)
+            db.session.commit()
+        
+        # 3. 删除AI聊天会话
+        ai_chat_sessions = AIChatSession.query.filter_by(user_id=id).all()
+        if ai_chat_sessions:
+            logger.info(f"删除用户 {user.username} 的AI聊天会话: {len(ai_chat_sessions)}个")
+            for session in ai_chat_sessions:
+                db.session.delete(session)
+            db.session.commit()
+        
+        # 4. 删除积分历史记录
         student_info = StudentInfo.query.filter_by(user_id=id).first()
         if student_info:
-            db.session.delete(student_info)
+            points_history = PointsHistory.query.filter_by(student_id=student_info.id).all()
+            if points_history:
+                logger.info(f"删除用户 {user.username} 的积分历史记录: {len(points_history)}条")
+                for history in points_history:
+                    db.session.delete(history)
+                db.session.commit()
         
-        # 删除关联的报名记录
+        # 5. 删除活动评价
+        activity_reviews = ActivityReview.query.filter_by(user_id=id).all()
+        if activity_reviews:
+            logger.info(f"删除用户 {user.username} 的活动评价: {len(activity_reviews)}条")
+            for review in activity_reviews:
+                db.session.delete(review)
+            db.session.commit()
+        
+        # 6. 删除签到记录
+        checkins = ActivityCheckin.query.filter_by(user_id=id).all()
+        if checkins:
+            logger.info(f"删除用户 {user.username} 的签到记录: {len(checkins)}条")
+            for checkin in checkins:
+                db.session.delete(checkin)
+            db.session.commit()
+        
+        # 7. 删除报名记录
         registrations = Registration.query.filter_by(user_id=id).all()
-        for reg in registrations:
-            db.session.delete(reg)
+        if registrations:
+            logger.info(f"删除用户 {user.username} 的报名记录: {len(registrations)}条")
+            for reg in registrations:
+                db.session.delete(reg)
+            db.session.commit()
         
-        # 删除用户账号
+        # 8. 删除学生信息
+        if student_info:
+            logger.info(f"删除用户 {user.username} 的学生信息")
+            # 清除标签关联
+            student_info.tags = []
+            db.session.commit()
+            db.session.delete(student_info)
+            db.session.commit()
+        
+        # 9. 删除用户账号
+        logger.info(f"删除用户账号: {user.username}")
         db.session.delete(user)
         db.session.commit()
         
