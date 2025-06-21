@@ -9,7 +9,7 @@ import json
 import random
 import string
 from datetime import datetime, timedelta
-from src.models import db, Activity, Tag, StudentInfo, SystemLog, Registration, AIChatHistory, AIChatSession, activity_tags
+from src.models import db, Activity, Tag, StudentInfo, SystemLog, Registration, AIChatHistory, AIChatSession, activity_tags, PointsHistory
 from src.utils.time_helpers import get_beijing_time
 
 utils_bp = Blueprint('utils', __name__)
@@ -593,6 +593,53 @@ def ai_chat_clear_all_history():
             'success': False,
             'message': f'清除历史记录失败: {str(e)}'
         }), 500
+
+# 添加缺失的add_points函数
+def add_points(user_id, points, reason, activity_id=None):
+    """给学生添加积分并记录积分历史
+    
+    Args:
+        user_id: 学生用户ID
+        points: 积分数量，可以是正数（增加）或负数（减少）
+        reason: 积分变动原因
+        activity_id: 相关活动ID（可选）
+    
+    Returns:
+        bool: 操作是否成功
+    """
+    try:
+        # 避免循环导入
+        from src.models import StudentInfo, PointsHistory
+        
+        # 查找学生信息
+        student_info = StudentInfo.query.filter_by(user_id=user_id).first()
+        if not student_info:
+            logger.error(f"添加积分失败: 找不到用户ID为 {user_id} 的学生信息")
+            return False
+        
+        # 更新学生积分
+        student_info.points = (student_info.points or 0) + points
+        
+        # 创建积分历史记录
+        history = PointsHistory(
+            user_id=user_id,
+            points_change=points,
+            reason=reason,
+            activity_id=activity_id,
+            created_at=datetime.now()
+        )
+        
+        # 保存更改
+        db.session.add(history)
+        db.session.commit()
+        
+        logger.info(f"已为用户 {user_id} 添加 {points} 积分，原因: {reason}")
+        return True
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"添加积分时出错: {str(e)}")
+        return False
 
 # 添加random_string函数
 def random_string(length=6):
