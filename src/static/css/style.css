@@ -730,6 +730,12 @@ footer {
     border-radius: 8px !important;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
     transition: all 0.3s ease;
+    min-width: 36px;
+    min-height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px;
 }
 
 .bg-secondary.bg-opacity-10 {
@@ -738,6 +744,12 @@ footer {
     border-radius: 8px !important;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
     transition: all 0.3s ease;
+    min-width: 36px;
+    min-height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px;
 }
 
 .bg-success.bg-opacity-10 {
@@ -746,6 +758,12 @@ footer {
     border-radius: 8px !important;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
     transition: all 0.3s ease;
+    min-width: 36px;
+    min-height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px;
 }
 
 .bg-danger.bg-opacity-10 {
@@ -754,6 +772,12 @@ footer {
     border-radius: 8px !important;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
     transition: all 0.3s ease;
+    min-width: 36px;
+    min-height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px;
 }
 
 .bg-warning.bg-opacity-10 {
@@ -762,6 +786,12 @@ footer {
     border-radius: 8px !important;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
     transition: all 0.3s ease;
+    min-width: 36px;
+    min-height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px;
 }
 
 .bg-info.bg-opacity-10 {
@@ -770,6 +800,12 @@ footer {
     border-radius: 8px !important;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
     transition: all 0.3s ease;
+    min-width: 36px;
+    min-height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px;
 }
 
 .bg-light.bg-opacity-10 {
@@ -778,10 +814,33 @@ footer {
     border-radius: 8px !important;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
     transition: all 0.3s ease;
+    min-width: 36px;
+    min-height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px;
 }
 
 /* 图标悬停效果 */
 .bg-opacity-10:hover {
     transform: translateY(-2px);
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* 移动端图标优化 */
+@media (max-width: 576px) {
+    .bg-opacity-10 {
+        min-width: 32px;
+        min-height: 32px;
+        padding: 6px;
+    }
+    
+    .bg-opacity-10 i {
+        font-size: 0.9rem;
+    }
+    
+    .d-flex.align-items-center .bg-opacity-10 {
+        margin-right: 8px;
+    }
 }
