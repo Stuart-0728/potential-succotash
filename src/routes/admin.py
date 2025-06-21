@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify, send_file, current_app
 from flask_login import login_required, current_user
-from src.models import User, Activity, Registration, StudentInfo, db, Tag, ActivityReview, ActivityCheckin, Role, PointsHistory
+from src.models import User, Activity, Registration, StudentInfo, db, Tag, ActivityReview, ActivityCheckin, Role, PointsHistory, SystemLog, activity_tags, student_tags
 from src.routes.utils import admin_required, log_action
 from datetime import datetime, timedelta
 import pandas as pd
@@ -21,6 +21,8 @@ import random
 import string
 from functools import wraps
 import tempfile
+import csv
+import zipfile
 
 admin_bp = Blueprint('admin', __name__)
 logger = logging.getLogger(__name__)
@@ -868,7 +870,6 @@ def export_students():
 @admin_required
 def backup_system():
     try:
-        # 获取备份目录中的备份文件列表
         backup_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'backups')
         if not os.path.exists(backup_dir):
             os.makedirs(backup_dir)
@@ -878,21 +879,52 @@ def backup_system():
             if filename.endswith('.json'):
                 filepath = os.path.join(backup_dir, filename)
                 backup_time = datetime.fromtimestamp(os.path.getctime(filepath))
+                
+                # 获取文件大小
+                file_size = os.path.getsize(filepath)
+                if file_size < 1024:
+                    size_str = f"{file_size} B"
+                elif file_size < 1024 * 1024:
+                    size_str = f"{file_size / 1024:.1f} KB"
+                else:
+                    size_str = f"{file_size / (1024 * 1024):.1f} MB"
+                
+                # 尝试读取备份内容摘要
+                content_summary = "未知内容"
+                try:
+                    with open(filepath, 'r', encoding='utf-8') as f:
+                        data = json.load(f)
+                        content_parts = []
+                        if 'data' in data:
+                            if 'users' in data['data']:
+                                content_parts.append(f"用户({len(data['data']['users'])})")
+                            if 'activities' in data['data']:
+                                content_parts.append(f"活动({len(data['data']['activities'])})")
+                            if 'registrations' in data['data']:
+                                content_parts.append(f"报名({len(data['data']['registrations'])})")
+                            if 'tags' in data['data']:
+                                content_parts.append(f"标签({len(data['data']['tags'])})")
+                        
+                        if content_parts:
+                            content_summary = "、".join(content_parts)
+                except:
+                    pass
+                
                 backups.append({
                     'name': filename,
                     'created_at': backup_time.strftime('%Y-%m-%d %H:%M:%S'),
-                    'size': f"{os.path.getsize(filepath) / 1024:.1f} KB"
+                    'size': size_str,
+                    'content': content_summary
                 })
         
         backups.sort(key=lambda x: x['created_at'], reverse=True)
-        current_time = datetime.now().strftime('%Y%m%d_%H%M%S')
         
-        return render_template('admin/backup.html', 
-                             backups=backups, 
-                             current_time=current_time)
+        return render_template('admin/backup.html',
+                              backups=backups,
+                              current_time=datetime.now().strftime('%Y%m%d_%H%M%S'))
     except Exception as e:
         logger.error(f"Error in backup system page: {e}")
-        flash('加载备份页面时出错', 'danger')
+        flash('加载备份系统页面时出错', 'danger')
         return redirect(url_for('admin.dashboard'))
 
 @admin_bp.route('/backup/create', methods=['POST'])
@@ -903,59 +935,139 @@ def create_backup():
         include_users = 'include_users' in request.form
         include_activities = 'include_activities' in request.form
         include_registrations = 'include_registrations' in request.form
+        backup_format = request.form.get('backup_format', 'json')  # 新增：备份格式选择
         
-        # 创建备份数据
+        # 准备备份数据
         backup_data = {
+            'version': '1.0',
             'created_at': datetime.now().isoformat(),
-            'created_by': current_user.id,
+            'created_by': current_user.username,
             'data': {}
         }
         
+        # 用户数据
         if include_users:
-            users = User.query.all()
             backup_data['data']['users'] = [
-                {c.name: getattr(user, c.name) for c in User.__table__.columns}
-                for user in users
+                {
+                    'username': user.username,
+                    'email': user.email,
+                    'role_id': user.role_id,
+                    'active': user.active
+                } for user in User.query.all()
             ]
             
-            student_info = StudentInfo.query.all()
             backup_data['data']['student_info'] = [
-                {c.name: getattr(info, c.name) for c in StudentInfo.__table__.columns}
-                for info in student_info
+                {
+                    'user_id': info.user_id,
+                    'student_id': info.student_id,
+                    'real_name': info.real_name,
+                    'gender': info.gender,
+                    'grade': info.grade,
+                    'college': info.college,
+                    'major': info.major,
+                    'phone': info.phone,
+                    'qq': info.qq,
+                    'points': info.points,
+                    'has_selected_tags': info.has_selected_tags
+                } for info in StudentInfo.query.all()
             ]
         
+        # 活动数据
         if include_activities:
-            activities = Activity.query.all()
             backup_data['data']['activities'] = [
-                {c.name: getattr(activity, c.name) for c in Activity.__table__.columns}
-                for activity in activities
+                {
+                    'title': activity.title,
+                    'description': activity.description,
+                    'location': activity.location,
+                    'start_time': activity.start_time.isoformat() if activity.start_time else None,
+                    'end_time': activity.end_time.isoformat() if activity.end_time else None,
+                    'registration_deadline': activity.registration_deadline.isoformat() if activity.registration_deadline else None,
+                    'max_participants': activity.max_participants,
+                    'status': activity.status,
+                    'type': activity.type,
+                    'is_featured': activity.is_featured,
+                    'points': activity.points,
+                    'created_by': activity.created_by
+                } for activity in Activity.query.all()
             ]
         
+        # 报名数据
         if include_registrations:
-            registrations = Registration.query.all()
             backup_data['data']['registrations'] = [
-                {c.name: getattr(reg, c.name) for c in Registration.__table__.columns}
-                for reg in registrations
+                {
+                    'user_id': reg.user_id,
+                    'activity_id': reg.activity_id,
+                    'register_time': reg.register_time.isoformat() if reg.register_time else None,
+                    'check_in_time': reg.check_in_time.isoformat() if reg.check_in_time else None,
+                    'status': reg.status,
+                    'remark': reg.remark
+                } for reg in Registration.query.all()
             ]
         
-        # 保存备份文件
+        # 确保备份目录存在
         backup_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'backups')
         if not os.path.exists(backup_dir):
             os.makedirs(backup_dir)
         
-        filename = secure_filename(f"{backup_name}.json")
-        filepath = os.path.join(backup_dir, filename)
+        if backup_format == 'zip':
+            # 创建ZIP格式备份
+            filename = secure_filename(f"{backup_name}.zip")
+            filepath = os.path.join(backup_dir, filename)
+            
+            # 创建临时JSON文件
+            with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.json') as temp_json:
+                json.dump(backup_data, temp_json, ensure_ascii=False, indent=2, default=str)
+                temp_json_path = temp_json.name
+            
+            # 创建ZIP文件
+            with zipfile.ZipFile(filepath, 'w', zipfile.ZIP_DEFLATED) as zipf:
+                # 添加JSON数据
+                zipf.write(temp_json_path, arcname='backup_data.json')
+                
+                # 添加README文件
+                with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt') as temp_readme:
+                    temp_readme.write(f"重庆师范大学师能素质协会系统备份\n")
+                    temp_readme.write(f"创建时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+                    temp_readme.write(f"创建者: {current_user.username}\n\n")
+                    temp_readme.write("备份内容:\n")
+                    if include_users:
+                        temp_readme.write(f"- 用户数据: {len(backup_data['data'].get('users', []))} 条记录\n")
+                        temp_readme.write(f"- 学生信息: {len(backup_data['data'].get('student_info', []))} 条记录\n")
+                    if include_activities:
+                        temp_readme.write(f"- 活动数据: {len(backup_data['data'].get('activities', []))} 条记录\n")
+                    if include_registrations:
+                        temp_readme.write(f"- 报名数据: {len(backup_data['data'].get('registrations', []))} 条记录\n")
+                    temp_readme_path = temp_readme.name
+                
+                zipf.write(temp_readme_path, arcname='README.txt')
+                
+                # 添加数据库文件副本
+                db_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'instance', 'cqnu_association.db')
+                if os.path.exists(db_path):
+                    zipf.write(db_path, arcname='database_backup.db')
+            
+            # 删除临时文件
+            os.unlink(temp_json_path)
+            os.unlink(temp_readme_path)
+            
+        else:
+            # 创建JSON格式备份
+            filename = secure_filename(f"{backup_name}.json")
+            filepath = os.path.join(backup_dir, filename)
+            
+            with open(filepath, 'w', encoding='utf-8') as f:
+                json.dump(backup_data, f, ensure_ascii=False, indent=2, default=str)
         
-        with open(filepath, 'w', encoding='utf-8') as f:
-            json.dump(backup_data, f, ensure_ascii=False, indent=2)
-        
-        flash('备份创建成功', 'success')
+        # 记录操作日志
         log_action('create_backup', f'创建系统备份: {filename}')
+        
+        flash(f'备份已创建: {filename}', 'success')
         return redirect(url_for('admin.backup_system'))
     
     except Exception as e:
+        db.session.rollback()
         logger.error(f"Error creating backup: {e}")
-        flash('创建备份失败', 'danger')
+        flash(f'创建备份时出错: {str(e)}', 'danger')
         return redirect(url_for('admin.backup_system'))
 
 @admin_bp.route('/backup/import', methods=['POST'])
@@ -1384,3 +1496,349 @@ def toggle_checkin(id):
         logger.error(f"切换签到状态失败: {e}")
         flash('操作失败，请重试', 'danger')
         return redirect(url_for('admin.activity_view', id=id))
+
+# 系统日志页面
+@admin_bp.route('/system_logs', methods=['GET'])
+@admin_required
+def system_logs():
+    try:
+        # 获取日志文件内容
+        log_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'logs', 'cqnu_association.log')
+        logs = []
+        
+        if os.path.exists(log_file):
+            with open(log_file, 'r', encoding='utf-8') as f:
+                # 读取最后1000行日志
+                logs = f.readlines()[-1000:]
+        
+        # 倒序显示日志（最新的在前面）
+        logs.reverse()
+        
+        return render_template('admin/system_logs.html', logs=logs)
+    except Exception as e:
+        logger.error(f"Error in system logs page: {e}")
+        flash('加载系统日志时出错', 'danger')
+        return redirect(url_for('admin.dashboard'))
+
+# 下载日志
+@admin_bp.route('/download_logs', methods=['GET'])
+@admin_required
+def download_logs():
+    try:
+        log_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'logs', 'cqnu_association.log')
+        
+        if not os.path.exists(log_file):
+            flash('日志文件不存在', 'warning')
+            return redirect(url_for('admin.system_logs'))
+        
+        # 记录操作日志
+        log_action('download_logs', '下载系统日志文件')
+        
+        # 返回文件下载
+        return send_file(
+            log_file,
+            mimetype='text/plain',
+            as_attachment=True,
+            download_name=f'system_logs_{datetime.now().strftime("%Y%m%d_%H%M%S")}.log'
+        )
+    except Exception as e:
+        logger.error(f"Error downloading logs: {e}")
+        flash('下载日志文件时出错', 'danger')
+        return redirect(url_for('admin.system_logs'))
+
+# 清空日志
+@admin_bp.route('/clear_logs', methods=['POST'])
+@admin_required
+def clear_logs():
+    try:
+        log_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'logs', 'cqnu_association.log')
+        
+        if os.path.exists(log_file):
+            # 清空日志文件内容
+            with open(log_file, 'w') as f:
+                f.write(f"日志已于 {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} 被管理员清空\n")
+        
+        # 记录操作日志
+        log_action('clear_logs', '清空系统日志')
+        
+        flash('日志已清空', 'success')
+        return redirect(url_for('admin.system_logs'))
+    except Exception as e:
+        logger.error(f"Error clearing logs: {e}")
+        flash('清空日志时出错', 'danger')
+        return redirect(url_for('admin.system_logs'))
+
+# 下载备份文件
+@admin_bp.route('/backup/download/<path:filename>', methods=['GET'])
+@admin_required
+def download_backup(filename):
+    try:
+        backup_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'backups')
+        
+        # 安全检查：确保文件名不包含路径遍历
+        if '..' in filename or filename.startswith('/'):
+            flash('无效的文件名', 'danger')
+            return redirect(url_for('admin.backup_system'))
+        
+        filepath = os.path.join(backup_dir, filename)
+        
+        if not os.path.exists(filepath):
+            flash('备份文件不存在', 'warning')
+            return redirect(url_for('admin.backup_system'))
+        
+        # 记录操作日志
+        log_action('download_backup', f'下载备份文件: {filename}')
+        
+        # 返回文件下载
+        return send_file(
+            filepath,
+            mimetype='application/json',
+            as_attachment=True,
+            download_name=filename
+        )
+    except Exception as e:
+        logger.error(f"Error downloading backup: {e}")
+        flash('下载备份文件时出错', 'danger')
+        return redirect(url_for('admin.backup_system'))
+
+# 删除备份文件
+@admin_bp.route('/backup/delete/<path:filename>', methods=['GET'])
+@admin_required
+def delete_backup(filename):
+    try:
+        backup_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'backups')
+        
+        # 安全检查：确保文件名不包含路径遍历
+        if '..' in filename or filename.startswith('/'):
+            flash('无效的文件名', 'danger')
+            return redirect(url_for('admin.backup_system'))
+        
+        filepath = os.path.join(backup_dir, filename)
+        
+        if not os.path.exists(filepath):
+            flash('备份文件不存在', 'warning')
+            return redirect(url_for('admin.backup_system'))
+        
+        # 删除文件
+        os.remove(filepath)
+        
+        # 记录操作日志
+        log_action('delete_backup', f'删除备份文件: {filename}')
+        
+        flash('备份文件已删除', 'success')
+        return redirect(url_for('admin.backup_system'))
+    except Exception as e:
+        logger.error(f"Error deleting backup: {e}")
+        flash('删除备份文件时出错', 'danger')
+        return redirect(url_for('admin.backup_system'))
+
+# 重置系统数据
+@admin_bp.route('/reset_system', methods=['GET'])
+@admin_required
+def reset_system_page():
+    try:
+        return render_template('admin/reset_system.html')
+    except Exception as e:
+        logger.error(f"Error in reset system page: {e}")
+        flash('加载重置系统页面时出错', 'danger')
+        return redirect(url_for('admin.dashboard'))
+
+# 执行系统重置
+@admin_bp.route('/reset_system', methods=['POST'])
+@admin_required
+def reset_system():
+    try:
+        # 验证管理员密码
+        password = request.form.get('admin_password')
+        if not current_user.check_password(password):
+            flash('管理员密码错误，无法执行重置操作', 'danger')
+            return redirect(url_for('admin.reset_system_page'))
+        
+        # 获取重置选项
+        reset_users = 'reset_users' in request.form
+        reset_activities = 'reset_activities' in request.form
+        reset_registrations = 'reset_registrations' in request.form
+        reset_tags = 'reset_tags' in request.form
+        reset_logs = 'reset_logs' in request.form
+        
+        # 创建备份
+        backup_name = f"pre_reset_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        backup_data = {'data': {}}
+        
+        # 备份用户数据
+        if reset_users:
+            backup_data['data']['users'] = [
+                {
+                    'username': user.username,
+                    'email': user.email,
+                    'role_id': user.role_id,
+                    'active': user.active
+                } for user in User.query.all()
+            ]
+            backup_data['data']['student_info'] = [
+                {
+                    'user_id': info.user_id,
+                    'student_id': info.student_id,
+                    'real_name': info.real_name,
+                    'gender': info.gender,
+                    'grade': info.grade,
+                    'college': info.college,
+                    'major': info.major,
+                    'phone': info.phone,
+                    'qq': info.qq,
+                    'points': info.points,
+                    'has_selected_tags': info.has_selected_tags
+                } for info in StudentInfo.query.all()
+            ]
+        
+        # 备份活动数据
+        if reset_activities:
+            backup_data['data']['activities'] = [
+                {
+                    'title': activity.title,
+                    'description': activity.description,
+                    'location': activity.location,
+                    'start_time': activity.start_time.isoformat() if activity.start_time else None,
+                    'end_time': activity.end_time.isoformat() if activity.end_time else None,
+                    'registration_deadline': activity.registration_deadline.isoformat() if activity.registration_deadline else None,
+                    'max_participants': activity.max_participants,
+                    'status': activity.status,
+                    'type': activity.type,
+                    'is_featured': activity.is_featured,
+                    'points': activity.points,
+                    'created_by': activity.created_by
+                } for activity in Activity.query.all()
+            ]
+        
+        # 备份报名数据
+        if reset_registrations:
+            backup_data['data']['registrations'] = [
+                {
+                    'user_id': reg.user_id,
+                    'activity_id': reg.activity_id,
+                    'register_time': reg.register_time.isoformat() if reg.register_time else None,
+                    'check_in_time': reg.check_in_time.isoformat() if reg.check_in_time else None,
+                    'status': reg.status,
+                    'remark': reg.remark
+                } for reg in Registration.query.all()
+            ]
+        
+        # 备份标签数据
+        if reset_tags:
+            backup_data['data']['tags'] = [
+                {
+                    'name': tag.name,
+                    'description': tag.description,
+                    'color': tag.color
+                } for tag in Tag.query.all()
+            ]
+        
+        # 保存备份文件
+        backup_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'backups')
+        if not os.path.exists(backup_dir):
+            os.makedirs(backup_dir)
+        
+        filename = secure_filename(f"{backup_name}.json")
+        filepath = os.path.join(backup_dir, filename)
+        
+        with open(filepath, 'w', encoding='utf-8') as f:
+            json.dump(backup_data, f, ensure_ascii=False, indent=2, default=str)
+        
+        # 执行重置操作
+        if reset_registrations:
+            Registration.query.delete()
+            db.session.commit()
+            flash('所有报名记录已重置', 'success')
+        
+        if reset_activities:
+            Activity.query.delete()
+            db.session.commit()
+            flash('所有活动已重置', 'success')
+        
+        if reset_tags:
+            # 清除标签关联
+            db.session.execute(student_tags.delete())
+            db.session.execute(activity_tags.delete())
+            db.session.commit()
+            
+            # 删除标签
+            Tag.query.delete()
+            db.session.commit()
+            flash('所有标签已重置', 'success')
+            
+            # 重新创建默认标签
+            default_tags = [
+                {'name': '讲座', 'color': 'primary', 'description': '各类学术讲座'},
+                {'name': '研讨会', 'color': 'info', 'description': '小组研讨活动'},
+                {'name': '实践活动', 'color': 'success', 'description': '校内外实践活动'},
+                {'name': '志愿服务', 'color': 'danger', 'description': '志愿者服务活动'},
+                {'name': '文体活动', 'color': 'warning', 'description': '文化体育类活动'},
+                {'name': '竞赛', 'color': 'secondary', 'description': '各类竞赛活动'}
+            ]
+            
+            for tag_data in default_tags:
+                tag = Tag(name=tag_data['name'], color=tag_data['color'], description=tag_data['description'])
+                db.session.add(tag)
+            
+            db.session.commit()
+            flash('默认标签已重新创建', 'success')
+        
+        if reset_users:
+            # 保留当前管理员账号
+            admin_username = current_user.username
+            admin_email = current_user.email
+            admin_password = current_user.password_hash
+            
+            # 删除所有用户相关数据
+            StudentInfo.query.delete()
+            User.query.delete()
+            db.session.commit()
+            
+            # 重新创建角色
+            admin_role = Role.query.filter_by(name='Admin').first()
+            if not admin_role:
+                admin_role = Role(name='Admin', description='管理员')
+                db.session.add(admin_role)
+            
+            student_role = Role.query.filter_by(name='Student').first()
+            if not student_role:
+                student_role = Role(name='Student', description='学生')
+                db.session.add(student_role)
+            
+            db.session.commit()
+            
+            # 重新创建管理员账号
+            admin = User(
+                username=admin_username,
+                email=admin_email,
+                password_hash=admin_password,
+                role_id=admin_role.id
+            )
+            db.session.add(admin)
+            db.session.commit()
+            
+            flash('用户数据已重置，管理员账号已保留', 'success')
+        
+        if reset_logs:
+            # 清空日志文件
+            log_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'logs', 'cqnu_association.log')
+            if os.path.exists(log_file):
+                with open(log_file, 'w') as f:
+                    f.write(f"日志已于 {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} 被管理员重置\n")
+            
+            # 清空系统日志表
+            SystemLog.query.delete()
+            db.session.commit()
+            
+            flash('系统日志已重置', 'success')
+        
+        # 记录操作日志
+        log_action('reset_system', f'系统重置，选项：用户={reset_users}，活动={reset_activities}，报名={reset_registrations}，标签={reset_tags}，日志={reset_logs}')
+        
+        flash(f'系统重置已完成，备份已保存为 {filename}', 'success')
+        return redirect(url_for('admin.dashboard'))
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error resetting system: {e}")
+        flash(f'重置系统时出错: {str(e)}', 'danger')
+        return redirect(url_for('admin.reset_system_page'))

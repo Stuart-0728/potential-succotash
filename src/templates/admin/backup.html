@@ -53,6 +53,21 @@
                                         </label>
                                     </div>
                                 </div>
+                                <div class="mb-3">
+                                    <label class="form-label">备份格式</label>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="radio" id="format_json" name="backup_format" value="json" checked>
+                                        <label class="form-check-label" for="format_json">
+                                            JSON格式 (仅数据)
+                                        </label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="radio" id="format_zip" name="backup_format" value="zip">
+                                        <label class="form-check-label" for="format_zip">
+                                            ZIP格式 (包含数据库文件)
+                                        </label>
+                                    </div>
+                                </div>
                                 <button type="submit" class="btn btn-primary">
                                     <i class="fas fa-save me-1"></i>创建备份
                                 </button>
@@ -113,15 +128,11 @@
                                             <td>{{ backup.content }}</td>
                                             <td>
                                                 <div class="btn-group btn-group-sm">
-                                                    <a href="{{ url_for('admin.download_backup', backup_id=backup.id) }}" class="btn btn-outline-primary">
+                                                    <a href="{{ url_for('admin.download_backup', filename=backup.name) }}" class="btn btn-outline-primary" title="下载备份">
                                                         <i class="fas fa-download"></i>
                                                     </a>
-                                                    <a href="{{ url_for('admin.restore_backup', backup_id=backup.id) }}" class="btn btn-outline-warning" 
-                                                       onclick="return confirm('确定要恢复此备份吗？这将覆盖当前数据！');">
-                                                        <i class="fas fa-redo-alt"></i>
-                                                    </a>
-                                                    <a href="{{ url_for('admin.delete_backup', backup_id=backup.id) }}" class="btn btn-outline-danger"
-                                                       onclick="return confirm('确定要删除此备份吗？此操作不可撤销！');">
+                                                    <a href="{{ url_for('admin.delete_backup', filename=backup.name) }}" class="btn btn-outline-danger" 
+                                                       onclick="return confirm('确定要删除此备份吗？此操作不可撤销！');" title="删除备份">
                                                         <i class="fas fa-trash-alt"></i>
                                                     </a>
                                                 </div>
