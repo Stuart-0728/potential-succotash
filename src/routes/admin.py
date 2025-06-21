@@ -96,58 +96,53 @@ def activities(status='all'):
 @admin_required
 def create_activity():
     try:
-        # 先尝试加载所有标签
-        try:
-            tags = Tag.query.order_by(Tag.name).all()
-            logger.info(f"成功加载 {len(tags)} 个标签")
-            tag_choices = [(tag.id, tag.name) for tag in tags]
-        except Exception as e:
-            logger.error(f"加载标签时出错: {e}")
-            tag_choices = []
-            
-        # 创建表单并设置标签选项
         form = ActivityForm()
-        form.tags.choices = tag_choices if tag_choices else []
-        if not form.tags.data:
-            form.tags.data = []
-
-        if request.method == 'POST' and form.validate_on_submit():
-            try:
-                # 创建新活动
-                activity = Activity(
-                    title=form.title.data,
-                    description=form.description.data,
-                    location=form.location.data,
-                    start_time=form.start_time.data,
-                    end_time=form.end_time.data,
-                    registration_deadline=form.registration_deadline.data,
-                    max_participants=form.max_participants.data or 0,
-                    status=form.status.data,
-                    is_featured=form.is_featured.data,
-                    points=form.points.data or (20 if form.is_featured.data else 10),
-                    created_by=current_user.id
-                )
-                
-                # 添加标签
-                activity.tags = []  # 清空现有标签
-                if form.tags.data:  # 检查是否有选择的标签
-                    for tag_id in form.tags.data:
-                        tag = Tag.query.get(tag_id)
-                        if tag:
-                            activity.tags.append(tag)
-                            logger.info(f"添加标签: {tag.name}")
-                
-                db.session.add(activity)
-                db.session.commit()
-                
-                flash('活动创建成功', 'success')
-                log_action('create_activity', f'创建活动: {activity.title}')
-                return redirect(url_for('admin.activity_view', id=activity.id))
+        
+        # 加载所有标签并设置选项
+        tags = Tag.query.order_by(Tag.name).all()
+        choices = [(tag.id, tag.name) for tag in tags]
+        form.tags.choices = choices
+        
+        if form.validate_on_submit():
+            # 创建新活动
+            activity = Activity(
+                title=form.title.data,
+                description=form.description.data,
+                location=form.location.data,
+                start_time=normalize_datetime_for_db(form.start_time.data),
+                end_time=normalize_datetime_for_db(form.end_time.data),
+                registration_deadline=normalize_datetime_for_db(form.registration_deadline.data),
+                max_participants=form.max_participants.data,
+                type=form.type.data,
+                status=form.status.data,
+                is_featured=form.is_featured.data,
+                points=form.points.data or (20 if form.is_featured.data else 10),
+                created_by=current_user.id
+            )
             
-            except Exception as e:
-                db.session.rollback()
-                logger.error(f"创建活动时出错: {e}")
-                flash('创建活动失败', 'danger')
+            # 处理标签
+            tag_ids = request.form.getlist('tags')  # 直接从请求中获取多选框值
+            for tag_id in tag_ids:
+                tag = Tag.query.get(int(tag_id))
+                if tag:
+                    activity.tags.append(tag)
+            
+            # 保存到数据库
+            db.session.add(activity)
+            db.session.commit()
+            
+            # 记录日志
+            log_action('create_activity', f'创建活动: {activity.title}')
+            
+            # 处理上传的图片
+            if form.poster.data:
+                poster_path = handle_poster_upload(form.poster.data, activity.id)
+                if poster_path:
+                    activity.poster_url = poster_path
+                    db.session.commit()
+            
+            flash('活动创建成功', 'success')
+            return redirect(url_for('admin.activities'))
         
         return render_template('admin/activity_form.html', form=form, title='创建新活动')
     
