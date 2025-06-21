@@ -20,12 +20,6 @@ from src.utils.time_helpers import get_localized_now, get_beijing_time, localize
 admin_bp = Blueprint('admin', __name__)
 logger = logging.getLogger(__name__)
 
-# 一个辅助函数，确保时间的时区一致性
-def get_localized_now():
-    """获取本地时间，与数据库中的时间使用相同的时区处理方式"""
-    # 使用time_helpers中的函数以确保时区处理一致
-    return get_beijing_time()
-
 @admin_bp.route('/dashboard')
 @admin_required
 def dashboard():
@@ -1187,15 +1181,19 @@ def api_statistics_ext():
         from src.models import StudentInfo
         points_bins = [0, 10, 30, 50, 100, 200, 500, 1000]
         bin_labels = [f'{points_bins[i]}-{points_bins[i+1]-1}' for i in range(len(points_bins)-1)] + [f'{points_bins[-1]}+']
-        bin_counts = [0]*(len(points_bins))
+        bin_counts = [0] * len(points_bins)
+        
         for stu in StudentInfo.query.all():
-            for i, b in enumerate(points_bins):
-                if i == len(points_bins)-1:
-                    if stu.points >= b:
+            points = stu.points or 0  # 处理None值
+            for i, bin_start in enumerate(points_bins):
+                if i == len(points_bins) - 1:  # 最后一个区间
+                    if points >= bin_start:
                         bin_counts[i] += 1
-                elif b <= stu.points < points_bins[i+1]:
+                        break
+                elif bin_start <= points < points_bins[i+1]:  # 中间区间
                     bin_counts[i] += 1
                     break
+        
         points_dist = {
             'labels': bin_labels,
             'data': bin_counts

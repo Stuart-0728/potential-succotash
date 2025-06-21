@@ -3,23 +3,31 @@
 {% block title %}统计分析 - 重庆师范大学师能素质协会{% endblock %}
 
 {% block content %}
-<div class="container">
+<div class="container py-4">
     <div class="row mb-4">
         <div class="col-md-12">
-            <h2 class="mb-3">统计分析</h2>
-            <div class="card">
+            <h2 class="mb-3 fw-bold">统计分析</h2>
+            <div class="card border-0 shadow-sm">
                 <div class="card-body">
-                    <p class="card-text">查看活动报名和学生参与的统计数据。</p>
+                    <div class="d-flex align-items-center">
+                        <div class="bg-primary bg-opacity-10 rounded-circle p-3 me-3">
+                            <i class="fas fa-chart-line text-primary fs-3"></i>
+                        </div>
+                        <div>
+                            <h5 class="card-title mb-1">数据概览</h5>
+                            <p class="card-text text-muted mb-0">查看活动报名和学生参与的统计数据。</p>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 
     <div class="row mb-4">
-        <div class="col-md-6">
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="mb-0">活动报名统计</h5>
+        <div class="col-md-6 mb-4 mb-md-0">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white border-0">
+                    <h5 class="mb-0 fw-semibold">活动报名统计</h5>
                 </div>
                 <div class="card-body">
                     <canvas id="registrationChart" width="400" height="300"></canvas>
@@ -27,9 +35,9 @@
             </div>
         </div>
         <div class="col-md-6">
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="mb-0">学生参与度</h5>
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white border-0">
+                    <h5 class="mb-0 fw-semibold">学生参与度</h5>
                 </div>
                 <div class="card-body">
                     <canvas id="participationChart" width="400" height="300"></canvas>
@@ -40,9 +48,9 @@
 
     <div class="row mb-4">
         <div class="col-md-12">
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="mb-0">月度活动统计</h5>
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white border-0">
+                    <h5 class="mb-0 fw-semibold">月度活动统计</h5>
                 </div>
                 <div class="card-body">
                     <canvas id="monthlyChart" width="800" height="300"></canvas>
@@ -52,10 +60,10 @@
     </div>
 
     <div class="row mb-4">
-        <div class="col-md-6">
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="mb-0">标签热度</h5>
+        <div class="col-md-6 mb-4 mb-md-0">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white border-0">
+                    <h5 class="mb-0 fw-semibold">标签热度</h5>
                 </div>
                 <div class="card-body">
                     <canvas id="tagHeatChart" width="400" height="300"></canvas>
@@ -63,9 +71,9 @@
             </div>
         </div>
         <div class="col-md-6">
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="mb-0">积分分布</h5>
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white border-0">
+                    <h5 class="mb-0 fw-semibold">积分分布</h5>
                 </div>
                 <div class="card-body">
                     <canvas id="pointsDistChart" width="400" height="300"></canvas>

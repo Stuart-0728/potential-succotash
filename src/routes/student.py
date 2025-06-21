@@ -750,5 +750,6 @@ def checkin():
 # 一个辅助函数，确保时间的时区一致性
 def get_localized_now():
     """获取本地时间，与数据库中的时间使用相同的时区处理方式"""
-    # 因为数据库中存储的是datetime.now()，所以我们也使用相同的方式
-    return datetime.now()
+    # 使用utils中的get_beijing_time函数确保时区一致
+    from src.utils.time_helpers import get_beijing_time
+    return get_beijing_time()

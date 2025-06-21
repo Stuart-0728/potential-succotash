@@ -8,9 +8,11 @@ def get_beijing_time():
     :return: 当前的北京时间，已本地化的datetime对象
     """
     beijing_tz = pytz.timezone('Asia/Shanghai')
-    # 直接使用now()获取当前时间，然后转换为北京时间
-    # 这样可以避免时区转换问题
-    return datetime.datetime.now(beijing_tz)
+    # 使用utcnow()获取UTC时间，然后转换为北京时间
+    # 这样可以避免服务器时区设置的影响
+    utc_now = datetime.datetime.utcnow()
+    utc_now = pytz.utc.localize(utc_now)
+    return utc_now.astimezone(beijing_tz)
 
 def localize_time(dt):
     """
