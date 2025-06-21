@@ -178,7 +178,7 @@
                   {% for tag_id, tag_name in form.tags.choices %}
                   <div class="form-check form-check-inline mb-2">
                     <input class="form-check-input" type="checkbox" name="tags" id="tag{{ tag_id }}" value="{{ tag_id }}"
-                      {% if tag_id in form.tags.data %}checked{% endif %}>
+                      {% if form.tags.data and tag_id in form.tags.data %}checked{% endif %}>
                     <label class="form-check-label" for="tag{{ tag_id }}">{{ tag_name }}</label>
                   </div>
                   {% endfor %}

@@ -103,6 +103,10 @@ def create_activity():
         choices = [(tag.id, tag.name) for tag in tags]
         form.tags.choices = choices
         
+        # 确保form.tags.data初始化为空列表而不是None
+        if form.tags.data is None:
+            form.tags.data = []
+        
         if form.validate_on_submit():
             # 创建新活动
             activity = Activity(
@@ -113,7 +117,7 @@ def create_activity():
                 end_time=normalize_datetime_for_db(form.end_time.data),
                 registration_deadline=normalize_datetime_for_db(form.registration_deadline.data),
                 max_participants=form.max_participants.data,
-                type=form.type.data,
+                type=form.type.data if hasattr(form, 'type') else '其他',
                 status=form.status.data,
                 is_featured=form.is_featured.data,
                 points=form.points.data or (20 if form.is_featured.data else 10),
