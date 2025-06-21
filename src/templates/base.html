@@ -337,16 +337,16 @@
             right: 20px;
             width: 60px;
             height: 60px;
-            border-radius: 50%;
             background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
-            color: white;
-            border: none;
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
-            cursor: pointer;
+            border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
+            color: white;
             font-size: 24px;
+            cursor: pointer;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+            border: none;
             transition: all 0.3s ease;
             z-index: 1000;
         }
@@ -369,6 +369,14 @@
             flex-direction: column;
             z-index: 1000;
             overflow: hidden;
+            transition: opacity 0.3s ease, transform 0.3s ease;
+            opacity: 0;
+            transform: translateY(20px);
+        }
+
+        .ai-chat-container.visible {
+            opacity: 1;
+            transform: translateY(0);
         }
 
         .ai-chat-header {

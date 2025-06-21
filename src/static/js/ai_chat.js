@@ -243,7 +243,16 @@ class AIChatUI {
         // 恢复聊天窗口状态
         const isOpen = this.session.getCookie('chat_open') === 'true';
         if (isOpen) {
-            this.openChat();
+            // 初始化时如果应该打开，直接设置样式而不使用动画
+            this.container.style.display = 'flex';
+            this.container.classList.add('visible');
+            this.session.isOpen = true;
+            this.scrollToBottom();
+        } else {
+            // 确保窗口是关闭的
+            this.container.style.display = 'none';
+            this.container.classList.remove('visible');
+            this.session.isOpen = false;
         }
     }
     
@@ -268,6 +277,7 @@ class AIChatUI {
         if (this.sendButton) {
             this.sendButton.addEventListener('click', (e) => {
                 e.preventDefault(); // 防止表单提交
+                e.stopPropagation(); // 阻止事件冒泡
                 this.sendMessage();
             });
         }
@@ -284,37 +294,69 @@ class AIChatUI {
         
         // 切换聊天窗口按钮事件
         if (this.toggleButton) {
-            this.toggleButton.addEventListener('click', () => this.toggleChat());
+            this.toggleButton.addEventListener('click', () => {
+                // 防止快速多次点击
+                if (this.isToggling) return;
+                this.toggleChat();
+            });
         }
         
         // 添加关闭按钮事件监听
         const closeButton = document.getElementById('aiChatCloseBtn');
         if (closeButton) {
-            closeButton.addEventListener('click', () => this.closeChat());
+            closeButton.addEventListener('click', (e) => {
+                e.preventDefault(); // 防止表单提交
+                e.stopPropagation(); // 阻止事件冒泡
+                this.closeChat();
+            });
         }
     }
     
     // 切换聊天窗口显示/隐藏
     toggleChat() {
+        // 防抖处理
+        if (this.isToggling) return;
+        this.isToggling = true;
+        
         if (this.container.style.display === 'none' || this.container.style.display === '') {
             this.openChat();
         } else {
             this.closeChat();
         }
+        
+        // 300ms后重置标志位，防止频繁切换
+        setTimeout(() => {
+            this.isToggling = false;
+        }, 300);
     }
     
     // 打开聊天窗口
     openChat() {
+        // 先设置display为flex，然后添加visible类触发过渡动画
         this.container.style.display = 'flex';
+        // 等待浏览器渲染一帧后添加visible类，触发过渡效果
+        setTimeout(() => {
+            this.container.classList.add('visible');
+        }, 10);
+        
         this.session.isOpen = true;
         this.session.setCookie('chat_open', 'true', AI_CHAT_CONFIG.cookieExpireDays);
+        
         // 滚动到最新消息
-        this.scrollToBottom();
+        setTimeout(() => {
+            this.scrollToBottom();
+        }, 100);
     }
     
     // 关闭聊天窗口
     closeChat() {
-        this.container.style.display = 'none';
+        // 先移除visible类触发过渡动画
+        this.container.classList.remove('visible');
+        // 等待过渡动画完成后隐藏元素
+        setTimeout(() => {
+            this.container.style.display = 'none';
+        }, 300); // 与CSS过渡时间一致
+        
         this.session.isOpen = false;
         this.session.setCookie('chat_open', 'false', AI_CHAT_CONFIG.cookieExpireDays);
     }
