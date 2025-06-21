@@ -266,13 +266,17 @@ class AIChatUI {
     setupEventListeners() {
         // 发送按钮点击事件
         if (this.sendButton) {
-            this.sendButton.addEventListener('click', () => this.sendMessage());
+            this.sendButton.addEventListener('click', (e) => {
+                e.preventDefault(); // 防止表单提交
+                this.sendMessage();
+            });
         }
         
         // 输入框回车事件
         if (this.input) {
             this.input.addEventListener('keypress', (e) => {
-                if (e.key === 'Enter') {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault(); // 防止默认的换行行为
                     this.sendMessage();
                 }
             });
