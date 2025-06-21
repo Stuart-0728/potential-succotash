@@ -27,6 +27,45 @@ import zipfile
 admin_bp = Blueprint('admin', __name__)
 logger = logging.getLogger(__name__)
 
+def handle_poster_upload(file_data, activity_id):
+    """处理活动海报上传
+    
+    Args:
+        file_data: 文件对象
+        activity_id: 活动ID
+    
+    Returns:
+        str: 保存后的文件路径（相对于static目录）
+    """
+    try:
+        if not file_data:
+            return None
+        
+        # 确保文件名安全
+        filename = secure_filename(file_data.filename)
+        
+        # 生成唯一文件名
+        _, file_extension = os.path.splitext(filename)
+        unique_filename = f"activity_{activity_id}_{datetime.now().strftime('%Y%m%d%H%M%S')}{file_extension}"
+        
+        # 确保上传目录存在
+        upload_dir = os.path.join(current_app.static_folder, 'uploads', 'posters')
+        if not os.path.exists(upload_dir):
+            os.makedirs(upload_dir, exist_ok=True)
+        
+        # 保存文件
+        file_path = os.path.join(upload_dir, unique_filename)
+        file_data.save(file_path)
+        
+        # 返回相对路径（用于存储在数据库中）
+        relative_path = f"/static/uploads/posters/{unique_filename}"
+        logger.info(f"活动海报已上传: {relative_path}")
+        return relative_path
+        
+    except Exception as e:
+        logger.error(f"海报上传失败: {str(e)}")
+        return None
+
 @admin_bp.route('/dashboard')
 @admin_required
 def dashboard():

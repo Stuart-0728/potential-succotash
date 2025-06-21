@@ -1,10 +1,11 @@
 from flask_wtf import FlaskForm
 from wtforms import StringField, TextAreaField, DateTimeField, IntegerField, SelectField, SubmitField, SelectMultipleField, BooleanField, Field
 from wtforms.validators import DataRequired, Length, Optional, NumberRange
+from flask_wtf.file import FileField, FileAllowed
 from .models import Tag  # Import the Tag model
 import pytz
 from datetime import datetime
-from .utils.time_helpers import get_beijing_time, localize_time
+from .utils.time_helpers import get_beijing_time, localize_time, ensure_timezone_aware
 
 class LocalizedDateTimeField(DateTimeField):
     """本地化的日期时间字段，自动处理时区转换"""
@@ -21,6 +22,9 @@ class LocalizedDateTimeField(DateTimeField):
             # 确保添加正确的时区信息
             if self.data.tzinfo is None:
                 self.data = beijing_tz.localize(self.data)
+            else:
+                # 如果已有时区信息，确保是北京时间
+                self.data = self.data.astimezone(beijing_tz)
     
     def _value(self):
         """格式化时间为表单显示格式"""
@@ -28,15 +32,25 @@ class LocalizedDateTimeField(DateTimeField):
             # 确保时间是北京时间
             beijing_tz = pytz.timezone('Asia/Shanghai')
             if self.data.tzinfo is None:
-                self.data = beijing_tz.localize(self.data)
+                localized_data = beijing_tz.localize(self.data)
             else:
-                self.data = self.data.astimezone(beijing_tz)
+                localized_data = self.data.astimezone(beijing_tz)
+            
             # 使用字符串格式而不是列表
             format_str = self.format
             if isinstance(format_str, list):
                 format_str = format_str[0]
-            return self.data.strftime(format_str)
+            
+            return localized_data.strftime(format_str)
         return ''
+    
+    def populate_obj(self, obj, name):
+        """确保向对象填充时区感知的日期时间"""
+        if self.data is not None:
+            # 确保数据有时区信息
+            data = ensure_timezone_aware(self.data)
+            # 将对象的属性设置为带有时区信息的日期时间
+            setattr(obj, name, data)
 
 class ActivityForm(FlaskForm):
     title = StringField('活动标题', validators=[DataRequired(message='活动标题不能为空')])
@@ -50,6 +64,10 @@ class ActivityForm(FlaskForm):
     is_featured = BooleanField('设为重点活动', default=False)
     points = IntegerField('活动积分', validators=[NumberRange(min=0, max=100, message='积分值必须在0-100之间')], default=10, description='学生参加活动获得的积分值，默认普通活动10分，重点活动20分')
     tags = SelectMultipleField('活动标签', coerce=int, validators=[Optional()])
+    poster = FileField('活动海报', validators=[
+        Optional(),
+        FileAllowed(['jpg', 'jpeg', 'png', 'gif'], '只允许上传图片文件!')
+    ])
     submit = SubmitField('保存')
 
 class SearchForm(FlaskForm):

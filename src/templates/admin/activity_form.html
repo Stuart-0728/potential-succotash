@@ -172,6 +172,28 @@
             </div>
             
             <div class="mb-3">
+              <label class="form-label fw-medium">活动海报</label>
+              <div class="input-group">
+                <span class="input-group-text"><i class="fas fa-image"></i></span>
+                {{ form.poster(class="form-control" + (" is-invalid" if form.poster.errors else "")) }}
+              </div>
+              {% if form.poster.errors %}
+                <div class="invalid-feedback">
+                  {% for error in form.poster.errors %}
+                    {{ error }}
+                  {% endfor %}
+                </div>
+              {% endif %}
+              <small class="form-text text-muted">支持jpg、jpeg、png、gif格式，建议尺寸800x600像素</small>
+              {% if activity and activity.poster_url %}
+                <div class="mt-2">
+                  <p class="mb-1">当前海报:</p>
+                  <img src="{{ activity.poster_url }}" alt="活动海报" class="img-thumbnail" style="max-height: 200px;">
+                </div>
+              {% endif %}
+            </div>
+            
+            <div class="mb-3">
               {{ form.tags.label(class="form-label fw-medium") }}
               {% if form.tags.choices and form.tags.choices|length > 0 %}
                 <div class="tag-checkboxes p-3 border rounded bg-light">
