@@ -38,8 +38,11 @@ def get_localized_now():
     获取本地化的当前时间（北京时间）
     此函数适用于需要与数据库比较时间的情况
     """
-    # 使用与get_beijing_time相同的实现方式，确保一致性
-    return get_beijing_time()
+    # 检查是否在Render环境，如果是，返回UTC时间，否则返回北京时间
+    if is_render_environment():
+        return datetime.datetime.utcnow()
+    else:
+        return get_beijing_time().replace(tzinfo=None)
 
 def convert_to_utc(dt):
     """
@@ -52,22 +55,16 @@ def convert_to_utc(dt):
     
     # 如果dt已经有时区，则直接转换为UTC
     if dt.tzinfo is not None:
-        return dt.astimezone(pytz.utc)
+        return dt.astimezone(pytz.utc).replace(tzinfo=None)
     
-    # 如果dt没有时区，假设它是北京时间，然后转换为UTC
-    # 注意：如果代码运行在Render服务器上，默认使用UTC时间，这里需要正确处理
-    # 这里我们应该查看数据库中的时间是如何存储的
-    # 如果数据库中时间没有时区信息，并且应用程序将其视为UTC，则应该直接添加UTC时区标记
+    # 如果dt没有时区，并且在Render环境下，假设它已经是UTC时间
+    if is_render_environment():
+        return dt
     
-    # 检查是否在Render环境下（假设Render环境中已正确设置环境变量）
-    if current_app.config.get('IS_RENDER_ENVIRONMENT', False):
-        # 在Render环境中，假设输入的dt已经是UTC时间，只需添加时区信息
-        return pytz.utc.localize(dt)
-    else:
-        # 在本地环境中，假设输入的dt是北京时间，需要转换为UTC
-        beijing_tz = pytz.timezone('Asia/Shanghai')
-        localized_dt = beijing_tz.localize(dt)
-        return localized_dt.astimezone(pytz.utc)
+    # 如果在本地环境，则假设它是北京时间，需要转为UTC
+    beijing_tz = pytz.timezone('Asia/Shanghai')
+    localized_dt = beijing_tz.localize(dt)
+    return localized_dt.astimezone(pytz.utc).replace(tzinfo=None)
 
 def format_datetime(dt, format_str='%Y-%m-%d %H:%M'):
     """
@@ -83,7 +80,11 @@ def format_datetime(dt, format_str='%Y-%m-%d %H:%M'):
     beijing_time = dt
     if dt.tzinfo is None:
         # 如果没有时区信息，假设它是UTC时间，转换为北京时间
-        beijing_time = pytz.utc.localize(dt).astimezone(pytz.timezone('Asia/Shanghai'))
+        if is_render_environment():
+            beijing_time = pytz.utc.localize(dt).astimezone(pytz.timezone('Asia/Shanghai'))
+        else:
+            # 本地环境，假设已经是北京时间
+            beijing_time = pytz.timezone('Asia/Shanghai').localize(dt)
     elif dt.tzinfo != pytz.timezone('Asia/Shanghai'):
         # 如果有时区信息但不是北京时间，转换为北京时间
         beijing_time = dt.astimezone(pytz.timezone('Asia/Shanghai'))
@@ -110,7 +111,7 @@ def ensure_timezone_aware(dt, default_timezone='Asia/Shanghai'):
         
     if is_naive_datetime(dt):
         # 检查是否在Render环境下
-        if current_app.config.get('IS_RENDER_ENVIRONMENT', False):
+        if is_render_environment():
             # 在Render环境中，假设naive时间已经是UTC
             return pytz.utc.localize(dt)
         else:
@@ -186,4 +187,30 @@ def safe_compare(dt1, dt2):
     if dt1_aware is None or dt2_aware is None:
         return False
     
-    return dt1_aware == dt2_aware 
+    return dt1_aware == dt2_aware
+
+def is_render_environment():
+    """
+    检查是否在Render环境中运行
+    :return: 布尔值
+    """
+    try:
+        return current_app.config.get('IS_RENDER_ENVIRONMENT', False)
+    except RuntimeError:
+        # 如果在应用上下文外部调用，则检查环境变量
+        import os
+        return os.environ.get('RENDER', False) or os.environ.get('IS_RENDER', False)
+
+def normalize_datetime_for_db(dt):
+    """
+    规范化datetime对象，以便存储到数据库中
+    对于Render环境，返回UTC时间（无时区信息）
+    对于本地环境，返回本地时间（无时区信息）
+    :param dt: datetime对象
+    :return: 规范化后的datetime对象
+    """
+    if dt is None:
+        return None
+        
+    # 将时间转换为UTC，并去除时区信息
+    return convert_to_utc(dt) 

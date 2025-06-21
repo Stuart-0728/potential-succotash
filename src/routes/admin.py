@@ -15,8 +15,12 @@ from werkzeug.utils import secure_filename
 import qrcode
 from io import BytesIO
 import hashlib
-from src.utils.time_helpers import get_localized_now, get_beijing_time, localize_time
+from src.utils.time_helpers import get_localized_now, get_beijing_time, localize_time, is_render_environment, normalize_datetime_for_db
 import base64
+import random
+import string
+from functools import wraps
+import tempfile
 
 admin_bp = Blueprint('admin', __name__)
 logger = logging.getLogger(__name__)
@@ -183,6 +187,11 @@ def edit_activity(id):
                     tag = Tag.query.get(int(tag_id))
                     if tag:
                         activity.tags.append(tag)
+                
+                # 确保时间字段正确处理
+                activity.start_time = normalize_datetime_for_db(activity.start_time)
+                activity.end_time = normalize_datetime_for_db(activity.end_time)
+                activity.registration_deadline = normalize_datetime_for_db(activity.registration_deadline)
                 
                 db.session.commit()
                 
