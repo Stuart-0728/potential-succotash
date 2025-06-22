@@ -286,6 +286,7 @@ class Notification(db.Model):
     title = db.Column(db.String(100), nullable=False)
     content = db.Column(db.Text, nullable=False)
     is_important = db.Column(db.Boolean, default=False)
+    is_public = db.Column(db.Boolean, default=True)  # 是否是公开通知
     created_at = db.Column(db.DateTime, default=lambda: normalize_datetime_for_db(datetime.now()))
     created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     expiry_date = db.Column(db.DateTime, nullable=True)
