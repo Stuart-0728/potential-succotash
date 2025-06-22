@@ -16,10 +16,10 @@ document.addEventListener('DOMContentLoaded', function() {
     setupSearchOptimization();
 
     // 通知系统
-    // 检查是否是学生用户页面
-    const isStudentPage = document.body.classList.contains('student-page');
+    // 检查是否已登录（通过查找用户菜单）
+    const userMenu = document.querySelector('.user-menu');
     
-    if (isStudentPage) {
+    if (userMenu) {
         // 获取未读重要通知
         fetchUnreadNotifications();
         
@@ -327,113 +327,154 @@ function updateRegistrationStatus(registrationId, newStatus) {
 }
 
 // 通知系统
-// 获取未读重要通知
+// 获取未读通知
 function fetchUnreadNotifications() {
-    fetch('/student/api/notifications/unread')
-        .then(response => response.json())
+    fetch('/api/notifications/unread')
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('网络响应异常');
+            }
+            return response.json();
+        })
         .then(data => {
-            if (data.success && data.notifications && data.notifications.length > 0) {
+            if (data.success) {
+                // 更新通知徽章
                 updateNotificationBadge(data.notifications.length);
-                showNotificationBanner(data.notifications[0]);
-            } else {
-                updateNotificationBadge(0);
-                removeNotificationBanner();
+                
+                // 显示通知横幅
+                if (data.notifications.length > 0) {
+                    // 移除旧的通知横幅
+                    removeNotificationBanner();
+                    
+                    // 添加新的通知横幅
+                    data.notifications.forEach(notification => {
+                        showNotificationBanner(notification);
+                    });
+                }
             }
         })
         .catch(error => {
-            console.error('获取通知失败:', error);
+            console.error('获取未读通知失败:', error);
         });
 }
 
 // 更新通知徽章
 function updateNotificationBadge(count) {
     const badge = document.querySelector('.notification-badge');
-    
     if (badge) {
         if (count > 0) {
             badge.textContent = count;
-            badge.style.display = 'flex';
+            badge.style.display = 'inline-block';
         } else {
             badge.style.display = 'none';
         }
+    } else {
+        // 如果不存在徽章，则创建一个
+        const navLinks = document.querySelectorAll('.nav-link');
+        navLinks.forEach(link => {
+            if (link.href && link.href.includes('/notifications')) {
+                const badge = document.createElement('span');
+                badge.className = 'badge bg-danger notification-badge';
+                badge.style.marginLeft = '5px';
+                badge.textContent = count;
+                if (count <= 0) {
+                    badge.style.display = 'none';
+                }
+                link.appendChild(badge);
+            }
+        });
     }
 }
 
 // 显示通知横幅
 function showNotificationBanner(notification) {
-    // 检查是否已经存在通知横幅
-    let banner = document.querySelector('.notification-banner');
-    
-    if (!banner) {
-        banner = document.createElement('div');
-        banner.className = 'notification-banner important';
-        banner.style.transition = 'all 0.5s ease';
-        
-        const content = document.createElement('div');
-        content.className = 'notification-content text-center';
-        content.innerHTML = `<strong>${notification.title}:</strong> ${notification.content}`;
-        
-        const closeBtn = document.createElement('button');
-        closeBtn.className = 'close-btn notification-close';
-        closeBtn.setAttribute('data-notification-id', notification.id);
-        closeBtn.innerHTML = '&times;';
-        
-        banner.appendChild(content);
-        banner.appendChild(closeBtn);
-        
-        // 添加到页面顶部
-        document.body.insertBefore(banner, document.body.firstChild);
-    } else {
-        // 更新现有横幅内容
-        const content = banner.querySelector('.notification-content');
-        if (content) {
-            content.innerHTML = `<strong>${notification.title}:</strong> ${notification.content}`;
-        }
-        
-        const closeBtn = banner.querySelector('.close-btn');
-        if (closeBtn) {
-            closeBtn.setAttribute('data-notification-id', notification.id);
-        }
+    // 检查是否已存在相同ID的通知横幅
+    const existingBanner = document.querySelector(`.notification-banner[data-notification-id="${notification.id}"]`);
+    if (existingBanner) {
+        return; // 已存在，不再创建
     }
+    
+    const container = document.createElement('div');
+    container.className = 'notification-banner alert alert-primary alert-dismissible fade show';
+    container.setAttribute('data-notification-id', notification.id);
+    container.style.position = 'fixed';
+    container.style.top = '10px';
+    container.style.right = '10px';
+    container.style.maxWidth = '400px';
+    container.style.zIndex = '9999';
+    container.style.boxShadow = '0 4px 8px rgba(0,0,0,0.1)';
+    container.style.transition = 'all 0.5s ease';
+    
+    container.innerHTML = `
+        <strong>${notification.title}</strong>
+        <p class="mb-0">${notification.content.length > 100 ? notification.content.substring(0, 100) + '...' : notification.content}</p>
+        <button type="button" class="btn-close notification-close" data-notification-id="${notification.id}" aria-label="Close"></button>
+        <div class="mt-2">
+            <a href="/notification/${notification.id}" class="btn btn-sm btn-primary">查看详情</a>
+        </div>
+    `;
+    
+    document.body.appendChild(container);
+    
+    // 设置自动关闭（30秒后）
+    setTimeout(() => {
+        if (container && container.parentNode) {
+            container.classList.remove('show');
+            setTimeout(() => {
+                if (container && container.parentNode) {
+                    container.parentNode.removeChild(container);
+                }
+            }, 500);
+        }
+    }, 30000);
 }
 
-// 移除通知横幅
+// 移除所有通知横幅
 function removeNotificationBanner() {
-    const banner = document.querySelector('.notification-banner');
-    if (banner) {
-        banner.style.height = banner.offsetHeight + 'px';
+    const banners = document.querySelectorAll('.notification-banner');
+    banners.forEach(banner => {
+        banner.classList.remove('show');
         setTimeout(() => {
-            banner.style.height = '0';
-            banner.style.padding = '0';
-            banner.style.margin = '0';
-            banner.style.overflow = 'hidden';
-            banner.style.borderWidth = '0';
-        }, 10);
-        
-        setTimeout(() => {
-            banner.remove();
+            if (banner.parentNode) {
+                banner.parentNode.removeChild(banner);
+            }
         }, 500);
-    }
+    });
 }
 
 // 标记通知为已读
 function markNotificationAsRead(notificationId) {
-    fetch(`/student/notification/${notificationId}/mark_read`, {
+    fetch(`/notification/${notificationId}/mark_read`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
-            'X-Requested-With': 'XMLHttpRequest'
+            'X-CSRFToken': getCsrfToken() // 获取CSRF令牌的函数
         }
     })
-    .then(response => response.json())
+    .then(response => {
+        if (!response.ok) {
+            throw new Error('网络响应异常');
+        }
+        return response.json();
+    })
     .then(data => {
         if (data.success) {
-            console.log('通知已标记为已读');
-            // 重新获取未读通知
-            fetchUnreadNotifications();
+            // 更新通知徽章
+            const badge = document.querySelector('.notification-badge');
+            if (badge && badge.textContent) {
+                const count = parseInt(badge.textContent) - 1;
+                updateNotificationBadge(count);
+            }
         }
     })
     .catch(error => {
-        console.error('标记通知失败:', error);
+        console.error('标记通知已读失败:', error);
     });
 }
+
+// 获取CSRF令牌
+function getCsrfToken() {
+    const metaTag = document.querySelector('meta[name="csrf-token"]');
+    return metaTag ? metaTag.getAttribute('content') : '';
+}
+

@@ -64,12 +64,12 @@ def dashboard():
             Activity.status == 'active'
         ).count()
         
-        # 获取即将开始的活动
+        # 获取即将开始的活动 - 确保时区安全比较
         upcoming_registrations = Registration.query.join(
             Activity, Registration.activity_id == Activity.id
         ).filter(
             Registration.user_id == current_user.id,
-            Activity.start_time > now
+            Activity.status == 'active'  # 只考虑活动状态，不再比较时间
         ).count()
         
         return render_template('student/dashboard.html',
@@ -79,7 +79,8 @@ def dashboard():
                              upcoming_activities=recommended_activities,
                              total_activities=total_activities,
                              ongoing_activities=ongoing_activities,
-                             now=now)
+                             now=now,
+                             display_datetime=display_datetime)
     except Exception as e:
         logger.error(f"Error in student dashboard: {e}")
         flash('加载面板时发生错误', 'danger')
@@ -124,7 +125,8 @@ def activities():
                               activities=activities_list, 
                               current_status=status,
                               registered_activity_ids=registered_activity_ids,
-                              now=now)
+                              now=now,
+                              display_datetime=display_datetime)
     except Exception as e:
         logger.error(f"Error in student activities: {e}")
         flash('加载活动列表时发生错误', 'danger')
@@ -168,9 +170,13 @@ def activity_detail(id):
         
         # 检查是否可以报名
         now = ensure_timezone_aware(datetime.now())
+        
+        # 确保活动的截止日期有时区信息
+        registration_deadline = ensure_timezone_aware(activity.registration_deadline) if activity.registration_deadline else None
+        
         can_register = (
             activity.status == 'active' and 
-            activity.registration_deadline >= now and 
+            (registration_deadline is None or registration_deadline >= now) and 
             (activity.max_participants == 0 or registered_count < activity.max_participants)
         )
         
@@ -186,7 +192,8 @@ def activity_detail(id):
                              avg_organization=avg_organization,
                              avg_facility=avg_facility,
                              can_register=can_register,
-                             now=now)
+                             now=now,
+                             display_datetime=display_datetime)
     except Exception as e:
         logger.error(f"Error in activity detail: {e}")
         flash('加载活动详情时发生错误', 'danger')
@@ -277,55 +284,41 @@ def my_activities():
         page = request.args.get('page', 1, type=int)
         status = request.args.get('status', 'all')
         
-        # 获取用户的所有报名记录
-        registrations = Registration.query.filter_by(user_id=current_user.id)
+        # 获取当前时间，确保带有时区信息
+        now = ensure_timezone_aware(datetime.now())
+        
+        # 基本查询 - 获取用户的所有报名记录
+        query = Registration.query.filter_by(user_id=current_user.id)
         
         # 根据状态筛选
-        if status == 'upcoming':
-            # 获取即将开始的活动ID
-            upcoming_activity_ids = db.session.query(Activity.id).filter(
-                Activity.start_time > ensure_timezone_aware(datetime.now()),
-                Activity.status == 'active'
-            ).all()
-            upcoming_activity_ids = [a[0] for a in upcoming_activity_ids]
-            
-            # 筛选用户报名的即将开始的活动
-            registrations = registrations.filter(
-                Registration.status == 'registered',
-                Registration.activity_id.in_(upcoming_activity_ids)
-            )
-        elif status == 'past':
-            # 获取已结束的活动ID
-            past_activity_ids = db.session.query(Activity.id).filter(
-                Activity.end_time < ensure_timezone_aware(datetime.now())
-            ).all()
-            past_activity_ids = [a[0] for a in past_activity_ids]
-            
-            # 筛选用户报名的已结束活动
-            registrations = registrations.filter(
-                Registration.status == 'registered',
-                Registration.activity_id.in_(past_activity_ids)
-            )
+        if status == 'active':
+            query = query.join(Activity).filter(Activity.status == 'active')
+        elif status == 'completed':
+            query = query.join(Activity).filter(Activity.status == 'completed')
         elif status == 'cancelled':
-            # 筛选用户取消的报名
-            registrations = registrations.filter(Registration.status == 'cancelled')
+            query = query.filter_by(status='cancelled')
         
-        # 分页获取报名记录
-        registrations_page = registrations.order_by(Registration.register_time.desc()).paginate(page=page, per_page=10)
+        # 获取报名记录，并按活动开始时间排序
+        registrations = query.join(Activity).order_by(Activity.start_time.desc()).paginate(page=page, per_page=10)
         
-        # 获取相关活动信息
-        activities_dict = {}
-        for reg in registrations_page.items:
-            if reg.activity_id not in activities_dict:
-                activities_dict[reg.activity_id] = Activity.query.get(reg.activity_id)
+        # 获取待评价的活动
+        pending_reviews = []
+        for reg in registrations.items:
+            # 检查活动是否已结束
+            if reg.activity.status == 'completed' or (reg.activity.end_time and ensure_timezone_aware(reg.activity.end_time) < now):
+                # 检查用户是否已评价
+                review = ActivityReview.query.filter_by(activity_id=reg.activity_id, user_id=current_user.id).first()
+                if not review:
+                    pending_reviews.append(reg.activity_id)
         
         return render_template('student/my_activities.html', 
-                              registrations=registrations_page,
-                              activities=activities_dict,
+                              registrations=registrations,
                               current_status=status,
-                              now=ensure_timezone_aware(datetime.now()))
+                              pending_reviews=pending_reviews,
+                              now=now,
+                              display_datetime=display_datetime)
     except Exception as e:
-        logger.error(f"Error in my activities: {e}")
+        logger.error(f"Error in my_activities: {e}")
         flash('加载我的活动时发生错误', 'danger')
         return redirect(url_for('student.dashboard'))
 
