@@ -218,16 +218,37 @@ def display_datetime(dt, format_str='%Y-%m-%d %H:%M'):
     :param format_str: 格式化字符串
     :return: 格式化后的字符串
     """
-    if dt is None:
-        return ''
-    
-    # 如果在Render环境中，数据库时间是UTC时间
-    if is_render_environment() and dt.tzinfo is None:
-        dt = pytz.utc.localize(dt)
-    # 如果在本地环境中，数据库时间是本地时间
-    elif not is_render_environment() and dt.tzinfo is None:
-        dt = pytz.timezone('Asia/Shanghai').localize(dt)
-    
-    # 转换为北京时间显示
-    beijing_time = dt.astimezone(pytz.timezone('Asia/Shanghai'))
-    return beijing_time.strftime(format_str) 
+    try:
+        # 如果输入为None或非datetime对象，返回空字符串
+        if dt is None:
+            return ''
+            
+        if not isinstance(dt, datetime.datetime):
+            return str(dt)
+        
+        # 处理时区信息
+        try:
+            # 如果在Render环境中，数据库时间是UTC时间
+            if is_render_environment() and dt.tzinfo is None:
+                dt = pytz.utc.localize(dt)
+            # 如果在本地环境中，数据库时间是本地时间
+            elif not is_render_environment() and dt.tzinfo is None:
+                dt = pytz.timezone('Asia/Shanghai').localize(dt)
+            
+            # 转换为北京时间显示
+            beijing_time = dt.astimezone(pytz.timezone('Asia/Shanghai'))
+            return beijing_time.strftime(format_str)
+        except (AttributeError, ValueError) as e:
+            # 如果时区转换失败，尝试直接格式化
+            try:
+                return dt.strftime(format_str)
+            except:
+                return str(dt)
+    except Exception as e:
+        # 捕获所有异常，确保函数不会崩溃
+        import logging
+        logging.getLogger(__name__).error(f"Error in display_datetime: {e}")
+        try:
+            return dt.strftime(format_str) if dt else ''
+        except:
+            return str(dt) if dt else '' 
