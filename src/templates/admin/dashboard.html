@@ -134,13 +134,25 @@
                         </div>
                     </div>
                     <div class="row mt-2">
-                        <div class="col-12 col-md-6 mb-3">
+                        <div class="col-6 col-md-3 mb-3">
                             <a href="{{ url_for('admin.manage_tags') }}" class="btn btn-outline-primary d-flex align-items-center justify-content-center gap-2 w-100">
                                 <i class="fas fa-tags"></i>
                                 <span>管理标签</span>
                             </a>
                         </div>
-                        <div class="col-12 col-md-6 mb-3">
+                        <div class="col-6 col-md-3 mb-3">
+                            <a href="{{ url_for('admin.notifications') }}" class="btn btn-outline-success d-flex align-items-center justify-content-center gap-2 w-100">
+                                <i class="fas fa-bell"></i>
+                                <span>通知管理</span>
+                            </a>
+                        </div>
+                        <div class="col-6 col-md-3 mb-3">
+                            <a href="{{ url_for('admin.messages') }}" class="btn btn-outline-info d-flex align-items-center justify-content-center gap-2 w-100">
+                                <i class="fas fa-envelope"></i>
+                                <span>站内信</span>
+                            </a>
+                        </div>
+                        <div class="col-6 col-md-3 mb-3">
                             <a href="{{ url_for('admin.reset_system_page') }}" class="btn btn-outline-danger d-flex align-items-center justify-content-center gap-2 w-100">
                                 <i class="fas fa-exclamation-triangle"></i>
                                 <span>重置系统</span>

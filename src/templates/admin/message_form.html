@@ -1,0 +1,58 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ title }} - 重庆师范大学师能素质协会{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{{ url_for('admin.dashboard') }}">管理面板</a></li>
+            <li class="breadcrumb-item"><a href="{{ url_for('admin.messages') }}">站内信</a></li>
+            <li class="breadcrumb-item active" aria-current="page">{{ title }}</li>
+        </ol>
+    </nav>
+
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-primary text-white">
+            <h4 class="mb-0">{{ title }}</h4>
+        </div>
+        <div class="card-body">
+            <form method="post">
+                <div class="mb-3">
+                    <label for="receiver_id" class="form-label">收件人 <span class="text-danger">*</span></label>
+                    <select class="form-select" id="receiver_id" name="receiver_id" required>
+                        <option value="">-- 选择收件人 --</option>
+                        {% for student in students %}
+                        <option value="{{ student.id }}">
+                            {{ student.username }} 
+                            {% if student.student_info %}
+                                - {{ student.student_info.real_name }} ({{ student.student_info.student_id }})
+                            {% endif %}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <div class="mb-3">
+                    <label for="subject" class="form-label">主题 <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control" id="subject" name="subject" required>
+                </div>
+                
+                <div class="mb-3">
+                    <label for="content" class="form-label">内容 <span class="text-danger">*</span></label>
+                    <textarea class="form-control" id="content" name="content" rows="5" required></textarea>
+                </div>
+                
+                <div class="d-flex justify-content-between">
+                    <a href="{{ url_for('admin.messages') }}" class="btn btn-secondary">
+                        <i class="fas fa-arrow-left me-1"></i>返回
+                    </a>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-paper-plane me-1"></i>发送
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %} 
