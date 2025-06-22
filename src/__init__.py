@@ -3,120 +3,93 @@ import logging
 from logging.handlers import RotatingFileHandler
 from flask import Flask, render_template
 from flask_sqlalchemy import SQLAlchemy
-from flask_login import LoginManager
 from flask_migrate import Migrate
-import pytz
-from datetime import datetime
-from flask_caching import Cache
+from flask_login import LoginManager
 from flask_wtf.csrf import CSRFProtect
-from flask_limiter import Limiter
-from flask_limiter.util import get_remote_address
+from flask_caching import Cache
+from datetime import datetime
 from src.config import Config
 from src.utils.time_helpers import display_datetime
 
-logger = logging.getLogger(__name__)
-
+# 初始化扩展，但不传入app实例
 db = SQLAlchemy()
-login_manager = LoginManager()
 migrate = Migrate()
-cache = Cache()
+login_manager = LoginManager()
 csrf = CSRFProtect()
-limiter = Limiter(key_func=get_remote_address)
+cache = Cache()
+
+# 尝试导入Flask-Limiter，如果不存在则使用一个空的占位符
+try:
+    from flask_limiter import Limiter
+    from flask_limiter.util import get_remote_address
+    limiter = Limiter(key_func=get_remote_address)
+except ImportError:
+    # 如果Flask-Limiter不可用，创建一个假的Limiter类
+    class FakeLimiter:
+        def __init__(self, **kwargs):
+            pass
+        
+        def init_app(self, app):
+            pass
+            
+    limiter = FakeLimiter()
+    print("警告: Flask-Limiter未安装，速率限制功能将被禁用")
+
+logger = logging.getLogger(__name__)
 
 def create_app(config_name=None):
     app = Flask(__name__)
-
-    # 加载配置
-    if config_name is None:
-        config_name = os.environ.get('FLASK_ENV', 'development')
     
-    # 如果在Render平台上运行，使用生产配置
-    if os.environ.get('RENDER') or os.environ.get('IS_RENDER'):
-        config_name = 'production'
-        os.environ['FLASK_ENV'] = 'production'
-    
-    from .config import config
-    app.config.from_object(config[config_name])
-    config[config_name].init_app(app)
+    # 配置应用
+    if config_name:
+        app.config.from_object(config_name)
+    else:
+        app.config.from_object(Config)
     
     # 初始化扩展
     db.init_app(app)
     migrate.init_app(app, db)
     login_manager.init_app(app)
     csrf.init_app(app)
+    cache.init_app(app)
     limiter.init_app(app)
     
     # 记录环境和时区信息
-    app.logger.info(f"应用启动在 {config_name} 环境")
-    app.logger.info(f"当前UTC时间: {datetime.utcnow()}")
-    app.logger.info(f"配置的时区: {app.config.get('TIMEZONE', 'UTC')}")
-    beijing_time = datetime.now(pytz.timezone('Asia/Shanghai'))
-    app.logger.info(f"当前北京时间: {beijing_time}")
-    
-    # 配置时区检测
-    @app.before_request
-    def setup_timezone():
-        # 在全局变量中存储当前本地化的北京时间
-        app.config['current_beijing_time'] = datetime.now(pytz.timezone('Asia/Shanghai'))
+    with app.app_context():
+        app.logger.info(f"应用启动于环境: {os.environ.get('FLASK_ENV', 'development')}")
+        app.logger.info(f"数据库URI: {app.config.get('SQLALCHEMY_DATABASE_URI', '未设置')}")
+        app.logger.info(f"当前系统时间: {datetime.now()}")
         
-        # 检测是否在Render环境
-        if app.config.get('IS_RENDER_ENVIRONMENT', False):
-            app.logger.debug("在Render环境中运行，时间为UTC")
+        # 设置Render环境变量
+        if os.environ.get('RENDER', '') == 'true':
+            app.config['IS_RENDER_ENVIRONMENT'] = True
+            app.logger.info("检测到Render环境")
         else:
-            app.logger.debug("在本地环境中运行，时间为本地时区")
-    
-    # 模板全局变量
-    @app.context_processor
-    def inject_timezone_data():
-        """注入时区相关的变量到模板"""
-        def get_current_beijing_time():
-            """获取当前的北京时间"""
-            return datetime.now(pytz.timezone('Asia/Shanghai'))
-        
-        return {
-            'get_current_beijing_time': get_current_beijing_time,
-            'timezone_name': app.config.get('TIMEZONE', 'Asia/Shanghai')
-        }
+            app.config['IS_RENDER_ENVIRONMENT'] = False
     
     # 注册蓝图
-    from .routes.main import main_bp
-    from .routes.auth import auth_bp
-    from .routes.admin import admin_bp
-    from .routes.student import student_bp
-    from .routes.utils import utils_bp
-    from .routes.tag import tag_bp
-    from .routes.checkin import checkin_bp
+    from src.routes.main import main_bp
+    from src.routes.auth import auth_bp
+    from src.routes.admin import admin_bp
+    from src.routes.student import student_bp
+    from src.routes.checkin import checkin_bp
+    from src.routes.tag import tag_bp
+    from src.routes.errors import errors_bp
     
     app.register_blueprint(main_bp)
-    app.register_blueprint(auth_bp, url_prefix='/auth')
-    app.register_blueprint(admin_bp, url_prefix='/admin')
-    app.register_blueprint(student_bp, url_prefix='/student')
-    app.register_blueprint(utils_bp)
-    app.register_blueprint(tag_bp, url_prefix='/tags')
-    app.register_blueprint(checkin_bp, url_prefix='/checkin')
-
-    # 错误处理
-    from .routes.errors import register_error_handlers
-    register_error_handlers(app)
+    app.register_blueprint(auth_bp)
+    app.register_blueprint(admin_bp)
+    app.register_blueprint(student_bp)
+    app.register_blueprint(checkin_bp)
+    app.register_blueprint(tag_bp)
+    app.register_blueprint(errors_bp)
     
-    # 注册用户加载函数
-    from .models import User
-    @login_manager.user_loader
-    def load_user(user_id):
-        return User.query.get(int(user_id))
-
-    # 全局处理函数
-    @app.context_processor
-    def inject_utils():
-        from .utils.time_helpers import format_datetime
-        
-        return dict(
-            format_datetime=format_datetime,
-        )
+    # 注册错误处理器
+    register_error_handlers(app)
     
     # 注册命令
     register_commands(app)
-
+    
     # 添加全局模板函数
     app.jinja_env.globals.update(display_datetime=display_datetime)
     
@@ -142,50 +115,47 @@ def create_app(config_name=None):
         app.logger.addHandler(file_handler)
         app.logger.setLevel(logging.INFO)
         app.logger.info('CQNU Association startup')
-
+    
     return app
 
-def register_commands(app):
-    """注册自定义命令"""
+def register_error_handlers(app):
+    @app.errorhandler(404)
+    def page_not_found(e):
+        return render_template('404.html'), 404
     
-    @app.cli.command('create-admin')
-    def create_admin():
-        """创建一个管理员用户"""
-        from .models import User, Role
-        from werkzeug.security import generate_password_hash
+    @app.errorhandler(500)
+    def internal_server_error(e):
+        return render_template('500.html'), 500
+
+def register_commands(app):
+    """注册自定义Flask命令"""
+    
+    @app.cli.command('init')
+    def init():
+        """初始化数据库"""
+        from src.models import Role, User
         
-        # 检查是否已有管理员
-        admin_exists = User.query.filter_by(role_id=Role.ADMIN).first()
-        if admin_exists:
-            print('管理员用户已存在')
-            return
+        db.create_all()
         
-        # 创建管理员用户
-        username = input('请输入管理员用户名: ')
-        password = input('请输入管理员密码: ')
+        # 创建角色
+        if Role.query.count() == 0:
+            roles = ['Admin', 'Student']
+            for role_name in roles:
+                role = Role(name=role_name)
+                db.session.add(role)
+            db.session.commit()
+            print('角色创建成功')
         
-        admin = User(username=username, password_hash=generate_password_hash(password), role_id=Role.ADMIN)
-        try:
+        # 创建管理员账户
+        if User.query.filter_by(username='admin').first() is None:
+            admin_role = Role.query.filter_by(name='Admin').first()
+            admin = User(
+                username='admin',
+                password_hash='pbkdf2:sha256:150000$GJD7cGxS$8f77b1d2be65a1d8a58dac5a1d6c1d6f9c287a20d9c3ce069b4d99a852ce0c1a',  # 默认密码: admin
+                role_id=admin_role.id if admin_role else None
+            )
             db.session.add(admin)
             db.session.commit()
-            print(f'管理员用户 {username} 创建成功')
-        except Exception as e:
-            db.session.rollback()
-            print(f'创建管理员失败: {str(e)}')
-    
-    @app.cli.command('reset-db')
-    def reset_db():
-        """重置数据库 (仅开发环境使用)"""
-        if app.config['ENV'] != 'development':
-            print('此命令仅在开发环境可用')
-            return
-            
-        if input('确定要重置数据库? 所有数据将被删除! (y/n): ').lower() == 'y':
-            try:
-                db.drop_all()
-                db.create_all()
-                print('数据库已重置')
-            except Exception as e:
-                print(f'重置数据库失败: {str(e)}')
-        else:
-            print('已取消操作') 
+            print('管理员账户创建成功')
+        
+        print('初始化完成') 
