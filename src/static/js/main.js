@@ -53,6 +53,18 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
     });
+
+    // 检查是否有通知需要显示
+    displayNotifications();
+    
+    // 处理删除确认
+    setupDeleteConfirmation();
+    
+    // 处理签到表单
+    setupCheckinForm();
+    
+    // 处理活动倒计时
+    setupCountdowns();
 });
 
 // 图表初始化函数
@@ -347,8 +359,11 @@ function fetchUnreadNotifications() {
                     removeNotificationBanner();
                     
                     // 添加新的通知横幅
-                    data.notifications.forEach(notification => {
-                        showNotificationBanner(notification);
+                    data.notifications.forEach((notification, index) => {
+                        // 错开显示时间，避免所有通知同时出现
+                        setTimeout(() => {
+                            showNotificationBanner(notification);
+                        }, index * 1000); // 每个通知间隔1秒显示
                     });
                 }
             }
@@ -394,16 +409,26 @@ function showNotificationBanner(notification) {
         return; // 已存在，不再创建
     }
     
+    // 检查通知容器是否存在，如果不存在则创建
+    let notificationContainer = document.getElementById('notification-container');
+    if (!notificationContainer) {
+        notificationContainer = document.createElement('div');
+        notificationContainer.id = 'notification-container';
+        notificationContainer.style.position = 'fixed';
+        notificationContainer.style.top = '10px';
+        notificationContainer.style.right = '10px';
+        notificationContainer.style.maxWidth = '400px';
+        notificationContainer.style.zIndex = '9999';
+        document.body.appendChild(notificationContainer);
+    }
+    
     const container = document.createElement('div');
     container.className = 'notification-banner alert alert-primary alert-dismissible fade show';
     container.setAttribute('data-notification-id', notification.id);
-    container.style.position = 'fixed';
-    container.style.top = '10px';
-    container.style.right = '10px';
-    container.style.maxWidth = '400px';
-    container.style.zIndex = '9999';
     container.style.boxShadow = '0 4px 8px rgba(0,0,0,0.1)';
     container.style.transition = 'all 0.5s ease';
+    container.style.marginBottom = '10px';
+    container.style.animation = 'slideIn 0.5s ease-out';
     
     container.innerHTML = `
         <strong>${notification.title}</strong>
@@ -414,19 +439,46 @@ function showNotificationBanner(notification) {
         </div>
     `;
     
-    document.body.appendChild(container);
+    // 添加动画样式
+    const style = document.createElement('style');
+    if (!document.getElementById('notification-animation-style')) {
+        style.id = 'notification-animation-style';
+        style.textContent = `
+            @keyframes slideIn {
+                from {
+                    transform: translateX(100%);
+                    opacity: 0;
+                }
+                to {
+                    transform: translateX(0);
+                    opacity: 1;
+                }
+            }
+            @keyframes fadeOut {
+                from {
+                    opacity: 1;
+                }
+                to {
+                    opacity: 0;
+                }
+            }
+        `;
+        document.head.appendChild(style);
+    }
     
-    // 设置自动关闭（30秒后）
+    notificationContainer.appendChild(container);
+    
+    // 设置自动关闭（15秒后）
     setTimeout(() => {
         if (container && container.parentNode) {
-            container.classList.remove('show');
+            container.style.animation = 'fadeOut 0.5s ease-out';
             setTimeout(() => {
                 if (container && container.parentNode) {
                     container.parentNode.removeChild(container);
                 }
             }, 500);
         }
-    }, 30000);
+    }, 15000);
 }
 
 // 移除所有通知横幅
@@ -476,5 +528,179 @@ function markNotificationAsRead(notificationId) {
 function getCsrfToken() {
     const metaTag = document.querySelector('meta[name="csrf-token"]');
     return metaTag ? metaTag.getAttribute('content') : '';
+}
+
+// 显示通知横幅
+function displayNotifications() {
+    // 检查是否有通知元素
+    var notificationContainer = document.querySelector('.notification-container');
+    if (!notificationContainer) {
+        // 创建通知容器
+        notificationContainer = document.createElement('div');
+        notificationContainer.className = 'notification-container position-fixed top-0 start-0 end-0 p-2 d-flex flex-column align-items-center';
+        notificationContainer.style.zIndex = '1050';
+        document.body.appendChild(notificationContainer);
+    }
+    
+    // 如果页面上有公共通知，可以在这里添加额外的处理
+    var publicNotifications = document.querySelectorAll('.public-notification');
+    if (publicNotifications.length > 0) {
+        // 公共通知已经在页面上显示，不需要额外处理
+        console.log('公共通知已在页面上显示');
+    }
+    
+    // 获取未读通知（如果用户已登录）
+    if (typeof isAuthenticated !== 'undefined' && isAuthenticated) {
+        fetch('/api/notifications/unread')
+            .then(response => response.json())
+            .then(data => {
+                if (data.notifications && data.notifications.length > 0) {
+                    // 显示通知数量徽章
+                    updateNotificationBadge(data.notifications.length);
+                    
+                    // 显示最新的通知作为横幅
+                    showNotificationBanner(data.notifications[0]);
+                }
+            })
+            .catch(error => console.error('获取通知失败:', error));
+    }
+}
+
+// 设置删除确认
+function setupDeleteConfirmation() {
+    document.querySelectorAll('.delete-confirm').forEach(function(button) {
+        button.addEventListener('click', function(e) {
+            if (!confirm('确定要删除吗？此操作不可撤销。')) {
+                e.preventDefault();
+            }
+        });
+    });
+}
+
+// 设置签到表单
+function setupCheckinForm() {
+    const checkinForm = document.getElementById('checkin-form');
+    if (checkinForm) {
+        checkinForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(checkinForm);
+            
+            fetch('/api/attendance/checkin', {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-CSRFToken': getCsrfToken()
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showAlert('success', '签到成功！');
+                    // 如果需要，可以更新UI
+                } else {
+                    showAlert('danger', data.message || '签到失败，请重试');
+                }
+            })
+            .catch(error => {
+                console.error('签到请求失败:', error);
+                showAlert('danger', '签到请求失败，请重试');
+            });
+        });
+    }
+}
+
+// 显示警告信息
+function showAlert(type, message) {
+    const alertContainer = document.getElementById('alert-container');
+    if (!alertContainer) return;
+    
+    const alert = document.createElement('div');
+    alert.className = `alert alert-${type} alert-dismissible fade show`;
+    alert.setAttribute('role', 'alert');
+    alert.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    `;
+    
+    alertContainer.appendChild(alert);
+    
+    // 5秒后自动关闭
+    setTimeout(() => {
+        const bsAlert = new bootstrap.Alert(alert);
+        bsAlert.close();
+    }, 5000);
+}
+
+// 设置活动倒计时
+function setupCountdowns() {
+    document.querySelectorAll('[data-countdown]').forEach(function(element) {
+        const targetDate = new Date(element.getAttribute('data-countdown')).getTime();
+        
+        // 更新倒计时
+        function updateCountdown() {
+            const now = new Date().getTime();
+            const distance = targetDate - now;
+            
+            if (distance < 0) {
+                element.textContent = '已截止';
+                return;
+            }
+            
+            const days = Math.floor(distance / (1000 * 60 * 60 * 24));
+            const hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+            const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
+            
+            if (days > 0) {
+                element.textContent = `${days}天${hours}小时`;
+            } else if (hours > 0) {
+                element.textContent = `${hours}小时${minutes}分钟`;
+            } else {
+                element.textContent = `${minutes}分钟`;
+            }
+        }
+        
+        // 立即更新一次
+        updateCountdown();
+        
+        // 每分钟更新一次
+        setInterval(updateCountdown, 60000);
+    });
+}
+
+// 启动特定元素的倒计时
+function startCountdown(elementId, targetDateStr) {
+    const element = document.getElementById(elementId);
+    if (!element) return;
+    
+    const targetDate = new Date(targetDateStr).getTime();
+    
+    function update() {
+        const now = new Date().getTime();
+        const distance = targetDate - now;
+        
+        if (distance < 0) {
+            element.textContent = '已截止';
+            return;
+        }
+        
+        const days = Math.floor(distance / (1000 * 60 * 60 * 24));
+        const hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+        const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
+        
+        if (days > 0) {
+            element.textContent = `${days}天${hours}小时`;
+        } else if (hours > 0) {
+            element.textContent = `${hours}小时${minutes}分钟`;
+        } else {
+            element.textContent = `${minutes}分钟`;
+        }
+    }
+    
+    // 立即更新一次
+    update();
+    
+    // 每分钟更新一次
+    setInterval(update, 60000);
 }
 

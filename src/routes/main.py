@@ -1,10 +1,10 @@
 from flask import Blueprint, render_template, redirect, url_for, flash, request, current_app, abort
 from flask_login import login_required, current_user
-from src.models import db, Activity, Registration, User, Tag
+from src.models import db, Activity, Registration, User, Tag, Notification
 from datetime import datetime, timedelta
 import logging
 from src.routes.utils import log_action
-from src.utils.time_helpers import get_beijing_time, ensure_timezone_aware, get_localized_now
+from src.utils.time_helpers import get_beijing_time, ensure_timezone_aware, get_localized_now, display_datetime
 from sqlalchemy import func, desc, text
 
 logger = logging.getLogger(__name__)
@@ -55,11 +55,20 @@ def index():
         # 从查询结果中提取活动对象
         popular_activity_objects = [item[0] for item in popular_activities]
         
+        # 获取全局通知（公开且未过期的）
+        current_time = get_beijing_time()
+        public_notifications = Notification.query.filter(
+            Notification.is_public == True,
+            (Notification.expiry_date.is_(None) | (Notification.expiry_date >= current_time))
+        ).order_by(Notification.created_at.desc()).limit(5).all()
+        
         return render_template('main/index.html',
                               featured_activities=featured_activities,
                               upcoming_activities=upcoming_activities,
                               popular_activities=popular_activity_objects,
-                              now=now)
+                              public_notifications=public_notifications,
+                              now=now,
+                              display_datetime=display_datetime)
     except Exception as e:
         logger.error(f"Error in index: {e}")
         # 如果出错，返回空列表
@@ -67,7 +76,9 @@ def index():
                               featured_activities=[],
                               upcoming_activities=[],
                               popular_activities=[],
-                              now=now)
+                              public_notifications=[],
+                              now=now,
+                              display_datetime=display_datetime)
 
 @main_bp.route('/activities')
 def activities():
