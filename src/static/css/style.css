@@ -57,17 +57,16 @@ body {
 
 /* 卡片样式 */
 .card {
-    border-radius: 12px;
-    overflow: hidden;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
     transition: transform 0.3s, box-shadow 0.3s;
-    border: none;
-    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
     margin-bottom: 20px;
+    border: none;
 }
 
 .card:hover {
-    transform: translateY(-10px);
-    box-shadow: 0 15px 30px rgba(0, 0, 0, 0.1);
+    transform: translateY(-5px);
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
 }
 
 .card-header {
@@ -344,10 +343,10 @@ body {
 }
 
 /* 首页轮播图样式 */
-.carousel-item {
-    height: 400px;
-    background-size: cover;
-    background-position: center;
+.carousel-item img {
+    height: 500px;
+    object-fit: cover;
+    width: 100%;
 }
 
 .carousel-caption {
@@ -999,7 +998,6 @@ footer {
     height: 500px;
     object-fit: cover;
     width: 100%;
-    border-radius: 12px;
 }
 
 .carousel-inner {
@@ -1076,7 +1074,6 @@ footer {
 @media (max-width: 768px) {
     .carousel-item img {
         height: 300px;
-        border-radius: 8px;
     }
     
     .carousel-inner {
@@ -1086,7 +1083,6 @@ footer {
     .carousel-caption {
         display: block !important;
         padding: 10px;
-        bottom: 20px;
     }
     
     .carousel-caption h2 {

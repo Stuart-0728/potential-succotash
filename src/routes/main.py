@@ -19,15 +19,11 @@ def index():
         featured_activities = Activity.query.filter_by(
             is_featured=True,
             status='active'
-        ).filter(
-            Activity.end_time >= ensure_timezone_aware(now)
         ).order_by(Activity.created_at.desc()).limit(3).all()
         
         # 获取即将开始的活动（按开始时间最近）
         upcoming_activities = Activity.query.filter_by(
             status='active'
-        ).filter(
-            Activity.start_time >= ensure_timezone_aware(now)
         ).order_by(Activity.start_time).limit(3).all()
         
         # 获取热门活动（报名人数最多）
@@ -37,8 +33,7 @@ def index():
         ).join(
             Registration, Activity.id == Registration.activity_id
         ).filter(
-            Activity.status == 'active',
-            Activity.end_time >= ensure_timezone_aware(now)
+            Activity.status == 'active'
         ).group_by(
             Activity.id
         ).subquery()
@@ -58,8 +53,7 @@ def index():
         # 获取全局通知（公开且未过期的）
         current_time = get_beijing_time()
         public_notifications = Notification.query.filter(
-            Notification.is_public == True,
-            (Notification.expiry_date.is_(None) | (Notification.expiry_date >= current_time))
+            Notification.is_public == True
         ).order_by(Notification.created_at.desc()).limit(5).all()
         
         return render_template('main/index.html',

@@ -47,7 +47,7 @@ def dashboard():
         # 获取推荐活动
         recommended_activities = get_recommended_activities(current_user.id)
         
-        # 获取已报名活动
+        # 获取已报名活动 - 使用安全的时间比较
         registered_activities = Activity.query.join(
             Registration, Activity.id == Registration.activity_id
         ).filter(
@@ -57,6 +57,8 @@ def dashboard():
         
         # 获取活动统计
         total_activities = Registration.query.filter_by(user_id=current_user.id).count()
+        
+        # 获取进行中的活动 - 只考虑活动状态
         ongoing_activities = Registration.query.join(
             Activity, Registration.activity_id == Activity.id
         ).filter(
@@ -64,12 +66,12 @@ def dashboard():
             Activity.status == 'active'
         ).count()
         
-        # 获取即将开始的活动 - 只考虑活动状态为active
+        # 获取即将开始的活动 - 只考虑活动状态
         upcoming_registrations = Registration.query.join(
             Activity, Registration.activity_id == Activity.id
         ).filter(
             Registration.user_id == current_user.id,
-            Activity.status == 'active'  # 只考虑活动状态，不比较时间以避免时区问题
+            Activity.status == 'active'
         ).count()
         
         return render_template('student/dashboard.html',
