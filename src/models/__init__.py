@@ -4,6 +4,10 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
 import json
 from ..utils.time_helpers import get_beijing_time, normalize_datetime_for_db
+import pytz
+from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, ForeignKey, Float, Table, func
+from sqlalchemy.orm import relationship
+from sqlalchemy.ext.declarative import declarative_base
 
 db = SQLAlchemy()
 
@@ -257,3 +261,50 @@ class AIUserPreferences(db.Model):
     
     def __str__(self):
         return f"AI Preferences for User {self.user_id}"
+
+# 站内信模型
+class Message(db.Model):
+    __tablename__ = 'message'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    sender_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    receiver_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    subject = db.Column(db.String(100), nullable=False)
+    content = db.Column(db.Text, nullable=False)
+    is_read = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=lambda: normalize_datetime_for_db(datetime.now()))
+    
+    # 关系
+    sender = db.relationship('User', foreign_keys=[sender_id], backref='sent_messages')
+    receiver = db.relationship('User', foreign_keys=[receiver_id], backref='received_messages')
+
+# 通知模型
+class Notification(db.Model):
+    __tablename__ = 'notification'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(100), nullable=False)
+    content = db.Column(db.Text, nullable=False)
+    is_important = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=lambda: normalize_datetime_for_db(datetime.now()))
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    expiry_date = db.Column(db.DateTime, nullable=True)
+    
+    # 关系
+    creator = db.relationship('User', backref='created_notifications')
+    
+# 已读通知关联表
+class NotificationRead(db.Model):
+    __tablename__ = 'notification_read'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    notification_id = db.Column(db.Integer, db.ForeignKey('notification.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    read_at = db.Column(db.DateTime, default=lambda: normalize_datetime_for_db(datetime.now()))
+    
+    # 关系
+    notification = db.relationship('Notification', backref='read_records')
+    user = db.relationship('User', backref='read_notifications')
+    
+    # 唯一约束，确保一个用户只能标记一个通知为已读一次
+    __table_args__ = (db.UniqueConstraint('notification_id', 'user_id', name='uq_notification_user'),)

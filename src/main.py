@@ -191,7 +191,12 @@ def internal_server_error(e):
 @app.context_processor
 def inject_now():
     """向所有模板注入当前北京时间"""
-    return {'now': get_beijing_time()}
+    try:
+        return {'now': get_beijing_time()}
+    except Exception as e:
+        logger.error(f"Error injecting now: {e}")
+        # 如果获取北京时间失败，使用UTC时间作为后备
+        return {'now': datetime.now()}
 
 # 初始化数据库和创建管理员账户
 def initialize_database():
