@@ -1,28 +1,21 @@
-from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify, send_file, current_app, abort
+from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify, current_app, send_file, abort, session
 from flask_login import login_required, current_user
-from src.models import User, Activity, Registration, StudentInfo, db, Tag, ActivityReview, ActivityCheckin, Role, PointsHistory, SystemLog, activity_tags, student_tags, AIUserPreferences, AIChatHistory, AIChatSession
-from src.routes.utils import admin_required, log_action, add_points
+from src.models import db, User, Activity, Registration, StudentInfo, SystemLog, Tag, ActivityTag, ActivityType, Notification, NotificationRead
+from src.routes.utils import admin_required, log_action
 from datetime import datetime, timedelta
-import pandas as pd
-import io
 import logging
-import json
-from sqlalchemy import func, desc, and_, or_, not_
-from src.forms import ActivityForm, SearchForm
 import os
-import shutil
-from werkzeug.utils import secure_filename
-import qrcode
-from io import BytesIO
-import hashlib
-from src.utils.time_helpers import get_localized_now, get_beijing_time, localize_time, is_render_environment, normalize_datetime_for_db, ensure_timezone_aware
-import base64
-import random
-import string
-from functools import wraps
-import tempfile
+import json
 import csv
-import zipfile
+from io import StringIO
+import shutil
+from sqlalchemy import func, desc, or_, and_
+from wtforms import StringField, TextAreaField, IntegerField, SelectField, SubmitField, BooleanField, DateField, SelectMultipleField, FileField, HiddenField
+from wtforms.validators import DataRequired, Length, Optional, NumberRange, Email
+from flask_wtf import FlaskForm
+from flask_wtf.file import FileAllowed
+import pandas as pd
+from src.utils.time_helpers import get_localized_now, get_beijing_time, ensure_timezone_aware, display_datetime
 
 admin_bp = Blueprint('admin', __name__)
 logger = logging.getLogger(__name__)
@@ -282,10 +275,14 @@ def activity_view(id):
         
         registration_count = len(registrations)
         
+        # 计算已签到人数
+        checked_in_count = sum(1 for reg in registrations if reg.check_in_time is not None)
+        
         return render_template('admin/activity_view.html', 
                               activity=activity,
                               registrations=registrations,
-                              registration_count=registration_count)
+                              registration_count=registration_count,
+                              checked_in_count=checked_in_count)
         
     except Exception as e:
         logger.error(f"Error in activity_view: {e}")
@@ -1990,3 +1987,418 @@ def reset_system():
         logger.error(f"Error resetting system: {e}")
         flash(f'重置系统时出错: {str(e)}', 'danger')
         return redirect(url_for('admin.reset_system_page'))
+
+@admin_bp.route('/notifications')
+@admin_required
+def notifications():
+    try:
+        page = request.args.get('page', 1, type=int)
+        
+        # 获取所有通知
+        notifications = Notification.query.order_by(Notification.created_at.desc()).paginate(page=page, per_page=10)
+        
+        return render_template('admin/notifications.html', notifications=notifications)
+    except Exception as e:
+        logger.error(f"Error in notifications page: {e}")
+        flash('加载通知列表时出错', 'danger')
+        return redirect(url_for('admin.dashboard'))
+
+@admin_bp.route('/notification/create', methods=['GET', 'POST'])
+@admin_required
+def create_notification():
+    try:
+        if request.method == 'POST':
+            title = request.form.get('title')
+            content = request.form.get('content')
+            is_important = 'is_important' in request.form
+            expiry_date_str = request.form.get('expiry_date')
+            
+            if not title or not content:
+                flash('标题和内容不能为空', 'danger')
+                return redirect(url_for('admin.create_notification'))
+            
+            # 处理过期日期
+            expiry_date = None
+            if expiry_date_str:
+                try:
+                    expiry_date = datetime.strptime(expiry_date_str, '%Y-%m-%d')
+                    expiry_date = ensure_timezone_aware(expiry_date)
+                except ValueError:
+                    flash('日期格式无效', 'danger')
+                    return redirect(url_for('admin.create_notification'))
+            
+            # 创建通知
+            notification = Notification(
+                title=title,
+                content=content,
+                is_important=is_important,
+                created_by=current_user.id,
+                expiry_date=expiry_date
+            )
+            
+            db.session.add(notification)
+            db.session.commit()
+            
+            log_action('create_notification', f'创建通知: {title}')
+            flash('通知创建成功', 'success')
+            return redirect(url_for('admin.notifications'))
+        
+        return render_template('admin/notification_form.html', title='创建通知')
+    except Exception as e:
+        logger.error(f"Error in create_notification: {e}")
+        flash('创建通知时出错', 'danger')
+        return redirect(url_for('admin.notifications'))
+
+@admin_bp.route('/notification/<int:id>/edit', methods=['GET', 'POST'])
+@admin_required
+def edit_notification(id):
+    try:
+        notification = Notification.query.get_or_404(id)
+        
+        if request.method == 'POST':
+            title = request.form.get('title')
+            content = request.form.get('content')
+            is_important = 'is_important' in request.form
+            expiry_date_str = request.form.get('expiry_date')
+            
+            if not title or not content:
+                flash('标题和内容不能为空', 'danger')
+                return redirect(url_for('admin.edit_notification', id=id))
+            
+            # 处理过期日期
+            if expiry_date_str:
+                try:
+                    expiry_date = datetime.strptime(expiry_date_str, '%Y-%m-%d')
+                    expiry_date = ensure_timezone_aware(expiry_date)
+                    notification.expiry_date = expiry_date
+                except ValueError:
+                    flash('日期格式无效', 'danger')
+                    return redirect(url_for('admin.edit_notification', id=id))
+            else:
+                notification.expiry_date = None
+            
+            # 更新通知
+            notification.title = title
+            notification.content = content
+            notification.is_important = is_important
+            
+            db.session.commit()
+            
+            log_action('edit_notification', f'编辑通知: {title}')
+            flash('通知更新成功', 'success')
+            return redirect(url_for('admin.notifications'))
+        
+        # 格式化日期用于表单显示
+        expiry_date = ''
+        if notification.expiry_date:
+            expiry_date = notification.expiry_date.strftime('%Y-%m-%d')
+        
+        return render_template('admin/notification_form.html', 
+                              notification=notification,
+                              expiry_date=expiry_date,
+                              title='编辑通知')
+    except Exception as e:
+        logger.error(f"Error in edit_notification: {e}")
+        flash('编辑通知时出错', 'danger')
+        return redirect(url_for('admin.notifications'))
+
+@admin_bp.route('/notification/<int:id>/delete', methods=['POST'])
+@admin_required
+def delete_notification(id):
+    try:
+        notification = Notification.query.get_or_404(id)
+        
+        # 删除所有关联的已读记录
+        NotificationRead.query.filter_by(notification_id=id).delete()
+        
+        # 删除通知
+        db.session.delete(notification)
+        db.session.commit()
+        
+        log_action('delete_notification', f'删除通知: {notification.title}')
+        flash('通知已删除', 'success')
+        return redirect(url_for('admin.notifications'))
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error in delete_notification: {e}")
+        flash('删除通知时出错', 'danger')
+        return redirect(url_for('admin.notifications'))
+
+@admin_bp.route('/messages')
+@admin_required
+def messages():
+    try:
+        page = request.args.get('page', 1, type=int)
+        filter_type = request.args.get('filter', 'all')
+        
+        # 根据过滤类型查询消息
+        if filter_type == 'sent':
+            query = Message.query.filter_by(sender_id=current_user.id)
+        elif filter_type == 'received':
+            query = Message.query.filter_by(receiver_id=current_user.id)
+        else:  # 'all'
+            query = Message.query.filter(or_(
+                Message.sender_id == current_user.id,
+                Message.receiver_id == current_user.id
+            ))
+        
+        messages = query.order_by(Message.created_at.desc()).paginate(page=page, per_page=10)
+        
+        return render_template('admin/messages.html', 
+                              messages=messages, 
+                              filter_type=filter_type)
+    except Exception as e:
+        logger.error(f"Error in messages page: {e}")
+        flash('加载消息列表时出错', 'danger')
+        return redirect(url_for('admin.dashboard'))
+
+@admin_bp.route('/message/create', methods=['GET', 'POST'])
+@admin_required
+def create_message():
+    try:
+        if request.method == 'POST':
+            receiver_id = request.form.get('receiver_id')
+            subject = request.form.get('subject')
+            content = request.form.get('content')
+            
+            if not receiver_id or not subject or not content:
+                flash('收件人、主题和内容不能为空', 'danger')
+                return redirect(url_for('admin.create_message'))
+            
+            # 验证接收者是否存在
+            receiver = User.query.get(receiver_id)
+            if not receiver:
+                flash('收件人不存在', 'danger')
+                return redirect(url_for('admin.create_message'))
+            
+            # 创建消息
+            message = Message(
+                sender_id=current_user.id,
+                receiver_id=receiver_id,
+                subject=subject,
+                content=content
+            )
+            
+            db.session.add(message)
+            db.session.commit()
+            
+            log_action('send_message', f'发送消息给 {receiver.username}: {subject}')
+            flash('消息发送成功', 'success')
+            return redirect(url_for('admin.messages'))
+        
+        # 获取所有学生用户
+        students = User.query.join(Role).filter(Role.name == 'Student').all()
+        
+        return render_template('admin/message_form.html', 
+                              students=students,
+                              title='发送消息')
+    except Exception as e:
+        logger.error(f"Error in create_message: {e}")
+        flash('发送消息时出错', 'danger')
+        return redirect(url_for('admin.messages'))
+
+@admin_bp.route('/message/<int:id>')
+@admin_required
+def view_message(id):
+    try:
+        message = Message.query.get_or_404(id)
+        
+        # 验证当前用户是否是消息的发送者或接收者
+        if message.sender_id != current_user.id and message.receiver_id != current_user.id:
+            flash('您无权查看此消息', 'danger')
+            return redirect(url_for('admin.messages'))
+        
+        # 如果当前用户是接收者且消息未读，则标记为已读
+        if message.receiver_id == current_user.id and not message.is_read:
+            message.is_read = True
+            db.session.commit()
+        
+        return render_template('admin/message_view.html', message=message)
+    except Exception as e:
+        logger.error(f"Error in view_message: {e}")
+        flash('查看消息时出错', 'danger')
+        return redirect(url_for('admin.messages'))
+
+@admin_bp.route('/message/<int:id>/delete', methods=['POST'])
+@admin_required
+def delete_message(id):
+    try:
+        message = Message.query.get_or_404(id)
+        
+        # 验证当前用户是否是消息的发送者或接收者
+        if message.sender_id != current_user.id and message.receiver_id != current_user.id:
+            flash('您无权删除此消息', 'danger')
+            return redirect(url_for('admin.messages'))
+        
+        # 删除消息
+        db.session.delete(message)
+        db.session.commit()
+        
+        log_action('delete_message', f'删除消息: {message.subject}')
+        flash('消息已删除', 'success')
+        return redirect(url_for('admin.messages'))
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error in delete_message: {e}")
+        flash('删除消息时出错', 'danger')
+        return redirect(url_for('admin.messages'))
+
+@admin_bp.route('/system/fix_timezone', methods=['GET', 'POST'])
+@admin_required
+def fix_timezone():
+    try:
+        if request.method == 'POST':
+            if 'confirm' in request.form:
+                # 设置环境变量，标记为Render环境
+                os.environ['RENDER'] = 'true'
+                
+                # 获取数据库连接
+                conn = None
+                cursor = None
+                try:
+                    # 使用应用配置的数据库URI
+                    db_uri = current_app.config['SQLALCHEMY_DATABASE_URI']
+                    
+                    # 如果是PostgreSQL数据库
+                    if db_uri.startswith('postgresql'):
+                        import psycopg2
+                        conn = psycopg2.connect(db_uri)
+                        cursor = conn.cursor()
+                        
+                        # 设置数据库时区为UTC
+                        cursor.execute("SET timezone TO 'UTC';")
+                        
+                        # 修复活动表中的时间字段
+                        logger.info("修复活动表中的时间字段...")
+                        
+                        # 1. 修复活动开始时间
+                        cursor.execute("""
+                        UPDATE activities
+                        SET start_time = start_time AT TIME ZONE 'Asia/Shanghai' AT TIME ZONE 'UTC'
+                        WHERE start_time IS NOT NULL;
+                        """)
+                        
+                        # 2. 修复活动结束时间
+                        cursor.execute("""
+                        UPDATE activities
+                        SET end_time = end_time AT TIME ZONE 'Asia/Shanghai' AT TIME ZONE 'UTC'
+                        WHERE end_time IS NOT NULL;
+                        """)
+                        
+                        # 3. 修复活动报名截止时间
+                        cursor.execute("""
+                        UPDATE activities
+                        SET registration_deadline = registration_deadline AT TIME ZONE 'Asia/Shanghai' AT TIME ZONE 'UTC'
+                        WHERE registration_deadline IS NOT NULL;
+                        """)
+                        
+                        # 4. 修复活动创建时间
+                        cursor.execute("""
+                        UPDATE activities
+                        SET created_at = created_at AT TIME ZONE 'Asia/Shanghai' AT TIME ZONE 'UTC'
+                        WHERE created_at IS NOT NULL;
+                        """)
+                        
+                        # 5. 修复活动更新时间
+                        cursor.execute("""
+                        UPDATE activities
+                        SET updated_at = updated_at AT TIME ZONE 'Asia/Shanghai' AT TIME ZONE 'UTC'
+                        WHERE updated_at IS NOT NULL;
+                        """)
+                        
+                        # 修复通知表中的时间字段
+                        logger.info("修复通知表中的时间字段...")
+                        
+                        # 1. 修复通知创建时间
+                        cursor.execute("""
+                        UPDATE notification
+                        SET created_at = created_at AT TIME ZONE 'Asia/Shanghai' AT TIME ZONE 'UTC'
+                        WHERE created_at IS NOT NULL;
+                        """)
+                        
+                        # 2. 修复通知过期时间
+                        cursor.execute("""
+                        UPDATE notification
+                        SET expiry_date = expiry_date AT TIME ZONE 'Asia/Shanghai' AT TIME ZONE 'UTC'
+                        WHERE expiry_date IS NOT NULL;
+                        """)
+                        
+                        # 修复通知已读表中的时间字段
+                        cursor.execute("""
+                        UPDATE notification_read
+                        SET read_at = read_at AT TIME ZONE 'Asia/Shanghai' AT TIME ZONE 'UTC'
+                        WHERE read_at IS NOT NULL;
+                        """)
+                        
+                        # 修复站内信表中的时间字段
+                        cursor.execute("""
+                        UPDATE message
+                        SET created_at = created_at AT TIME ZONE 'Asia/Shanghai' AT TIME ZONE 'UTC'
+                        WHERE created_at IS NOT NULL;
+                        """)
+                        
+                        # 修复报名表中的时间字段
+                        logger.info("修复报名表中的时间字段...")
+                        
+                        # 1. 修复报名时间
+                        cursor.execute("""
+                        UPDATE registrations
+                        SET register_time = register_time AT TIME ZONE 'Asia/Shanghai' AT TIME ZONE 'UTC'
+                        WHERE register_time IS NOT NULL;
+                        """)
+                        
+                        # 2. 修复签到时间
+                        cursor.execute("""
+                        UPDATE registrations
+                        SET check_in_time = check_in_time AT TIME ZONE 'Asia/Shanghai' AT TIME ZONE 'UTC'
+                        WHERE check_in_time IS NOT NULL;
+                        """)
+                        
+                        # 修复系统日志表中的时间字段
+                        cursor.execute("""
+                        UPDATE system_logs
+                        SET created_at = created_at AT TIME ZONE 'Asia/Shanghai' AT TIME ZONE 'UTC'
+                        WHERE created_at IS NOT NULL;
+                        """)
+                        
+                        # 修复积分历史表中的时间字段
+                        cursor.execute("""
+                        UPDATE points_history
+                        SET created_at = created_at AT TIME ZONE 'Asia/Shanghai' AT TIME ZONE 'UTC'
+                        WHERE created_at IS NOT NULL;
+                        """)
+                        
+                        # 修复活动评价表中的时间字段
+                        cursor.execute("""
+                        UPDATE activity_reviews
+                        SET created_at = created_at AT TIME ZONE 'Asia/Shanghai' AT TIME ZONE 'UTC'
+                        WHERE created_at IS NOT NULL;
+                        """)
+                        
+                        # 提交所有更改
+                        conn.commit()
+                        
+                        # 记录日志
+                        log_action('fix_timezone', '修复数据库时区问题')
+                        flash('时区修复成功！所有时间字段已调整为正确的UTC时间。', 'success')
+                    else:
+                        flash('当前数据库不是PostgreSQL，无需修复时区问题。', 'info')
+                
+                except Exception as e:
+                    if conn:
+                        conn.rollback()
+                    logger.error(f"时区修复失败: {e}")
+                    flash(f'时区修复失败: {str(e)}', 'danger')
+                finally:
+                    if cursor:
+                        cursor.close()
+                    if conn:
+                        conn.close()
+            
+            return redirect(url_for('admin.fix_timezone'))
+        
+        return render_template('admin/fix_timezone.html')
+    except Exception as e:
+        logger.error(f"Error in fix_timezone: {e}")
+        flash('访问时区修复页面时出错', 'danger')
+        return redirect(url_for('admin.dashboard'))

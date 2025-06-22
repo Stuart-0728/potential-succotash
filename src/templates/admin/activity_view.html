@@ -32,19 +32,19 @@
                         </tr>
                         <tr>
                             <th>开始时间</th>
-                            <td>{{ display_datetime(activity.start_time) }}</td>
+                            <td>{% if display_datetime is defined %}{{ display_datetime(activity.start_time) }}{% else %}{{ activity.start_time.strftime('%Y-%m-%d %H:%M') }}{% endif %}</td>
                         </tr>
                         <tr>
                             <th>结束时间</th>
-                            <td>{{ display_datetime(activity.end_time) }}</td>
+                            <td>{% if display_datetime is defined %}{{ display_datetime(activity.end_time) }}{% else %}{{ activity.end_time.strftime('%Y-%m-%d %H:%M') }}{% endif %}</td>
                         </tr>
                         <tr>
                             <th>报名截止</th>
-                            <td>{{ display_datetime(activity.registration_deadline) }}</td>
+                            <td>{% if display_datetime is defined %}{{ display_datetime(activity.registration_deadline) }}{% else %}{{ activity.registration_deadline.strftime('%Y-%m-%d %H:%M') }}{% endif %}</td>
                         </tr>
                         <tr>
                             <th>创建时间</th>
-                            <td>{{ display_datetime(activity.created_at) }}</td>
+                            <td>{% if display_datetime is defined %}{{ display_datetime(activity.created_at) }}{% else %}{{ activity.created_at.strftime('%Y-%m-%d %H:%M') }}{% endif %}</td>
                         </tr>
                     </table>
                 </div>
@@ -250,25 +250,26 @@ function generateQRCode(activityId) {
             `;
         })
         .catch(error => {
-            console.error('Error:', error);
+            clearTimeout(timeoutId);
+            console.error('生成二维码失败:', error);
             container.innerHTML = `
                 <div class="alert alert-danger">
-                    <i class="fas fa-exclamation-circle me-2"></i>生成二维码失败
-                    <button class="btn btn-sm btn-outline-danger ms-2" onclick="generateQRCode(${activityId})">
-                        <i class="fas fa-redo me-1"></i>重试
-                    </button>
+                    生成二维码失败，请重试
                 </div>
+                <button class="btn btn-sm btn-primary mt-2" onclick="generateQRCode(${activityId})">
+                    <i class="fas fa-sync-alt me-1"></i>重新生成
+                </button>
             `;
         });
 }
 
 function downloadQRCode(url, filename) {
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
 }
 </script>
 {% endblock %}

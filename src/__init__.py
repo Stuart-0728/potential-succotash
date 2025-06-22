@@ -91,7 +91,25 @@ def create_app(config_name=None):
     register_commands(app)
     
     # 添加全局模板函数
-    app.jinja_env.globals.update(display_datetime=display_datetime)
+    try:
+        # 确保display_datetime函数存在并可用
+        from src.utils.time_helpers import display_datetime
+        app.jinja_env.globals.update(display_datetime=display_datetime)
+        app.logger.info("已注册display_datetime全局模板函数")
+    except (ImportError, AttributeError) as e:
+        app.logger.error(f"注册display_datetime函数失败: {str(e)}")
+        
+        # 提供一个备用函数
+        def fallback_display_datetime(dt, format_str='%Y-%m-%d %H:%M'):
+            if dt is None:
+                return ''
+            try:
+                return dt.strftime(format_str)
+            except:
+                return str(dt)
+                
+        app.jinja_env.globals.update(display_datetime=fallback_display_datetime)
+        app.logger.info("已注册备用display_datetime全局模板函数")
     
     # 设置日志
     if not app.debug and not app.testing:
