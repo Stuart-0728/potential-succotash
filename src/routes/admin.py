@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify, current_app, send_file, abort, session
 from flask_login import login_required, current_user
-from src.models import db, User, Activity, Registration, StudentInfo, SystemLog, Tag, Notification, NotificationRead, Role
+from src.models import db, User, Activity, Registration, StudentInfo, SystemLog, Tag, Notification, NotificationRead, Role, PointsHistory
 from src.routes.utils import admin_required, log_action
 from datetime import datetime, timedelta
 import logging
@@ -16,7 +16,8 @@ from flask_wtf import FlaskForm
 from flask_wtf.file import FileAllowed
 from werkzeug.utils import secure_filename
 import pandas as pd
-from src.utils.time_helpers import get_localized_now, get_beijing_time, ensure_timezone_aware, display_datetime
+from src.utils.time_helpers import get_localized_now, get_beijing_time, ensure_timezone_aware, display_datetime, normalize_datetime_for_db
+from src.forms import ActivityForm
 
 admin_bp = Blueprint('admin', __name__)
 logger = logging.getLogger(__name__)
@@ -565,132 +566,106 @@ def adjust_student_points(id):
 @admin_required
 def statistics():
     try:
-        # 活动统计
-        total_activities = Activity.query.count()
-        active_activities = Activity.query.filter_by(status='active').count()
-        completed_activities = Activity.query.filter_by(status='completed').count()
-        cancelled_activities = Activity.query.filter_by(status='cancelled').count()
+        # 获取当前时间
+        now = get_localized_now()
         
-        # 报名统计
-        total_registrations = Registration.query.count()
-        active_registrations = Registration.query.filter_by(status='registered').count()
-        cancelled_registrations = Registration.query.filter_by(status='cancelled').count()
+        # 获取最近7天的日期范围
+        end_date = now
+        start_date = end_date - timedelta(days=6)
         
-        # 计算平均每活动报名人数
-        if total_activities > 0:
-            avg_registrations_per_activity = total_registrations / total_activities
-        else:
-            avg_registrations_per_activity = 0
+        # 确保时间是规范化的
+        start_date = normalize_datetime_for_db(start_date)
+        end_date = normalize_datetime_for_db(end_date)
         
-        # 获取报名率最高的活动
-        most_popular_activity = None
-        if total_activities > 0:
-            activities_with_reg_count = db.session.query(
-                Activity,
-                func.count(Registration.id).label('reg_count')
-            ).outerjoin(
-                Registration, and_(Registration.activity_id == Activity.id, Registration.status == 'registered')
-            ).group_by(Activity.id).order_by(desc('reg_count')).first()
-            
-            if activities_with_reg_count:
-                most_popular_activity = activities_with_reg_count[0]
-        
-        # 学生统计
-        total_students = User.query.filter_by(role_id=2).count()
-        
-        # 计算近30天活跃学生数
-        thirty_days_ago = normalize_datetime_for_db(datetime.now()) - timedelta(days=30)
-        active_students = Registration.query.filter(
-            Registration.register_time >= thirty_days_ago
-        ).with_entities(Registration.user_id).distinct().count()
-        
-        # 计算平均每学生参与活动数
-        if total_students > 0:
-            avg_activities_per_student = db.session.query(
-                func.count(Registration.id) / total_students
-            ).filter(Registration.status == 'registered').scalar() or 0
-        else:
-            avg_activities_per_student = 0
-        
-        # 获取最活跃学院
-        most_active_college = db.session.query(
-            StudentInfo.college,
-            func.count(Registration.id).label('reg_count')
-        ).join(
-            User, StudentInfo.user_id == User.id
-        ).join(
-            Registration, Registration.user_id == User.id
+        # 获取最近7天的活动数据
+        daily_activities = db.session.query(
+            func.date(Activity.created_at).label('date'),
+            func.count(Activity.id).label('count')
         ).filter(
-            Registration.status == 'registered'
+            Activity.created_at.between(start_date, end_date)
         ).group_by(
-            StudentInfo.college
-        ).order_by(
-            desc('reg_count')
-        ).first()
-        
-        most_active_college = most_active_college[0] if most_active_college else None
-        
-        # 获取近30天的报名趋势数据
-        registration_trend = []
-        for i in range(30, -1, -1):
-            date = normalize_datetime_for_db(datetime.now()) - timedelta(days=i)
-            date_str = date.strftime('%Y-%m-%d')
-            
-            count = Registration.query.filter(
-                func.date(Registration.register_time) == date.date()
-            ).count()
-            
-            registration_trend.append({
-                'date': date_str,
-                'count': count
-            })
-        
-        # 将趋势数据转换为JSON
-        registration_trend_json = json.dumps(registration_trend)
-        
-        # 获取学院分布数据
-        college_distribution = db.session.query(
-            StudentInfo.college,
-            func.count(StudentInfo.id).label('student_count')
-        ).group_by(
-            StudentInfo.college
+            func.date(Activity.created_at)
         ).all()
         
-        college_data = {
-            'labels': [item[0] for item in college_distribution],
-            'data': [item[1] for item in college_distribution]
-        }
-        
-        # 获取年级分布数据
-        grade_distribution = db.session.query(
-            StudentInfo.grade,
-            func.count(StudentInfo.id).label('student_count')
+        # 获取最近7天的注册数据
+        daily_registrations = db.session.query(
+            func.date(Registration.created_at).label('date'),
+            func.count(Registration.id).label('count')
+        ).filter(
+            Registration.created_at.between(start_date, end_date)
         ).group_by(
-            StudentInfo.grade
+            func.date(Registration.created_at)
         ).all()
         
-        grade_data = {
-            'labels': [item[0] for item in grade_distribution],
-            'data': [item[1] for item in grade_distribution]
+        # 获取最近7天的用户注册数据
+        daily_users = db.session.query(
+            func.date(User.created_at).label('date'),
+            func.count(User.id).label('count')
+        ).filter(
+            User.created_at.between(start_date, end_date)
+        ).group_by(
+            func.date(User.created_at)
+        ).all()
+        
+        # 将查询结果转换为字典格式，方便前端使用
+        date_format = '%Y-%m-%d'
+        
+        # 创建包含所有日期的字典
+        date_range = [(start_date + timedelta(days=i)).strftime(date_format) for i in range(7)]
+        
+        activities_data = {date: 0 for date in date_range}
+        for item in daily_activities:
+            date_str = item.date.strftime(date_format) if hasattr(item.date, 'strftime') else str(item.date)
+            activities_data[date_str] = item.count
+            
+        registrations_data = {date: 0 for date in date_range}
+        for item in daily_registrations:
+            date_str = item.date.strftime(date_format) if hasattr(item.date, 'strftime') else str(item.date)
+            registrations_data[date_str] = item.count
+            
+        users_data = {date: 0 for date in date_range}
+        for item in daily_users:
+            date_str = item.date.strftime(date_format) if hasattr(item.date, 'strftime') else str(item.date)
+            users_data[date_str] = item.count
+        
+        # 准备图表数据
+        chart_data = {
+            'labels': date_range,
+            'activities': [activities_data[date] for date in date_range],
+            'registrations': [registrations_data[date] for date in date_range],
+            'users': [users_data[date] for date in date_range]
         }
         
-        return render_template('admin/statistics.html',
-                              total_activities=total_activities,
-                              active_activities=active_activities,
-                              completed_activities=completed_activities,
-                              cancelled_activities=cancelled_activities,
-                              total_registrations=total_registrations,
-                              active_registrations=active_registrations,
-                              cancelled_registrations=cancelled_registrations,
-                              avg_registrations_per_activity=avg_registrations_per_activity,
-                              most_popular_activity=most_popular_activity,
-                              total_students=total_students,
-                              active_students=active_students,
-                              avg_activities_per_student=avg_activities_per_student,
-                              most_active_college=most_active_college,
-                              registration_trend=registration_trend_json,
-                              college_data=json.dumps(college_data),
-                              grade_data=json.dumps(grade_data))
+        # 获取活动类型分布
+        activity_types = db.session.query(
+            Activity.type,
+            func.count(Activity.id).label('count')
+        ).group_by(Activity.type).all()
+        
+        # 转换为前端可用的格式
+        type_labels = [t.type for t in activity_types]
+        type_data = [t.count for t in activity_types]
+        
+        # 获取标签统计
+        tag_stats = db.session.query(
+            Tag.name,
+            func.count(Activity.id).label('count')
+        ).join(
+            Activity.tags
+        ).group_by(Tag.name).order_by(desc('count')).limit(10).all()
+        
+        # 转换为前端可用的格式
+        tag_labels = [t.name for t in tag_stats]
+        tag_data = [t.count for t in tag_stats]
+        
+        return render_template(
+            'admin/statistics.html',
+            chart_data=chart_data,
+            type_labels=type_labels,
+            type_data=type_data,
+            tag_labels=tag_labels,
+            tag_data=tag_data
+        )
     except Exception as e:
         logger.error(f"Error in statistics: {e}")
         flash('加载统计数据时出错', 'danger')

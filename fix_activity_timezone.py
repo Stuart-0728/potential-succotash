@@ -1,125 +1,84 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
 """
-修复活动时间时区问题
-将数据库中活动的时间统一为UTC存储格式
+修复活动时间的时区问题
+此脚本用于批量修复数据库中已有活动的时间
+将所有时间转换为UTC时间（无时区信息）
 """
+
 import os
 import sys
-from datetime import datetime
 import pytz
-from sqlalchemy import create_engine, text
-from sqlalchemy.exc import SQLAlchemyError
-from time import sleep
+from datetime import datetime
+from sqlalchemy import create_engine, MetaData, Table, select, update
+from sqlalchemy.orm import sessionmaker
 
-# 检查环境
-is_render = os.environ.get('RENDER', False) or os.environ.get('IS_RENDER', False)
-database_url = os.environ.get('DATABASE_URL')
+# 添加项目根目录到路径
+sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
 
-if not database_url:
-    # 本地SQLite数据库路径
-    database_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'instance', 'cqnu_association.db')
-    database_url = f'sqlite:///{database_path}'
-    db_type = 'sqlite'
-else:
-    # 替换PostgreSQL URL以符合SQLAlchemy要求
-    if database_url.startswith('postgres://'):
-        database_url = database_url.replace('postgres://', 'postgresql://')
-    db_type = 'postgresql'
+from src.utils.time_helpers import normalize_datetime_for_db, ensure_timezone_aware
 
-try:
-    # 创建数据库引擎
-    engine = create_engine(database_url)
+def fix_activity_timezone(db_uri):
+    """修复活动时间的时区问题"""
+    print("开始修复活动时间的时区问题...")
     
-    print(f"连接到 {'Render PostgreSQL' if is_render else '本地SQLite'} 数据库...")
+    # 连接数据库
+    engine = create_engine(db_uri)
+    Session = sessionmaker(bind=engine)
+    session = Session()
     
-    with engine.connect() as conn:
-        # 获取当前时区设置
-        if db_type == 'postgresql':
-            result = conn.execute(text("SHOW timezone;"))
-            db_timezone = result.scalar()
-            print(f"数据库时区: {db_timezone}")
-            
-            # 获取当前数据库时间
-            result = conn.execute(text("SELECT NOW();"))
-            db_time = result.scalar()
-            print(f"数据库当前时间: {db_time}")
-        else:
-            print("SQLite不支持时区功能")
-            
-        # 获取本地时间
-        local_now = datetime.now()
-        print(f"本地时间: {local_now}")
+    try:
+        # 获取活动表
+        metadata = MetaData()
+        metadata.reflect(bind=engine)
+        activity_table = metadata.tables['activity']
         
-        # 获取北京时间
-        beijing_tz = pytz.timezone('Asia/Shanghai')
-        beijing_now = datetime.now(beijing_tz)
-        print(f"北京时间: {beijing_now}")
+        # 查询所有活动
+        activities = session.execute(select(activity_table)).fetchall()
         
-        # 如果运行在Render环境中
-        if is_render:
-            print("\n在Render环境中运行，需要将数据库中的时间调整到正确的UTC格式...")
+        count = 0
+        for activity in activities:
+            # 获取需要修复的时间字段
+            start_time = activity.start_time
+            end_time = activity.end_time
+            registration_deadline = activity.registration_deadline
             
-            # 在PostgreSQL中直接查询活动表
-            print("\n当前活动时间数据:")
-            if db_type == 'postgresql':
-                query_activities = text("""
-                    SELECT id, title, start_time, end_time, registration_deadline 
-                    FROM activities 
-                    ORDER BY created_at DESC 
-                    LIMIT 5;
-                """)
-                
-                activities = conn.execute(query_activities).fetchall()
-                
-                for activity in activities:
-                    print(f"ID: {activity.id}, 标题: {activity.title}")
-                    print(f"  开始时间: {activity.start_time}")
-                    print(f"  结束时间: {activity.end_time}")
-                    print(f"  报名截止: {activity.registration_deadline}")
+            # 修复时间字段
+            fixed_start_time = normalize_datetime_for_db(ensure_timezone_aware(start_time))
+            fixed_end_time = normalize_datetime_for_db(ensure_timezone_aware(end_time))
+            fixed_registration_deadline = normalize_datetime_for_db(ensure_timezone_aware(registration_deadline))
             
-                print("\n正在修复时区问题...")
-                input("按Enter键继续...")
-                
-                # 修复所有活动时间，将naive时间视为北京时间，并转换为UTC时间
-                if db_type == 'postgresql':
-                    # PostgreSQL环境下的修复
-                    update_query = text("""
-                        UPDATE activities 
-                        SET 
-                            start_time = (start_time AT TIME ZONE 'Asia/Shanghai') AT TIME ZONE 'UTC',
-                            end_time = (end_time AT TIME ZONE 'Asia/Shanghai') AT TIME ZONE 'UTC',
-                            registration_deadline = (registration_deadline AT TIME ZONE 'Asia/Shanghai') AT TIME ZONE 'UTC',
-                            checkin_key_expires = CASE 
-                                WHEN checkin_key_expires IS NOT NULL 
-                                THEN (checkin_key_expires AT TIME ZONE 'Asia/Shanghai') AT TIME ZONE 'UTC'
-                                ELSE checkin_key_expires
-                            END
-                    """)
-                    
-                    conn.execute(update_query)
-                    conn.commit()
-                    print("活动时间修复完成!")
-                    
-                    # 验证修复结果
-                    print("\n修复后的活动时间数据:")
-                    activities = conn.execute(query_activities).fetchall()
-                    
-                    for activity in activities:
-                        print(f"ID: {activity.id}, 标题: {activity.title}")
-                        print(f"  开始时间: {activity.start_time}")
-                        print(f"  结束时间: {activity.end_time}")
-                        print(f"  报名截止: {activity.registration_deadline}")
-                else:
-                    # SQLite环境暂不支持直接通过SQL进行时区转换
-                    print("SQLite环境不支持直接通过SQL进行时区转换，请使用应用内功能修复")
-        else:
-            print("\n在本地环境运行，无需修改时区设置")
+            # 更新数据库
+            stmt = update(activity_table).where(
+                activity_table.c.id == activity.id
+            ).values(
+                start_time=fixed_start_time,
+                end_time=fixed_end_time,
+                registration_deadline=fixed_registration_deadline
+            )
+            session.execute(stmt)
+            count += 1
         
-        print("\n处理完成!")
+        # 提交更改
+        session.commit()
+        print(f"成功修复 {count} 个活动的时间字段")
+        
+    except Exception as e:
+        session.rollback()
+        print(f"修复过程中发生错误: {e}")
+    finally:
+        session.close()
 
-except SQLAlchemyError as e:
-    print(f"数据库错误: {e}")
-    sys.exit(1)
-except Exception as e:
-    print(f"发生错误: {e}")
-    sys.exit(1) 
+if __name__ == "__main__":
+    # 获取数据库URI
+    if os.environ.get('RENDER', '') == 'true':
+        # Render环境使用PostgreSQL
+        db_uri = os.environ.get('DATABASE_URL')
+        if db_uri and db_uri.startswith('postgres://'):
+            db_uri = db_uri.replace('postgres://', 'postgresql://', 1)
+    else:
+        # 本地环境使用SQLite
+        db_uri = 'sqlite:///instance/cqnu_association.db'
+    
+    fix_activity_timezone(db_uri) 

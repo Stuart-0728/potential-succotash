@@ -9,7 +9,7 @@ import json
 import random
 import string
 from datetime import datetime, timedelta
-from src.models import db, Activity, Tag, StudentInfo, SystemLog, Registration, AIChatHistory, AIChatSession, activity_tags, PointsHistory
+from src.models import db, Activity, Tag, StudentInfo, SystemLog, Registration, AIChatHistory, AIChatSession, activity_tags, PointsHistory, User, Role
 from src.utils.time_helpers import get_beijing_time, ensure_timezone_aware
 
 utils_bp = Blueprint('utils', __name__)
