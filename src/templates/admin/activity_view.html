@@ -24,41 +24,54 @@
         <div class="card-body">
             <div class="row mb-4">
                 <div class="col-md-6">
-                    <p><i class="bi bi-geo-alt-fill text-primary"></i> <strong>活动地点：</strong>{{ activity.location|default('未设置') }}</p>
-                    <p>
-                        <i class="bi bi-calendar-event-fill text-primary"></i> <strong>活动时间：</strong>
-                        {% if activity.start_time and activity.end_time %}
-                            {{ activity.start_time.strftime('%Y-%m-%d %H:%M') }} 至 {{ activity.end_time.strftime('%Y-%m-%d %H:%M') }}
-                        {% else %}
-                            未设置
-                        {% endif %}
-                    </p>
-                    <p>
-                        <i class="bi bi-clock-fill text-primary"></i> <strong>报名截止：</strong>
-                        {% if activity.registration_deadline %}
-                            {{ activity.registration_deadline.strftime('%Y-%m-%d %H:%M') }}
-                        {% else %}
-                            未设置
-                        {% endif %}
-                    </p>
+                    <h5 class="border-bottom pb-2">基本信息</h5>
+                    <table class="table">
+                        <tr>
+                            <th style="width: 120px;">活动地点</th>
+                            <td>{{ activity.location }}</td>
+                        </tr>
+                        <tr>
+                            <th>开始时间</th>
+                            <td>{{ display_datetime(activity.start_time) }}</td>
+                        </tr>
+                        <tr>
+                            <th>结束时间</th>
+                            <td>{{ display_datetime(activity.end_time) }}</td>
+                        </tr>
+                        <tr>
+                            <th>报名截止</th>
+                            <td>{{ display_datetime(activity.registration_deadline) }}</td>
+                        </tr>
+                        <tr>
+                            <th>创建时间</th>
+                            <td>{{ display_datetime(activity.created_at) }}</td>
+                        </tr>
+                    </table>
                 </div>
                 <div class="col-md-6">
-                    <p><i class="bi bi-people-fill text-primary"></i> <strong>参与人数：</strong>
-                        {% if activity.max_participants and activity.max_participants > 0 %}
-                            {{ registration_count|default(0) }}/{{ activity.max_participants }}
-                        {% else %}
-                            {{ registration_count|default(0) }} (不限)
-                        {% endif %}
-                    </p>
-                    <p><i class="bi bi-person-fill text-primary"></i> <strong>发布者：</strong>{{ creator.username if creator else '未知' }}</p>
-                    <p>
-                        <i class="bi bi-calendar-plus-fill text-primary"></i> <strong>发布时间：</strong>
-                        {% if activity.created_at %}
-                            {{ activity.created_at.strftime('%Y-%m-%d %H:%M') }}
-                        {% else %}
-                            未知
-                        {% endif %}
-                    </p>
+                    <h5 class="border-bottom pb-2">参与信息</h5>
+                    <table class="table">
+                        <tr>
+                            <th style="width: 120px;">最大人数</th>
+                            <td>{{ activity.max_participants if activity.max_participants > 0 else '不限' }}</td>
+                        </tr>
+                        <tr>
+                            <th>已报名</th>
+                            <td>{{ registered_count }}</td>
+                        </tr>
+                        <tr>
+                            <th>已签到</th>
+                            <td>{{ checked_in_count }}</td>
+                        </tr>
+                        <tr>
+                            <th>活动类型</th>
+                            <td>{{ activity.type or '未分类' }}</td>
+                        </tr>
+                        <tr>
+                            <th>活动积分</th>
+                            <td>{{ activity.points or '默认积分' }}</td>
+                        </tr>
+                    </table>
                 </div>
             </div>
 

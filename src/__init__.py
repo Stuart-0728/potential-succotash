@@ -1,13 +1,18 @@
 import os
 import logging
-from flask import Flask
+from logging.handlers import RotatingFileHandler
+from flask import Flask, render_template
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager
 from flask_migrate import Migrate
 import pytz
 from datetime import datetime
 from flask_caching import Cache
+from flask_wtf.csrf import CSRFProtect
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 from src.config import Config
+from src.utils.time_helpers import display_datetime
 
 logger = logging.getLogger(__name__)
 
@@ -15,6 +20,8 @@ db = SQLAlchemy()
 login_manager = LoginManager()
 migrate = Migrate()
 cache = Cache()
+csrf = CSRFProtect()
+limiter = Limiter(key_func=get_remote_address)
 
 def create_app(config_name=None):
     app = Flask(__name__)
@@ -36,6 +43,8 @@ def create_app(config_name=None):
     db.init_app(app)
     migrate.init_app(app, db)
     login_manager.init_app(app)
+    csrf.init_app(app)
+    limiter.init_app(app)
     
     # 记录环境和时区信息
     app.logger.info(f"应用启动在 {config_name} 环境")
@@ -107,6 +116,32 @@ def create_app(config_name=None):
     
     # 注册命令
     register_commands(app)
+
+    # 添加全局模板函数
+    app.jinja_env.globals.update(display_datetime=display_datetime)
+    
+    # 设置日志
+    if not app.debug and not app.testing:
+        # 确保logs目录存在
+        log_dir = os.path.join(app.root_path, 'logs')
+        if not os.path.exists(log_dir):
+            os.makedirs(log_dir)
+            
+        # 设置文件处理器
+        file_handler = RotatingFileHandler(
+            os.path.join(log_dir, 'cqnu_association.log'),
+            maxBytes=10240,
+            backupCount=10
+        )
+        file_handler.setFormatter(logging.Formatter(
+            '%(asctime)s %(levelname)s: %(message)s [in %(pathname)s:%(lineno)d]'
+        ))
+        file_handler.setLevel(logging.INFO)
+        
+        # 添加处理器到应用日志和根日志
+        app.logger.addHandler(file_handler)
+        app.logger.setLevel(logging.INFO)
+        app.logger.info('CQNU Association startup')
 
     return app
 

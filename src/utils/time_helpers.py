@@ -14,6 +14,14 @@ def get_beijing_time():
     utc_now = pytz.utc.localize(utc_now)
     return utc_now.astimezone(beijing_tz)
 
+def is_render_environment():
+    """
+    检查当前是否在Render环境中运行
+    :return: 如果在Render环境中返回True，否则返回False
+    """
+    import os
+    return os.environ.get('RENDER', '') == 'true'
+
 def localize_time(dt):
     """
     将一个非时区时间转换为北京时间
@@ -189,18 +197,6 @@ def safe_compare(dt1, dt2):
     
     return dt1_aware == dt2_aware
 
-def is_render_environment():
-    """
-    检查是否在Render环境中运行
-    :return: 布尔值
-    """
-    try:
-        return current_app.config.get('IS_RENDER_ENVIRONMENT', False)
-    except RuntimeError:
-        # 如果在应用上下文外部调用，则检查环境变量
-        import os
-        return os.environ.get('RENDER', False) or os.environ.get('IS_RENDER', False)
-
 def normalize_datetime_for_db(dt):
     """
     规范化datetime对象，以便存储到数据库中
@@ -211,6 +207,27 @@ def normalize_datetime_for_db(dt):
     """
     if dt is None:
         return None
-        
+    
     # 将时间转换为UTC，并去除时区信息
-    return convert_to_utc(dt) 
+    return convert_to_utc(dt)
+
+def display_datetime(dt, format_str='%Y-%m-%d %H:%M'):
+    """
+    将数据库中的时间转换为显示时间（北京时间）
+    :param dt: 数据库中的datetime对象
+    :param format_str: 格式化字符串
+    :return: 格式化后的字符串
+    """
+    if dt is None:
+        return ''
+    
+    # 如果在Render环境中，数据库时间是UTC时间
+    if is_render_environment() and dt.tzinfo is None:
+        dt = pytz.utc.localize(dt)
+    # 如果在本地环境中，数据库时间是本地时间
+    elif not is_render_environment() and dt.tzinfo is None:
+        dt = pytz.timezone('Asia/Shanghai').localize(dt)
+    
+    # 转换为北京时间显示
+    beijing_time = dt.astimezone(pytz.timezone('Asia/Shanghai'))
+    return beijing_time.strftime(format_str) 
