@@ -50,14 +50,14 @@ class LocalizedDateTimeField(DateTimeField):
             # 确保数据有时区信息
             data = ensure_timezone_aware(self.data)
             
-            # 如果在Render环境中，转换为UTC时间并去除时区信息
-            if is_render_environment() and data is not None and data.tzinfo is not None:
-                data = data.astimezone(pytz.utc)
-                # 去除时区信息但保留UTC时间
-                data = data.replace(tzinfo=None)
-            
-            # 将对象的属性设置为带有时区信息的日期时间
-            setattr(obj, name, data)
+            # 如果在Render环境中，保留原始时间，不做任何转换
+            # 修复：不再将时间转换为UTC并去除时区信息，这会导致减去8小时
+            if is_render_environment():
+                # 直接使用北京时间，不做转换
+                setattr(obj, name, data)
+            else:
+                # 本地环境，使用带时区的时间
+                setattr(obj, name, data)
 
 class ActivityForm(FlaskForm):
     title = StringField('活动标题', validators=[DataRequired(message='活动标题不能为空')])

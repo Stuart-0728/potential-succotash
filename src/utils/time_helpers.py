@@ -133,11 +133,19 @@ def normalize_datetime_for_db(dt):
     # 确保时间有时区信息
     aware_dt = ensure_timezone_aware(dt)
     
-    # 转换为UTC并去除时区信息
-    if aware_dt is not None:
-        utc_dt = aware_dt.astimezone(pytz.utc).replace(tzinfo=None)
-        return utc_dt
-    return None
+    # 在Render环境中，保留原始时间，不做任何转换
+    if is_render_environment():
+        # 修复：在Render环境中，直接返回原始时间，但去除时区信息
+        # 这样可以避免时区转换导致的减去8小时问题
+        if aware_dt is not None:
+            return aware_dt.replace(tzinfo=None)
+        return None
+    else:
+        # 本地环境，转换为UTC并去除时区信息
+        if aware_dt is not None:
+            utc_dt = aware_dt.astimezone(pytz.utc).replace(tzinfo=None)
+            return utc_dt
+        return None
 
 def display_datetime(dt, format_str='%Y-%m-%d %H:%M'):
     """
