@@ -7,6 +7,7 @@ import os
 import sys
 import psycopg2
 import logging
+import argparse
 from datetime import datetime
 import pytz
 
@@ -16,16 +17,24 @@ logging.basicConfig(level=logging.INFO,
 logger = logging.getLogger(__name__)
 
 # 数据库连接信息
-def get_db_params():
-    """获取数据库连接参数，从环境变量中读取"""
-    # 在Render环境中，这些环境变量应该已经设置
-    return {
-        'dbname': os.environ.get('DATABASE_NAME', ''),
-        'user': os.environ.get('DATABASE_USER', ''),
-        'password': os.environ.get('DATABASE_PASSWORD', ''),
-        'host': os.environ.get('DATABASE_HOST', ''),
-        'port': os.environ.get('DATABASE_PORT', '5432')
-    }
+def get_db_params(args=None):
+    """获取数据库连接参数，优先从命令行参数读取，其次从环境变量中读取"""
+    if args:
+        return {
+            'dbname': args.dbname or os.environ.get('DATABASE_NAME', ''),
+            'user': args.user or os.environ.get('DATABASE_USER', ''),
+            'password': args.password or os.environ.get('DATABASE_PASSWORD', ''),
+            'host': args.host or os.environ.get('DATABASE_HOST', ''),
+            'port': args.port or os.environ.get('DATABASE_PORT', '5432')
+        }
+    else:
+        return {
+            'dbname': os.environ.get('DATABASE_NAME', ''),
+            'user': os.environ.get('DATABASE_USER', ''),
+            'password': os.environ.get('DATABASE_PASSWORD', ''),
+            'host': os.environ.get('DATABASE_HOST', ''),
+            'port': os.environ.get('DATABASE_PORT', '5432')
+        }
 
 def execute_sql_script(conn, cursor, sql):
     """执行SQL脚本"""
@@ -55,16 +64,27 @@ def execute_sql_script(conn, cursor, sql):
 
 def main():
     """主函数"""
+    # 解析命令行参数
+    parser = argparse.ArgumentParser(description='修复Render PostgreSQL数据库时区问题')
+    parser.add_argument('--dbname', help='数据库名称')
+    parser.add_argument('--user', help='数据库用户名')
+    parser.add_argument('--password', help='数据库密码')
+    parser.add_argument('--host', help='数据库主机地址')
+    parser.add_argument('--port', help='数据库端口号')
+    args = parser.parse_args()
+    
     logger.info("开始修复Render PostgreSQL数据库时区问题...")
     
     # 获取数据库连接参数
-    conn_params = get_db_params()
+    conn_params = get_db_params(args)
     
-    # 检查必要的环境变量是否存在
-    for key, value in conn_params.items():
-        if not value:
-            logger.error(f"错误: 环境变量 {key.upper()} 未设置")
-            return 1
+    # 检查必要的参数是否存在
+    missing_params = [key for key, value in conn_params.items() if not value]
+    if missing_params:
+        logger.error(f"错误: 以下参数未设置: {', '.join(missing_params)}")
+        logger.info("请使用命令行参数提供数据库连接信息，例如:")
+        logger.info("python3 fix_render_timezone.py --dbname=mydb --user=myuser --password=mypass --host=myhost --port=5432")
+        return 1
     
     # 设置环境变量，标记为Render环境
     os.environ['RENDER'] = 'true'
@@ -248,13 +268,8 @@ def main():
         logger.info("时区修复完成!")
         
     except Exception as e:
-        logger.error(f"错误: {e}")
+        logger.error(f"修复过程中出错: {e}")
         return 1
-    finally:
-        # 关闭连接
-        if 'conn' in locals() and conn:
-            conn.close()
-            logger.info("数据库连接已关闭")
     
     return 0
 
