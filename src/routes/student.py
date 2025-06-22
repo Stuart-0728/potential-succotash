@@ -824,7 +824,7 @@ def get_localized_now():
 def messages():
     try:
         page = request.args.get('page', 1, type=int)
-        filter_type = request.args.get('filter', 'received')
+        filter_type = request.args.get('filter', 'all')
         
         # 根据过滤类型查询消息
         if filter_type == 'sent':
@@ -839,18 +839,12 @@ def messages():
         
         messages = query.order_by(Message.created_at.desc()).paginate(page=page, per_page=10)
         
-        # 获取未读消息数量
-        unread_count = Message.query.filter_by(
-            receiver_id=current_user.id,
-            is_read=False
-        ).count()
-        
         return render_template('student/messages.html', 
                               messages=messages, 
                               filter_type=filter_type,
-                              unread_count=unread_count)
+                              display_datetime=display_datetime)
     except Exception as e:
-        logger.error(f"Error in student messages page: {e}")
+        logger.error(f"Error in messages page: {e}")
         flash('加载消息列表时出错', 'danger')
         return redirect(url_for('student.dashboard'))
 
@@ -870,7 +864,9 @@ def view_message(id):
             message.is_read = True
             db.session.commit()
         
-        return render_template('student/message_view.html', message=message)
+        return render_template('student/message_view.html', 
+                              message=message,
+                              display_datetime=display_datetime)
     except Exception as e:
         logger.error(f"Error in view_message: {e}")
         flash('查看消息时出错', 'danger')
@@ -970,7 +966,8 @@ def notifications():
         
         return render_template('student/notifications.html', 
                               notifications=notifications,
-                              read_notification_ids=read_notification_ids)
+                              read_notification_ids=read_notification_ids,
+                              display_datetime=display_datetime)
     except Exception as e:
         logger.error(f"Error in notifications page: {e}")
         flash('加载通知列表时出错', 'danger')
@@ -996,7 +993,9 @@ def view_notification(id):
             db.session.add(read_record)
             db.session.commit()
         
-        return render_template('student/notification_view.html', notification=notification)
+        return render_template('student/notification_view.html', 
+                              notification=notification,
+                              display_datetime=display_datetime)
     except Exception as e:
         logger.error(f"Error in view_notification: {e}")
         flash('查看通知时出错', 'danger')

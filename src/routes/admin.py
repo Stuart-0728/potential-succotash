@@ -1866,6 +1866,20 @@ def reset_system():
             flash('所有报名记录已重置', 'success')
         
         if reset_activities:
+            # 先清除活动标签关联
+            db.session.execute(activity_tags.delete())
+            db.session.commit()
+            
+            # 清除积分历史中对活动的引用
+            PointsHistory.query.filter(PointsHistory.activity_id.isnot(None)).delete()
+            db.session.commit()
+            
+            # 删除活动评价
+            from src.models import ActivityReview
+            ActivityReview.query.delete()
+            db.session.commit()
+            
+            # 删除活动
             Activity.query.delete()
             db.session.commit()
             flash('所有活动已重置', 'success')

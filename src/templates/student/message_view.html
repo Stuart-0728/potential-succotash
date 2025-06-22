@@ -1,0 +1,83 @@
+{% extends 'base.html' %}
+
+{% block title %}查看消息 - 重庆师范大学师能素质协会{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{{ url_for('student.dashboard') }}" class="text-decoration-none">个人中心</a></li>
+            <li class="breadcrumb-item"><a href="{{ url_for('student.messages') }}" class="text-decoration-none">站内信</a></li>
+            <li class="breadcrumb-item active fw-medium" aria-current="page">查看消息</li>
+        </ol>
+    </nav>
+
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-white border-0 p-4">
+            <div class="d-flex justify-content-between align-items-center">
+                <div class="d-flex align-items-center">
+                    <div class="bg-primary bg-opacity-10 rounded-circle p-3 me-3">
+                        <i class="fas fa-envelope text-primary"></i>
+                    </div>
+                    <h3 class="mb-0 fw-bold">查看消息</h3>
+                </div>
+                <a href="{{ url_for('student.messages') }}" class="btn btn-light">
+                    <i class="fas fa-arrow-left me-1"></i>返回列表
+                </a>
+            </div>
+        </div>
+        <div class="card-body p-4">
+            <div class="mb-4">
+                <h5 class="fw-bold mb-3">{{ message.subject }}</h5>
+                
+                <div class="d-flex justify-content-between text-muted mb-3">
+                    <div>
+                        <strong>发件人:</strong> {{ message.sender.username }}
+                        {% if message.sender.student_info %}
+                            ({{ message.sender.student_info.real_name }})
+                        {% endif %}
+                    </div>
+                    <div>
+                        <strong>时间:</strong> {{ display_datetime(message.created_at) }}
+                    </div>
+                </div>
+                
+                <div class="text-muted mb-3">
+                    <strong>收件人:</strong> {{ message.receiver.username }}
+                    {% if message.receiver.student_info %}
+                        ({{ message.receiver.student_info.real_name }})
+                    {% endif %}
+                </div>
+                
+                <div class="card bg-light">
+                    <div class="card-body">
+                        <div class="message-content">
+                            {{ message.content|nl2br }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="d-flex justify-content-between mt-4">
+                <a href="{{ url_for('student.messages') }}" class="btn btn-light">
+                    <i class="fas fa-arrow-left me-1"></i>返回
+                </a>
+                
+                <div>
+                    {% if message.receiver_id == current_user.id %}
+                    <a href="{{ url_for('student.create_message') }}" class="btn btn-primary">
+                        <i class="fas fa-reply me-1"></i>回复
+                    </a>
+                    {% endif %}
+                    
+                    <form method="post" action="{{ url_for('student.delete_message', id=message.id) }}" class="d-inline" onsubmit="return confirm('确定要删除此消息吗？');">
+                        <button type="submit" class="btn btn-danger">
+                            <i class="fas fa-trash-alt me-1"></i>删除
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 

@@ -154,7 +154,10 @@ def display_datetime(dt, format_str='%Y-%m-%d %H:%M'):
     
     try:
         # 假设数据库中的时间是UTC时间（无时区信息）
-        utc_dt = pytz.utc.localize(dt)
+        if dt.tzinfo is None:
+            utc_dt = pytz.utc.localize(dt)
+        else:
+            utc_dt = dt.astimezone(pytz.utc)
         
         # 转换为北京时间
         beijing_dt = utc_dt.astimezone(pytz.timezone('Asia/Shanghai'))
