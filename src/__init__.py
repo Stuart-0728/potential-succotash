@@ -91,25 +91,7 @@ def create_app(config_name=None):
     register_commands(app)
     
     # 添加全局模板函数
-    try:
-        # 确保display_datetime函数存在并可用
-        from src.utils.time_helpers import display_datetime
-        app.jinja_env.globals.update(display_datetime=display_datetime)
-        app.logger.info("已注册display_datetime全局模板函数")
-    except (ImportError, AttributeError) as e:
-        app.logger.error(f"注册display_datetime函数失败: {str(e)}")
-        
-        # 提供一个备用函数
-        def fallback_display_datetime(dt, format_str='%Y-%m-%d %H:%M'):
-            if dt is None:
-                return ''
-            try:
-                return dt.strftime(format_str)
-            except:
-                return str(dt)
-                
-        app.jinja_env.globals.update(display_datetime=fallback_display_datetime)
-        app.logger.info("已注册备用display_datetime全局模板函数")
+    register_template_functions(app)
     
     # 设置日志
     if not app.debug and not app.testing:
@@ -135,6 +117,48 @@ def create_app(config_name=None):
         app.logger.info('CQNU Association startup')
     
     return app
+
+def register_template_functions(app):
+    """注册全局模板函数"""
+    try:
+        # 导入所有时间处理函数
+        from src.utils.time_helpers import (
+            display_datetime, format_datetime, localize_time, 
+            get_beijing_time, is_render_environment
+        )
+        
+        # 注册基本的时间显示函数
+        app.jinja_env.globals.update(display_datetime=display_datetime)
+        app.jinja_env.globals.update(format_datetime=format_datetime)
+        app.jinja_env.globals.update(localize_time=localize_time)
+        app.jinja_env.globals.update(get_beijing_time=get_beijing_time)
+        app.jinja_env.globals.update(is_render_environment=is_render_environment)
+        
+        # 添加一个简单的当前时间函数
+        def now_beijing():
+            return get_beijing_time()
+        app.jinja_env.globals.update(now_beijing=now_beijing)
+        
+        app.logger.info("已注册时间处理全局模板函数")
+    except (ImportError, AttributeError) as e:
+        app.logger.error(f"注册时间处理函数失败: {str(e)}")
+        
+        # 提供备用函数
+        def fallback_display_datetime(dt, format_str='%Y-%m-%d %H:%M'):
+            if dt is None:
+                return ''
+            try:
+                return dt.strftime(format_str)
+            except:
+                return str(dt)
+        
+        def fallback_now():
+            return datetime.now()
+                
+        app.jinja_env.globals.update(display_datetime=fallback_display_datetime)
+        app.jinja_env.globals.update(format_datetime=fallback_display_datetime)
+        app.jinja_env.globals.update(now_beijing=fallback_now)
+        app.logger.info("已注册备用时间处理全局模板函数")
 
 def register_error_handlers(app):
     @app.errorhandler(404)
