@@ -9,7 +9,7 @@ from flask_wtf.csrf import CSRFProtect
 from flask_caching import Cache
 from datetime import datetime
 from src.config import Config
-from src.utils.time_helpers import display_datetime
+from src.utils.time_helpers import display_datetime, get_beijing_time
 
 # 初始化扩展，但不传入app实例
 db = SQLAlchemy()
@@ -93,6 +93,9 @@ def create_app(config_name=None):
     # 添加全局模板函数
     register_template_functions(app)
     
+    # 添加全局上下文处理器
+    register_context_processors(app)
+    
     # 设置日志
     if not app.debug and not app.testing:
         # 确保logs目录存在
@@ -159,6 +162,17 @@ def register_template_functions(app):
         app.jinja_env.globals.update(format_datetime=fallback_display_datetime)
         app.jinja_env.globals.update(now_beijing=fallback_now)
         app.logger.info("已注册备用时间处理全局模板函数")
+
+def register_context_processors(app):
+    """注册全局上下文处理器，确保所有模板都能访问特定变量"""
+    @app.context_processor
+    def inject_now_and_helpers():
+        return {
+            'now': datetime.now(),
+            'display_datetime': display_datetime,
+            'get_beijing_time': get_beijing_time
+        }
+    app.logger.info("已注册全局上下文处理器")
 
 def register_error_handlers(app):
     @app.errorhandler(404)

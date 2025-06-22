@@ -17,81 +17,54 @@ logging.basicConfig(level=logging.INFO,
 logger = logging.getLogger(__name__)
 
 # 数据库连接信息
-def get_db_params(args=None):
-    """获取数据库连接参数，优先从命令行参数读取，其次从环境变量中读取"""
-    if args:
-        return {
-            'dbname': args.dbname or os.environ.get('DATABASE_NAME', ''),
-            'user': args.user or os.environ.get('DATABASE_USER', ''),
-            'password': args.password or os.environ.get('DATABASE_PASSWORD', ''),
-            'host': args.host or os.environ.get('DATABASE_HOST', ''),
-            'port': args.port or os.environ.get('DATABASE_PORT', '5432')
-        }
-    else:
-        return {
-            'dbname': os.environ.get('DATABASE_NAME', ''),
-            'user': os.environ.get('DATABASE_USER', ''),
-            'password': os.environ.get('DATABASE_PASSWORD', ''),
-            'host': os.environ.get('DATABASE_HOST', ''),
-            'port': os.environ.get('DATABASE_PORT', '5432')
-        }
+def get_db_params():
+    """获取数据库连接参数，优先使用环境变量"""
+    return {
+        'dbname': os.environ.get('DB_NAME', 'cqnu_association_uxft'),
+        'user': os.environ.get('DB_USER', 'cqnu_association_uxft_user'),
+        'password': os.environ.get('DB_PASSWORD', 'BamPWSRTgj0sPGKM4sGsLDv8sGCPCPzB'),
+        'host': os.environ.get('DB_HOST', 'dpg-d0sjag49c44c73f7jt4g-a.oregon-postgres.render.com'),
+        'port': os.environ.get('DB_PORT', '5432')
+    }
 
-def execute_sql_script(conn, cursor, sql):
-    """执行SQL脚本"""
+def execute_query(cursor, query, params=None, description=None):
+    """执行SQL查询并打印结果"""
+    if description:
+        print(f"\n>>> {description}")
+    
     try:
-        # 将脚本分割为单独的语句
-        statements = sql.split(';')
+        if params:
+            cursor.execute(query, params)
+        else:
+            cursor.execute(query)
         
-        for statement in statements:
-            # 跳过空语句
-            if not statement.strip():
-                continue
-                
-            # 打印当前执行的语句（仅显示前100个字符）
-            logger.info(f"执行: {statement.strip()[:100]}...")
-            
-            # 执行语句
-            cursor.execute(statement)
-        
-        # 提交更改
-        conn.commit()
-        logger.info("SQL脚本执行成功")
-        return True
+        if query.strip().upper().startswith("SELECT"):
+            results = cursor.fetchall()
+            if results:
+                for row in results:
+                    print(row)
+            else:
+                print("查询没有返回结果")
+        else:
+            print("查询执行成功")
     except Exception as e:
-        conn.rollback()
-        logger.error(f"执行SQL脚本失败: {e}")
-        return False
+        print(f"执行查询时出错: {e}")
 
 def main():
     """主函数"""
-    # 解析命令行参数
-    parser = argparse.ArgumentParser(description='修复Render PostgreSQL数据库时区问题')
-    parser.add_argument('--dbname', help='数据库名称')
-    parser.add_argument('--user', help='数据库用户名')
-    parser.add_argument('--password', help='数据库密码')
-    parser.add_argument('--host', help='数据库主机地址')
-    parser.add_argument('--port', help='数据库端口号')
-    args = parser.parse_args()
-    
-    logger.info("开始修复Render PostgreSQL数据库时区问题...")
+    print("开始修复Render环境中的时区问题...")
     
     # 获取数据库连接参数
-    conn_params = get_db_params(args)
+    conn_params = get_db_params()
     
-    # 检查必要的参数是否存在
-    missing_params = [key for key, value in conn_params.items() if not value]
-    if missing_params:
-        logger.error(f"错误: 以下参数未设置: {', '.join(missing_params)}")
-        logger.info("请使用命令行参数提供数据库连接信息，例如:")
-        logger.info("python3 fix_render_timezone.py --dbname=mydb --user=myuser --password=mypass --host=myhost --port=5432")
+    # 检查密码是否为空
+    if not conn_params['password']:
+        print("错误: 数据库密码未设置。请通过环境变量DB_PASSWORD设置密码。")
         return 1
-    
-    # 设置环境变量，标记为Render环境
-    os.environ['RENDER'] = 'true'
     
     try:
         # 连接到数据库
-        logger.info("正在连接到PostgreSQL数据库...")
+        print(f"正在连接到PostgreSQL数据库 {conn_params['host']}...")
         conn = psycopg2.connect(
             dbname=conn_params['dbname'],
             user=conn_params['user'],
@@ -102,175 +75,175 @@ def main():
         cursor = conn.cursor()
         
         # 检查数据库时区设置
-        logger.info("检查数据库时区设置...")
-        cursor.execute("SHOW timezone;")
-        result = cursor.fetchone()
-        db_timezone = result[0] if result else "未知"
-        logger.info(f"数据库时区: {db_timezone}")
-        
-        # 检查当前数据库时间
-        cursor.execute("SELECT NOW();")
-        result = cursor.fetchone()
-        db_time = result[0] if result else None
-        if db_time:
-            logger.info(f"数据库当前时间: {db_time}")
-            
-            # 获取北京时间
-            beijing_now = datetime.now(pytz.timezone('Asia/Shanghai'))
-            logger.info(f"北京时间: {beijing_now}")
-            
-            # 计算时差
-            time_diff = (beijing_now - db_time.astimezone(pytz.timezone('Asia/Shanghai'))).total_seconds() / 3600
-            logger.info(f"时差(小时): {time_diff:.2f}")
+        execute_query(cursor, "SHOW timezone;", description="当前数据库时区设置")
         
         # 设置数据库时区为UTC
-        logger.info("设置数据库时区为UTC...")
-        cursor.execute("SET timezone TO 'UTC';")
+        execute_query(cursor, "SET timezone = 'UTC';", description="设置数据库时区为UTC")
         
-        # 验证时区设置
-        cursor.execute("SHOW timezone;")
-        result = cursor.fetchone()
-        new_timezone = result[0] if result else "未知"
-        logger.info(f"设置后的数据库时区: {new_timezone}")
+        # 检查设置后的时区
+        execute_query(cursor, "SHOW timezone;", description="设置后的数据库时区")
         
-        # 修复活动表中的时间字段
-        logger.info("修复活动表中的时间字段...")
+        # 检查当前数据库时间
+        execute_query(cursor, "SELECT NOW();", description="当前数据库时间")
         
-        # 1. 修复活动开始时间
-        cursor.execute("""
-        UPDATE activities
-        SET start_time = start_time AT TIME ZONE 'Asia/Shanghai' AT TIME ZONE 'UTC'
-        WHERE start_time IS NOT NULL;
-        """)
-        
-        # 2. 修复活动结束时间
-        cursor.execute("""
-        UPDATE activities
-        SET end_time = end_time AT TIME ZONE 'Asia/Shanghai' AT TIME ZONE 'UTC'
-        WHERE end_time IS NOT NULL;
-        """)
-        
-        # 3. 修复活动报名截止时间
-        cursor.execute("""
-        UPDATE activities
-        SET registration_deadline = registration_deadline AT TIME ZONE 'Asia/Shanghai' AT TIME ZONE 'UTC'
-        WHERE registration_deadline IS NOT NULL;
-        """)
-        
-        # 4. 修复活动创建时间
-        cursor.execute("""
-        UPDATE activities
-        SET created_at = created_at AT TIME ZONE 'Asia/Shanghai' AT TIME ZONE 'UTC'
-        WHERE created_at IS NOT NULL;
-        """)
-        
-        # 5. 修复活动更新时间
-        cursor.execute("""
-        UPDATE activities
-        SET updated_at = updated_at AT TIME ZONE 'Asia/Shanghai' AT TIME ZONE 'UTC'
-        WHERE updated_at IS NOT NULL;
-        """)
-        
-        # 修复通知表中的时间字段
-        logger.info("修复通知表中的时间字段...")
-        
-        # 1. 修复通知创建时间
-        cursor.execute("""
-        UPDATE notification
-        SET created_at = created_at AT TIME ZONE 'Asia/Shanghai' AT TIME ZONE 'UTC'
-        WHERE created_at IS NOT NULL;
-        """)
-        
-        # 2. 修复通知过期时间
-        cursor.execute("""
-        UPDATE notification
-        SET expiry_date = expiry_date AT TIME ZONE 'Asia/Shanghai' AT TIME ZONE 'UTC'
-        WHERE expiry_date IS NOT NULL;
-        """)
-        
-        # 修复通知已读表中的时间字段
-        cursor.execute("""
-        UPDATE notification_read
-        SET read_at = read_at AT TIME ZONE 'Asia/Shanghai' AT TIME ZONE 'UTC'
-        WHERE read_at IS NOT NULL;
-        """)
-        
-        # 修复站内信表中的时间字段
-        cursor.execute("""
-        UPDATE message
-        SET created_at = created_at AT TIME ZONE 'Asia/Shanghai' AT TIME ZONE 'UTC'
-        WHERE created_at IS NOT NULL;
-        """)
-        
-        # 修复报名表中的时间字段
-        logger.info("修复报名表中的时间字段...")
-        
-        # 1. 修复报名时间
-        cursor.execute("""
-        UPDATE registrations
-        SET register_time = register_time AT TIME ZONE 'Asia/Shanghai' AT TIME ZONE 'UTC'
-        WHERE register_time IS NOT NULL;
-        """)
-        
-        # 2. 修复签到时间
-        cursor.execute("""
-        UPDATE registrations
-        SET check_in_time = check_in_time AT TIME ZONE 'Asia/Shanghai' AT TIME ZONE 'UTC'
-        WHERE check_in_time IS NOT NULL;
-        """)
-        
-        # 修复系统日志表中的时间字段
-        cursor.execute("""
-        UPDATE system_logs
-        SET created_at = created_at AT TIME ZONE 'Asia/Shanghai' AT TIME ZONE 'UTC'
-        WHERE created_at IS NOT NULL;
-        """)
-        
-        # 修复积分历史表中的时间字段
-        cursor.execute("""
-        UPDATE points_history
-        SET created_at = created_at AT TIME ZONE 'Asia/Shanghai' AT TIME ZONE 'UTC'
-        WHERE created_at IS NOT NULL;
-        """)
-        
-        # 修复活动评价表中的时间字段
-        cursor.execute("""
-        UPDATE activity_reviews
-        SET created_at = created_at AT TIME ZONE 'Asia/Shanghai' AT TIME ZONE 'UTC'
-        WHERE created_at IS NOT NULL;
-        """)
-        
-        # 提交所有更改
-        conn.commit()
-        logger.info("所有数据库时间字段已修复")
-        
-        # 验证修复结果
-        logger.info("验证修复结果...")
-        cursor.execute("""
+        # 检查活动表中的时间样例（修复前）
+        execute_query(cursor, """
         SELECT id, title, start_time, end_time, registration_deadline 
         FROM activities 
         ORDER BY created_at DESC 
         LIMIT 3;
-        """)
-        activities = cursor.fetchall()
+        """, description="修复前的活动时间样例")
         
-        for activity in activities:
-            if len(activity) >= 5:
-                id, title, start_time, end_time, reg_deadline = activity
-                logger.info(f"活动 ID: {id}, 标题: {title}")
-                logger.info(f"开始时间(UTC): {start_time}")
-                
-                # 转换为北京时间显示
-                if start_time:
-                    beijing_start = start_time.astimezone(pytz.timezone('Asia/Shanghai'))
-                    logger.info(f"开始时间(北京): {beijing_start.strftime('%Y-%m-%d %H:%M:%S %Z%z')}")
+        # 执行时区修复
+        print("\n开始执行时区修复...")
         
-        logger.info("时区修复完成!")
+        # 1. 修复活动表中的时间字段
+        execute_query(cursor, """
+        UPDATE activities
+        SET start_time = start_time AT TIME ZONE 'Asia/Shanghai' AT TIME ZONE 'UTC'
+        WHERE start_time IS NOT NULL;
+        """, description="修复活动开始时间")
+        
+        execute_query(cursor, """
+        UPDATE activities
+        SET end_time = end_time AT TIME ZONE 'Asia/Shanghai' AT TIME ZONE 'UTC'
+        WHERE end_time IS NOT NULL;
+        """, description="修复活动结束时间")
+        
+        execute_query(cursor, """
+        UPDATE activities
+        SET registration_deadline = registration_deadline AT TIME ZONE 'Asia/Shanghai' AT TIME ZONE 'UTC'
+        WHERE registration_deadline IS NOT NULL;
+        """, description="修复活动报名截止时间")
+        
+        execute_query(cursor, """
+        UPDATE activities
+        SET created_at = created_at AT TIME ZONE 'Asia/Shanghai' AT TIME ZONE 'UTC'
+        WHERE created_at IS NOT NULL;
+        """, description="修复活动创建时间")
+        
+        execute_query(cursor, """
+        UPDATE activities
+        SET updated_at = updated_at AT TIME ZONE 'Asia/Shanghai' AT TIME ZONE 'UTC'
+        WHERE updated_at IS NOT NULL;
+        """, description="修复活动更新时间")
+        
+        # 2. 修复报名表中的时间字段
+        execute_query(cursor, """
+        UPDATE registrations
+        SET register_time = register_time AT TIME ZONE 'Asia/Shanghai' AT TIME ZONE 'UTC'
+        WHERE register_time IS NOT NULL;
+        """, description="修复报名时间")
+        
+        execute_query(cursor, """
+        UPDATE registrations
+        SET check_in_time = check_in_time AT TIME ZONE 'Asia/Shanghai' AT TIME ZONE 'UTC'
+        WHERE check_in_time IS NOT NULL;
+        """, description="修复签到时间")
+        
+        # 3. 修复通知表中的时间字段
+        execute_query(cursor, """
+        UPDATE notification
+        SET created_at = created_at AT TIME ZONE 'Asia/Shanghai' AT TIME ZONE 'UTC'
+        WHERE created_at IS NOT NULL;
+        """, description="修复通知创建时间")
+        
+        execute_query(cursor, """
+        UPDATE notification
+        SET expiry_date = expiry_date AT TIME ZONE 'Asia/Shanghai' AT TIME ZONE 'UTC'
+        WHERE expiry_date IS NOT NULL;
+        """, description="修复通知过期时间")
+        
+        # 4. 修复通知已读表中的时间字段
+        execute_query(cursor, """
+        UPDATE notification_read
+        SET read_at = read_at AT TIME ZONE 'Asia/Shanghai' AT TIME ZONE 'UTC'
+        WHERE read_at IS NOT NULL;
+        """, description="修复通知已读时间")
+        
+        # 5. 修复站内信表中的时间字段
+        execute_query(cursor, """
+        UPDATE message
+        SET created_at = created_at AT TIME ZONE 'Asia/Shanghai' AT TIME ZONE 'UTC'
+        WHERE created_at IS NOT NULL;
+        """, description="修复站内信创建时间")
+        
+        # 6. 修复系统日志表中的时间字段
+        execute_query(cursor, """
+        UPDATE system_logs
+        SET created_at = created_at AT TIME ZONE 'Asia/Shanghai' AT TIME ZONE 'UTC'
+        WHERE created_at IS NOT NULL;
+        """, description="修复系统日志创建时间")
+        
+        # 7. 修复积分历史表中的时间字段
+        execute_query(cursor, """
+        UPDATE points_history
+        SET created_at = created_at AT TIME ZONE 'Asia/Shanghai' AT TIME ZONE 'UTC'
+        WHERE created_at IS NOT NULL;
+        """, description="修复积分历史创建时间")
+        
+        # 8. 修复活动评价表中的时间字段
+        execute_query(cursor, """
+        UPDATE activity_reviews
+        SET created_at = created_at AT TIME ZONE 'Asia/Shanghai' AT TIME ZONE 'UTC'
+        WHERE created_at IS NOT NULL;
+        """, description="修复活动评价创建时间")
+        
+        # 9. 修复AI聊天历史表中的时间字段
+        execute_query(cursor, """
+        UPDATE ai_chat_history
+        SET timestamp = timestamp AT TIME ZONE 'Asia/Shanghai' AT TIME ZONE 'UTC'
+        WHERE timestamp IS NOT NULL;
+        """, description="修复AI聊天历史时间")
+        
+        # 10. 修复AI聊天会话表中的时间字段
+        execute_query(cursor, """
+        UPDATE ai_chat_sessions
+        SET created_at = created_at AT TIME ZONE 'Asia/Shanghai' AT TIME ZONE 'UTC'
+        WHERE created_at IS NOT NULL;
+        """, description="修复AI聊天会话创建时间")
+        
+        execute_query(cursor, """
+        UPDATE ai_chat_sessions
+        SET updated_at = updated_at AT TIME ZONE 'Asia/Shanghai' AT TIME ZONE 'UTC'
+        WHERE updated_at IS NOT NULL;
+        """, description="修复AI聊天会话更新时间")
+        
+        # 11. 修复用户表中的时间字段
+        execute_query(cursor, """
+        UPDATE users
+        SET created_at = created_at AT TIME ZONE 'Asia/Shanghai' AT TIME ZONE 'UTC'
+        WHERE created_at IS NOT NULL;
+        """, description="修复用户创建时间")
+        
+        execute_query(cursor, """
+        UPDATE users
+        SET last_login = last_login AT TIME ZONE 'Asia/Shanghai' AT TIME ZONE 'UTC'
+        WHERE last_login IS NOT NULL;
+        """, description="修复用户最后登录时间")
+        
+        # 检查活动表中的时间样例（修复后）
+        execute_query(cursor, """
+        SELECT id, title, start_time, end_time, registration_deadline 
+        FROM activities 
+        ORDER BY created_at DESC 
+        LIMIT 3;
+        """, description="修复后的活动时间样例")
+        
+        # 提交更改
+        conn.commit()
+        print("\n所有时区修复已成功提交!")
         
     except Exception as e:
-        logger.error(f"修复过程中出错: {e}")
+        print(f"错误: {e}")
         return 1
+    finally:
+        # 关闭连接
+        if 'conn' in locals() and conn:
+            conn.close()
+            print("\n数据库连接已关闭")
     
+    print("\n时区修复脚本执行完成。请确保应用代码中的时区处理逻辑正确。")
     return 0
 
 if __name__ == "__main__":
