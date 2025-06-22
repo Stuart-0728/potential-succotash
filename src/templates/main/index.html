@@ -13,7 +13,7 @@
         </div>
         <div class="carousel-inner">
             <div class="carousel-item active">
-                <img src="{{ url_for('static', filename='img/banner1.jpg') }}" class="d-block w-100" alt="Banner 1" style="height: 500px; object-fit: cover;">
+                <img src="{{ url_for('static', filename='img/banner1.jpg') }}" class="d-block w-100" alt="Banner 1">
                 <div class="carousel-caption d-none d-md-block">
                     <h2 class="display-4 fw-bold">重庆师范大学师能素质协会</h2>
                     <p class="lead">提升教师技能，培养未来教育者</p>
@@ -21,7 +21,7 @@
                 </div>
             </div>
             <div class="carousel-item">
-                <img src="{{ url_for('static', filename='img/banner2.jpg') }}" class="d-block w-100" alt="Banner 2" style="height: 500px; object-fit: cover;">
+                <img src="{{ url_for('static', filename='img/banner2.jpg') }}" class="d-block w-100" alt="Banner 2">
                 <div class="carousel-caption d-none d-md-block">
                     <h2 class="display-4 fw-bold">参与精彩活动</h2>
                     <p class="lead">讲座、研讨会、实践活动等多种形式</p>
@@ -29,7 +29,7 @@
                 </div>
             </div>
             <div class="carousel-item">
-                <img src="{{ url_for('static', filename='img/banner3.jpg') }}" class="d-block w-100" alt="Banner 3" style="height: 500px; object-fit: cover;">
+                <img src="{{ url_for('static', filename='img/banner3.jpg') }}" class="d-block w-100" alt="Banner 3">
                 <div class="carousel-caption d-none d-md-block">
                     <h2 class="display-4 fw-bold">加入我们</h2>
                     <p class="lead">成为师能素质协会的一员</p>
@@ -80,14 +80,14 @@
     <!-- 特色活动 -->
     <div class="row mb-5">
         <div class="col-12">
-            <h2 class="mb-4 text-center fw-bold">特色活动</h2>
+            <h2 class="section-title">特色活动</h2>
             <div class="row">
                 {% if featured_activities %}
                     {% for activity in featured_activities %}
                         <div class="col-md-4 mb-4">
                             <div class="card h-100 shadow-sm">
                                 {% if activity.poster_url %}
-                                    <img src="{{ activity.poster_url }}" class="card-img-top" alt="{{ activity.title }}" style="height: 200px; object-fit: cover;">
+                                    <img src="{{ activity.poster_url }}" class="card-img-top" alt="{{ activity.title }}">
                                 {% else %}
                                     <div class="bg-light text-center py-5">
                                         <i class="fas fa-image fa-3x text-muted"></i>
@@ -98,7 +98,7 @@
                                         <span class="badge bg-primary">特色活动</span>
                                         <small class="text-muted">{{ activity.type }}</small>
                                     </div>
-                                    <h5 class="card-title">{{ activity.title }}</h5>
+                                    <h5 class="card-title fw-bold">{{ activity.title }}</h5>
                                     <p class="card-text text-truncate">{{ activity.description }}</p>
                                 </div>
                                 <div class="card-footer bg-white">
@@ -122,14 +122,14 @@
     <!-- 即将开始的活动 -->
     <div class="row mb-5">
         <div class="col-12">
-            <h2 class="mb-4 text-center fw-bold">即将开始</h2>
+            <h2 class="section-title">即将开始</h2>
             <div class="row">
                 {% if upcoming_activities %}
                     {% for activity in upcoming_activities %}
                         <div class="col-md-4 mb-4">
                             <div class="card h-100 shadow-sm">
                                 {% if activity.poster_url %}
-                                    <img src="{{ activity.poster_url }}" class="card-img-top" alt="{{ activity.title }}" style="height: 200px; object-fit: cover;">
+                                    <img src="{{ activity.poster_url }}" class="card-img-top" alt="{{ activity.title }}">
                                 {% else %}
                                     <div class="bg-light text-center py-5">
                                         <i class="fas fa-image fa-3x text-muted"></i>
@@ -140,7 +140,7 @@
                                         <span class="badge bg-success">即将开始</span>
                                         <small class="text-muted">{{ activity.type }}</small>
                                     </div>
-                                    <h5 class="card-title">{{ activity.title }}</h5>
+                                    <h5 class="card-title fw-bold">{{ activity.title }}</h5>
                                     <p class="card-text text-truncate">{{ activity.description }}</p>
                                 </div>
                                 <div class="card-footer bg-white">
@@ -164,14 +164,14 @@
     <!-- 热门活动 -->
     <div class="row">
         <div class="col-12">
-            <h2 class="mb-4 text-center fw-bold">热门活动</h2>
+            <h2 class="section-title">热门活动</h2>
             <div class="row">
                 {% if popular_activities %}
                     {% for activity in popular_activities %}
                         <div class="col-md-4 mb-4">
                             <div class="card h-100 shadow-sm">
                                 {% if activity.poster_url %}
-                                    <img src="{{ activity.poster_url }}" class="card-img-top" alt="{{ activity.title }}" style="height: 200px; object-fit: cover;">
+                                    <img src="{{ activity.poster_url }}" class="card-img-top" alt="{{ activity.title }}">
                                 {% else %}
                                     <div class="bg-light text-center py-5">
                                         <i class="fas fa-image fa-3x text-muted"></i>
@@ -182,7 +182,7 @@
                                         <span class="badge bg-warning text-dark">热门活动</span>
                                         <small class="text-muted">{{ activity.type }}</small>
                                     </div>
-                                    <h5 class="card-title">{{ activity.title }}</h5>
+                                    <h5 class="card-title fw-bold">{{ activity.title }}</h5>
                                     <p class="card-text text-truncate">{{ activity.description }}</p>
                                 </div>
                                 <div class="card-footer bg-white">
