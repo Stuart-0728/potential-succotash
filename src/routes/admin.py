@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify, current_app, send_file, abort, session
 from flask_login import login_required, current_user
-from src.models import db, User, Activity, Registration, StudentInfo, SystemLog, Tag, Notification, NotificationRead, Role, PointsHistory
+from src.models import db, User, Activity, Registration, StudentInfo, SystemLog, Tag, Notification, NotificationRead, Role, PointsHistory, Message
 from src.routes.utils import admin_required, log_action
 from datetime import datetime, timedelta
 import logging
@@ -1969,11 +1969,12 @@ def reset_system():
 def notifications():
     try:
         page = request.args.get('page', 1, type=int)
-        
-        # 获取所有通知
         notifications = Notification.query.order_by(Notification.created_at.desc()).paginate(page=page, per_page=10)
         
-        return render_template('admin/notifications.html', notifications=notifications)
+        # 确保display_datetime函数在模板中可用
+        return render_template('admin/notifications.html', 
+                              notifications=notifications,
+                              display_datetime=display_datetime)
     except Exception as e:
         logger.error(f"Error in notifications page: {e}")
         flash('加载通知列表时出错', 'danger')

@@ -43,20 +43,17 @@ def localize_time(dt):
 
 def get_localized_now():
     """
-    获取本地化的当前时间（北京时间）
+    获取当前时间，统一使用UTC时间
     此函数适用于需要与数据库比较时间的情况
     """
-    # 检查是否在Render环境，如果是，返回UTC时间，否则返回北京时间
-    if is_render_environment():
-        return datetime.datetime.utcnow()
-    else:
-        return get_beijing_time().replace(tzinfo=None)
+    # 统一返回UTC时间，不再区分环境
+    return datetime.datetime.utcnow()
 
 def convert_to_utc(dt):
     """
     将一个时间转换为UTC时间
     :param dt: 需要转换的datetime对象
-    :return: UTC时间
+    :return: UTC时间（无时区信息）
     """
     if dt is None:
         return None
@@ -118,67 +115,58 @@ def ensure_timezone_aware(dt, default_timezone='Asia/Shanghai'):
         return None
         
     if is_naive_datetime(dt):
-        # 检查是否在Render环境下
-        if is_render_environment():
-            # 在Render环境中，假设naive时间已经是UTC
-            return pytz.utc.localize(dt)
-        else:
-            # 在本地环境，按照默认时区处理
-            tz = pytz.timezone(default_timezone)
-            return tz.localize(dt)
+        # 统一处理：所有没有时区的时间都按照默认时区处理
+        tz = pytz.timezone(default_timezone)
+        return tz.localize(dt)
     return dt
 
-def compare_datetimes(dt1, dt2):
+def normalize_datetime_for_db(dt):
     """
-    安全地比较两个datetime对象，确保它们都有时区信息
-    :param dt1: 第一个datetime对象
-    :param dt2: 第二个datetime对象
-    :return: dt1 < dt2返回-1，dt1 == dt2返回0，dt1 > dt2返回1
+    规范化datetime对象，以便存储到数据库中
+    统一存储为UTC时间（无时区信息）
+    :param dt: datetime对象
+    :return: 规范化后的datetime对象（UTC时间，无时区信息）
     """
-    if dt1 is None and dt2 is None:
-        return 0
-    if dt1 is None:
-        return -1
-    if dt2 is None:
-        return 1
-        
-    # 确保两个时间都有时区信息
-    dt1 = ensure_timezone_aware(dt1)
-    dt2 = ensure_timezone_aware(dt2)
+    if dt is None:
+        return None
     
-    # 由于已经检查了None值，这里可以安全地使用时间戳比较
+    # 确保时间有时区信息
+    aware_dt = ensure_timezone_aware(dt)
+    
+    # 转换为UTC并去除时区信息
+    if aware_dt is not None:
+        utc_dt = aware_dt.astimezone(pytz.utc).replace(tzinfo=None)
+        return utc_dt
+    return None
+
+def display_datetime(dt, format_str='%Y-%m-%d %H:%M'):
+    """
+    将数据库中的时间转换为显示时间（北京时间）
+    :param dt: 数据库中的datetime对象（UTC时间，无时区信息）
+    :param format_str: 格式化字符串
+    :return: 格式化后的字符串
+    """
+    if dt is None:
+        return ''
+        
+    if not isinstance(dt, datetime.datetime):
+        return str(dt)
+    
     try:
-        # 确保dt1和dt2不为None后再调用timestamp()
-        if dt1 and dt2:
-            ts1 = dt1.timestamp()
-            ts2 = dt2.timestamp()
-            
-            if ts1 < ts2:
-                return -1
-            elif ts1 > ts2:
-                return 1
-            else:
-                return 0
-        else:
-            # 如果dt1或dt2为None，使用字符串比较
-            str1 = str(dt1)
-            str2 = str(dt2)
-            if str1 < str2:
-                return -1
-            elif str1 > str2:
-                return 1
-            else:
-                return 0
-    except (AttributeError, TypeError):
-        # 如果出现错误，回退到字符串比较
-        str1 = str(dt1)
-        str2 = str(dt2)
-        if str1 < str2:
-            return -1
-        elif str1 > str2:
-            return 1
-        else:
-            return 0
+        # 假设数据库中的时间是UTC时间（无时区信息）
+        utc_dt = pytz.utc.localize(dt)
+        
+        # 转换为北京时间
+        beijing_dt = utc_dt.astimezone(pytz.timezone('Asia/Shanghai'))
+        
+        # 格式化并返回
+        return beijing_dt.strftime(format_str)
+    except Exception as e:
+        # 如果出现任何错误，尝试直接格式化
+        try:
+            return dt.strftime(format_str)
+        except:
+            return str(dt)
 
 def safe_compare(dt1, dt2):
     """
@@ -195,60 +183,4 @@ def safe_compare(dt1, dt2):
     if dt1_aware is None or dt2_aware is None:
         return False
     
-    return dt1_aware == dt2_aware
-
-def normalize_datetime_for_db(dt):
-    """
-    规范化datetime对象，以便存储到数据库中
-    对于Render环境，返回UTC时间（无时区信息）
-    对于本地环境，返回本地时间（无时区信息）
-    :param dt: datetime对象
-    :return: 规范化后的datetime对象
-    """
-    if dt is None:
-        return None
-    
-    # 将时间转换为UTC，并去除时区信息
-    return convert_to_utc(dt)
-
-def display_datetime(dt, format_str='%Y-%m-%d %H:%M'):
-    """
-    将数据库中的时间转换为显示时间（北京时间）
-    :param dt: 数据库中的datetime对象
-    :param format_str: 格式化字符串
-    :return: 格式化后的字符串
-    """
-    try:
-        # 如果输入为None或非datetime对象，返回空字符串
-        if dt is None:
-            return ''
-            
-        if not isinstance(dt, datetime.datetime):
-            return str(dt)
-        
-        # 处理时区信息
-        try:
-            # 如果在Render环境中，数据库时间是UTC时间
-            if is_render_environment() and dt.tzinfo is None:
-                dt = pytz.utc.localize(dt)
-            # 如果在本地环境中，数据库时间是本地时间
-            elif not is_render_environment() and dt.tzinfo is None:
-                dt = pytz.timezone('Asia/Shanghai').localize(dt)
-            
-            # 转换为北京时间显示
-            beijing_time = dt.astimezone(pytz.timezone('Asia/Shanghai'))
-            return beijing_time.strftime(format_str)
-        except (AttributeError, ValueError) as e:
-            # 如果时区转换失败，尝试直接格式化
-            try:
-                return dt.strftime(format_str)
-            except:
-                return str(dt)
-    except Exception as e:
-        # 捕获所有异常，确保函数不会崩溃
-        import logging
-        logging.getLogger(__name__).error(f"Error in display_datetime: {e}")
-        try:
-            return dt.strftime(format_str) if dt else ''
-        except:
-            return str(dt) if dt else '' 
+    return dt1_aware == dt2_aware 
