@@ -181,8 +181,8 @@
                                         <div class="fw-medium">{{ activity.title }}</div>
                                     </td>
                                     <td class="d-none d-md-table-cell">{{ activity.type }}</td>
-                                    <td class="d-none d-md-table-cell">{{ activity.start_time.strftime('%Y-%m-%d %H:%M') }}</td>
-                                    <td class="d-none d-md-table-cell">{{ activity.end_time.strftime('%Y-%m-%d %H:%M') }}</td>
+                                    <td class="d-none d-md-table-cell">{% if display_datetime is defined %}{{ display_datetime(activity.start_time) }}{% else %}{{ activity.start_time.strftime('%Y-%m-%d %H:%M') }}{% endif %}</td>
+                                    <td class="d-none d-md-table-cell">{% if display_datetime is defined %}{{ display_datetime(activity.end_time) }}{% else %}{{ activity.end_time.strftime('%Y-%m-%d %H:%M') }}{% endif %}</td>
                                     <td>
                                         {% if activity.status == 'active' %}
                                             <span class="badge bg-success rounded-pill">进行中</span>
