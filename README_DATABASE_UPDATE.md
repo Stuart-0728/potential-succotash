@@ -97,4 +97,110 @@ AI聊天记录可能会随着时间增长而占用较多数据库空间。系统
 
 1. 添加自动清除过期聊天记录的定时任务
 2. 在管理员界面添加聊天记录使用情况的统计和管理功能
-3. 实现按时间范围批量清除聊天记录的功能 
+3. 实现按时间范围批量清除聊天记录的功能
+
+# 数据库更新指南
+
+本文档提供了在Render平台上更新数据库结构的详细步骤。
+
+## 最新更新内容
+
+1. 修复了消息和通知系统的表结构和外键引用
+2. 优化了时区处理逻辑，确保在Render环境中正确处理UTC时间
+
+## 在Render平台上执行数据库迁移
+
+### 方法1：使用Render PostgreSQL控制台
+
+1. 登录Render控制台
+2. 导航到PostgreSQL数据库服务
+3. 点击"Shell"按钮打开数据库控制台
+4. 复制`update_render_db.sql`文件中的内容
+5. 在控制台中粘贴并执行SQL脚本
+6. 验证表结构是否创建成功：
+   ```sql
+   \dt
+   \d message
+   \d notification
+   \d notification_read
+   ```
+
+### 方法2：使用reset_render_db_auto.py脚本
+
+1. 确保已设置以下环境变量：
+   - `RENDER_POSTGRES_HOST`：数据库主机地址
+   - `RENDER_POSTGRES_PORT`：数据库端口
+   - `RENDER_POSTGRES_USER`：数据库用户名
+   - `RENDER_POSTGRES_PASSWORD`：数据库密码
+   - `RENDER_POSTGRES_DB`：数据库名称
+
+2. 执行自动更新脚本：
+   ```bash
+   python reset_render_db_auto.py
+   ```
+
+## 验证数据库更新
+
+执行以下SQL查询确认表结构是否正确：
+
+```sql
+-- 检查消息表
+SELECT table_name, column_name, data_type, is_nullable
+FROM information_schema.columns
+WHERE table_name = 'message'
+ORDER BY ordinal_position;
+
+-- 检查通知表
+SELECT table_name, column_name, data_type, is_nullable
+FROM information_schema.columns
+WHERE table_name = 'notification'
+ORDER BY ordinal_position;
+
+-- 检查通知已读表
+SELECT table_name, column_name, data_type, is_nullable
+FROM information_schema.columns
+WHERE table_name = 'notification_read'
+ORDER BY ordinal_position;
+
+-- 检查外键约束
+SELECT
+    tc.table_schema, 
+    tc.constraint_name, 
+    tc.table_name, 
+    kcu.column_name, 
+    ccu.table_schema AS foreign_table_schema,
+    ccu.table_name AS foreign_table_name,
+    ccu.column_name AS foreign_column_name 
+FROM 
+    information_schema.table_constraints AS tc 
+    JOIN information_schema.key_column_usage AS kcu
+      ON tc.constraint_name = kcu.constraint_name
+      AND tc.table_schema = kcu.table_schema
+    JOIN information_schema.constraint_column_usage AS ccu
+      ON ccu.constraint_name = tc.constraint_name
+      AND ccu.table_schema = tc.table_schema
+WHERE tc.constraint_type = 'FOREIGN KEY' AND tc.table_name IN ('message', 'notification', 'notification_read');
+```
+
+## 时区处理说明
+
+本系统对时区处理进行了优化，确保在不同环境中正确处理时间：
+
+1. **本地环境**：
+   - 输入时间被视为北京时间
+   - 添加Asia/Shanghai时区信息
+   - 存储到数据库
+
+2. **Render环境**：
+   - 输入时间被视为北京时间
+   - 添加Asia/Shanghai时区信息
+   - 转换为UTC时间
+   - 移除时区信息
+   - 存储到数据库
+
+3. **数据库查询**：
+   - 使用`ensure_timezone_aware`函数处理时间
+   - 在Render环境中，假设数据库时间为UTC
+   - 在本地环境中，假设数据库时间为北京时间
+
+这种处理方式确保了无论在哪种环境下，时间显示和比较都是准确的。 
