@@ -5,7 +5,7 @@ from flask_wtf.file import FileField, FileAllowed
 from .models import Tag  # Import the Tag model
 import pytz
 from datetime import datetime
-from .utils.time_helpers import get_beijing_time, localize_time, ensure_timezone_aware
+from .utils.time_helpers import get_beijing_time, localize_time, ensure_timezone_aware, is_render_environment
 
 class LocalizedDateTimeField(DateTimeField):
     """本地化的日期时间字段，自动处理时区转换"""
@@ -49,6 +49,13 @@ class LocalizedDateTimeField(DateTimeField):
         if self.data is not None:
             # 确保数据有时区信息
             data = ensure_timezone_aware(self.data)
+            
+            # 如果在Render环境中，转换为UTC时间并去除时区信息
+            if is_render_environment() and data is not None and data.tzinfo is not None:
+                data = data.astimezone(pytz.utc)
+                # 去除时区信息但保留UTC时间
+                data = data.replace(tzinfo=None)
+            
             # 将对象的属性设置为带有时区信息的日期时间
             setattr(obj, name, data)
 

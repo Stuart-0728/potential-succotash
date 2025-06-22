@@ -1,0 +1,56 @@
+{% extends 'base.html' %}
+
+{% block title %}修复时区问题 - 重庆师范大学师能素质协会{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{{ url_for('admin.dashboard') }}">管理面板</a></li>
+            <li class="breadcrumb-item active" aria-current="page">修复时区问题</li>
+        </ol>
+    </nav>
+
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-primary text-white">
+            <h4 class="mb-0">数据库时区修复工具</h4>
+        </div>
+        <div class="card-body">
+            <div class="alert alert-warning">
+                <h5><i class="fas fa-exclamation-triangle me-2"></i>警告</h5>
+                <p>此工具将修复数据库中的时区问题，确保所有时间字段正确显示为北京时间。</p>
+                <p><strong>请注意：</strong></p>
+                <ul>
+                    <li>此操作会修改数据库中的时间数据</li>
+                    <li>建议在执行前备份数据库</li>
+                    <li>此工具仅适用于PostgreSQL数据库</li>
+                    <li>操作可能需要几分钟时间，请耐心等待</li>
+                </ul>
+            </div>
+
+            <div class="alert alert-info">
+                <h5><i class="fas fa-info-circle me-2"></i>执行内容</h5>
+                <p>此工具将执行以下操作：</p>
+                <ol>
+                    <li>设置数据库时区为UTC</li>
+                    <li>修复活动表中的时间字段</li>
+                    <li>修复通知表中的时间字段</li>
+                    <li>修复报名表中的时间字段</li>
+                    <li>修复其他相关表中的时间字段</li>
+                </ol>
+            </div>
+
+            <form method="post" onsubmit="return confirm('确定要执行时区修复操作吗？此操作不可撤销。');">
+                <div class="d-grid gap-2">
+                    <button type="submit" name="confirm" class="btn btn-danger">
+                        <i class="fas fa-tools me-2"></i>执行时区修复
+                    </button>
+                    <a href="{{ url_for('admin.dashboard') }}" class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-left me-2"></i>返回管理面板
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %} 

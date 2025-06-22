@@ -877,3 +877,105 @@ footer {
 .modal-footer {
     border-top: 1px solid rgba(0, 0, 0, 0.05);
 }
+
+/* 添加通知相关样式 */
+.notification-banner {
+    position: relative;
+    background-color: #f8d7da;
+    color: #721c24;
+    padding: 10px 0;
+    overflow: hidden;
+    width: 100%;
+    z-index: 1000;
+    border-bottom: 1px solid #f5c6cb;
+}
+
+.notification-banner.important {
+    background-color: #f8d7da;
+    color: #721c24;
+}
+
+.notification-banner .close-btn {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    color: #721c24;
+    font-size: 1.2rem;
+    cursor: pointer;
+    z-index: 1001;
+}
+
+.notification-banner .notification-content {
+    white-space: nowrap;
+    animation: marquee 20s linear infinite;
+    padding-right: 50px;
+}
+
+@keyframes marquee {
+    0% { transform: translateX(100%); }
+    100% { transform: translateX(-100%); }
+}
+
+/* 未读通知标记 */
+.notification-item.unread {
+    border-left: 3px solid #0d6efd;
+    padding-left: 15px;
+    background-color: rgba(13, 110, 253, 0.05);
+}
+
+/* 消息样式 */
+.message-item {
+    transition: all 0.3s ease;
+    border-left: 3px solid transparent;
+}
+
+.message-item:hover {
+    background-color: rgba(0, 0, 0, 0.02);
+}
+
+.message-item.unread {
+    border-left-color: #0d6efd;
+    background-color: rgba(13, 110, 253, 0.05);
+}
+
+.message-item .message-sender {
+    font-weight: 600;
+}
+
+.message-item .message-time {
+    color: #6c757d;
+    font-size: 0.85rem;
+}
+
+.message-item .message-preview {
+    color: #6c757d;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 80%;
+}
+
+/* 通知计数器徽章 */
+.notification-badge {
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    background-color: #dc3545;
+    color: white;
+    border-radius: 50%;
+    min-width: 18px;
+    height: 18px;
+    font-size: 0.7rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 4px;
+}
+
+/* 通知图标容器 */
+.notification-icon {
+    position: relative;
+}

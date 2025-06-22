@@ -69,7 +69,7 @@
                   {{ form.start_time.label(class="form-label fw-medium") }}
                   <div class="input-group">
                     <span class="input-group-text"><i class="fas fa-calendar-alt"></i></span>
-                    {{ form.start_time(class="form-control date-time-picker" + (" is-invalid" if form.start_time.errors else ""), placeholder="选择开始时间") }}
+                  {{ form.start_time(class="form-control date-time-picker" + (" is-invalid" if form.start_time.errors else ""), placeholder="选择开始时间") }}
                   </div>
                   {% if form.start_time.errors %}
                     <div class="invalid-feedback">
@@ -85,7 +85,7 @@
                   {{ form.end_time.label(class="form-label fw-medium") }}
                   <div class="input-group">
                     <span class="input-group-text"><i class="fas fa-calendar-alt"></i></span>
-                    {{ form.end_time(class="form-control date-time-picker" + (" is-invalid" if form.end_time.errors else ""), placeholder="选择结束时间") }}
+                  {{ form.end_time(class="form-control date-time-picker" + (" is-invalid" if form.end_time.errors else ""), placeholder="选择结束时间") }}
                   </div>
                   {% if form.end_time.errors %}
                     <div class="invalid-feedback">
@@ -104,7 +104,7 @@
                   {{ form.registration_deadline.label(class="form-label fw-medium") }}
                   <div class="input-group">
                     <span class="input-group-text"><i class="fas fa-clock"></i></span>
-                    {{ form.registration_deadline(class="form-control date-time-picker" + (" is-invalid" if form.registration_deadline.errors else ""), placeholder="选择报名截止时间") }}
+                  {{ form.registration_deadline(class="form-control date-time-picker" + (" is-invalid" if form.registration_deadline.errors else ""), placeholder="选择报名截止时间") }}
                   </div>
                   {% if form.registration_deadline.errors %}
                     <div class="invalid-feedback">
@@ -138,17 +138,17 @@
                 <div class="card border-0 shadow-sm mb-3">
                   <div class="card-body">
                     <div class="form-check form-switch">
-                      {{ form.is_featured(class="form-check-input" + (" is-invalid" if form.is_featured.errors else "")) }}
+                  {{ form.is_featured(class="form-check-input" + (" is-invalid" if form.is_featured.errors else "")) }}
                       {{ form.is_featured.label(class="form-check-label fw-medium") }}
                     </div>
                     <small class="text-muted">重点活动将会在首页展示，并获得更多积分</small>
-                    {% if form.is_featured.errors %}
-                      <div class="invalid-feedback">
-                        {% for error in form.is_featured.errors %}
-                          {{ error }}
-                        {% endfor %}
-                      </div>
-                    {% endif %}
+                  {% if form.is_featured.errors %}
+                    <div class="invalid-feedback">
+                      {% for error in form.is_featured.errors %}
+                        {{ error }}
+                      {% endfor %}
+                    </div>
+                  {% endif %}
                   </div>
                 </div>
               </div>
@@ -157,7 +157,7 @@
                   {{ form.points.label(class="form-label fw-medium") }}
                   <div class="input-group">
                     <span class="input-group-text"><i class="fas fa-star"></i></span>
-                    {{ form.points(class="form-control" + (" is-invalid" if form.points.errors else ""), type="number", min="0", max="100") }}
+                  {{ form.points(class="form-control" + (" is-invalid" if form.points.errors else ""), type="number", min="0", max="100") }}
                   </div>
                   {% if form.points.errors %}
                     <div class="invalid-feedback">
@@ -221,7 +221,7 @@
               {{ form.status.label(class="form-label fw-medium") }}
               <div class="input-group">
                 <span class="input-group-text"><i class="fas fa-toggle-on"></i></span>
-                {{ form.status(class="form-select" + (" is-invalid" if form.status.errors else "")) }}
+              {{ form.status(class="form-select" + (" is-invalid" if form.status.errors else "")) }}
               </div>
               {% if form.status.errors %}
                 <div class="invalid-feedback">

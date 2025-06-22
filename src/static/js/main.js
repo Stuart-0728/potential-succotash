@@ -14,6 +14,45 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // 搜索功能优化
     setupSearchOptimization();
+
+    // 通知系统
+    // 检查是否是学生用户页面
+    const isStudentPage = document.body.classList.contains('student-page');
+    
+    if (isStudentPage) {
+        // 获取未读重要通知
+        fetchUnreadNotifications();
+        
+        // 设置定时刷新（每5分钟）
+        setInterval(fetchUnreadNotifications, 5 * 60 * 1000);
+    }
+    
+    // 为所有通知关闭按钮添加事件监听
+    document.addEventListener('click', function(e) {
+        if (e.target && e.target.classList.contains('notification-close')) {
+            const notificationId = e.target.getAttribute('data-notification-id');
+            const banner = e.target.closest('.notification-banner');
+            
+            if (notificationId) {
+                markNotificationAsRead(notificationId);
+            }
+            
+            if (banner) {
+                banner.style.height = banner.offsetHeight + 'px';
+                setTimeout(() => {
+                    banner.style.height = '0';
+                    banner.style.padding = '0';
+                    banner.style.margin = '0';
+                    banner.style.overflow = 'hidden';
+                    banner.style.borderWidth = '0';
+                }, 10);
+                
+                setTimeout(() => {
+                    banner.remove();
+                }, 500);
+            }
+        }
+    });
 });
 
 // 图表初始化函数
@@ -284,5 +323,117 @@ function updateRegistrationStatus(registrationId, newStatus) {
     .catch(error => {
         console.error('状态更新请求失败:', error);
         alert('状态更新请求失败，请重试');
+    });
+}
+
+// 通知系统
+// 获取未读重要通知
+function fetchUnreadNotifications() {
+    fetch('/student/api/notifications/unread')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.notifications && data.notifications.length > 0) {
+                updateNotificationBadge(data.notifications.length);
+                showNotificationBanner(data.notifications[0]);
+            } else {
+                updateNotificationBadge(0);
+                removeNotificationBanner();
+            }
+        })
+        .catch(error => {
+            console.error('获取通知失败:', error);
+        });
+}
+
+// 更新通知徽章
+function updateNotificationBadge(count) {
+    const badge = document.querySelector('.notification-badge');
+    
+    if (badge) {
+        if (count > 0) {
+            badge.textContent = count;
+            badge.style.display = 'flex';
+        } else {
+            badge.style.display = 'none';
+        }
+    }
+}
+
+// 显示通知横幅
+function showNotificationBanner(notification) {
+    // 检查是否已经存在通知横幅
+    let banner = document.querySelector('.notification-banner');
+    
+    if (!banner) {
+        banner = document.createElement('div');
+        banner.className = 'notification-banner important';
+        banner.style.transition = 'all 0.5s ease';
+        
+        const content = document.createElement('div');
+        content.className = 'notification-content text-center';
+        content.innerHTML = `<strong>${notification.title}:</strong> ${notification.content}`;
+        
+        const closeBtn = document.createElement('button');
+        closeBtn.className = 'close-btn notification-close';
+        closeBtn.setAttribute('data-notification-id', notification.id);
+        closeBtn.innerHTML = '&times;';
+        
+        banner.appendChild(content);
+        banner.appendChild(closeBtn);
+        
+        // 添加到页面顶部
+        document.body.insertBefore(banner, document.body.firstChild);
+    } else {
+        // 更新现有横幅内容
+        const content = banner.querySelector('.notification-content');
+        if (content) {
+            content.innerHTML = `<strong>${notification.title}:</strong> ${notification.content}`;
+        }
+        
+        const closeBtn = banner.querySelector('.close-btn');
+        if (closeBtn) {
+            closeBtn.setAttribute('data-notification-id', notification.id);
+        }
+    }
+}
+
+// 移除通知横幅
+function removeNotificationBanner() {
+    const banner = document.querySelector('.notification-banner');
+    if (banner) {
+        banner.style.height = banner.offsetHeight + 'px';
+        setTimeout(() => {
+            banner.style.height = '0';
+            banner.style.padding = '0';
+            banner.style.margin = '0';
+            banner.style.overflow = 'hidden';
+            banner.style.borderWidth = '0';
+        }, 10);
+        
+        setTimeout(() => {
+            banner.remove();
+        }, 500);
+    }
+}
+
+// 标记通知为已读
+function markNotificationAsRead(notificationId) {
+    fetch(`/student/notification/${notificationId}/mark_read`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            console.log('通知已标记为已读');
+            // 重新获取未读通知
+            fetchUnreadNotifications();
+        }
+    })
+    .catch(error => {
+        console.error('标记通知失败:', error);
     });
 }

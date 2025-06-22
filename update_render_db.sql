@@ -130,7 +130,7 @@ WHERE id NOT IN (SELECT user_id FROM ai_user_preferences);
 DO $$
 BEGIN
     RAISE NOTICE '数据库更新完成';
-END $$;
+END $$; 
 
 -- 重置Render数据库后的初始化SQL脚本
 -- 用于创建必要的表格和初始管理员账户

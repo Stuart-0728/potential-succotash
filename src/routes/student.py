@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify
 from flask_login import login_required, current_user
-from src.models import db, Activity, Registration, User, StudentInfo, PointsHistory, ActivityReview, Tag
+from src.models import db, Activity, Registration, User, StudentInfo, PointsHistory, ActivityReview, Tag, Message, Notification, NotificationRead, Role
 from datetime import datetime, timedelta
 import logging
 import json
@@ -10,7 +10,7 @@ from sqlalchemy import func, desc, or_, and_, not_
 from wtforms import StringField, TextAreaField, IntegerField, SelectField, SubmitField, RadioField, BooleanField, HiddenField
 from wtforms.validators import DataRequired, Length, Optional, NumberRange, Email, Regexp
 from flask_wtf import FlaskForm
-from src.utils.time_helpers import get_localized_now, get_beijing_time, ensure_timezone_aware
+from src.utils.time_helpers import get_localized_now, get_beijing_time, ensure_timezone_aware, display_datetime
 
 logger = logging.getLogger(__name__)
 
@@ -818,3 +818,250 @@ def get_localized_now():
     # 使用utils中的get_beijing_time函数确保时区一致
     from src.utils.time_helpers import get_beijing_time
     return get_beijing_time()
+
+@student_bp.route('/messages')
+@student_required
+def messages():
+    try:
+        page = request.args.get('page', 1, type=int)
+        filter_type = request.args.get('filter', 'received')
+        
+        # 根据过滤类型查询消息
+        if filter_type == 'sent':
+            query = Message.query.filter_by(sender_id=current_user.id)
+        elif filter_type == 'received':
+            query = Message.query.filter_by(receiver_id=current_user.id)
+        else:  # 'all'
+            query = Message.query.filter(or_(
+                Message.sender_id == current_user.id,
+                Message.receiver_id == current_user.id
+            ))
+        
+        messages = query.order_by(Message.created_at.desc()).paginate(page=page, per_page=10)
+        
+        # 获取未读消息数量
+        unread_count = Message.query.filter_by(
+            receiver_id=current_user.id,
+            is_read=False
+        ).count()
+        
+        return render_template('student/messages.html', 
+                              messages=messages, 
+                              filter_type=filter_type,
+                              unread_count=unread_count)
+    except Exception as e:
+        logger.error(f"Error in student messages page: {e}")
+        flash('加载消息列表时出错', 'danger')
+        return redirect(url_for('student.dashboard'))
+
+@student_bp.route('/message/<int:id>')
+@student_required
+def view_message(id):
+    try:
+        message = Message.query.get_or_404(id)
+        
+        # 验证当前用户是否是消息的发送者或接收者
+        if message.sender_id != current_user.id and message.receiver_id != current_user.id:
+            flash('您无权查看此消息', 'danger')
+            return redirect(url_for('student.messages'))
+        
+        # 如果当前用户是接收者且消息未读，则标记为已读
+        if message.receiver_id == current_user.id and not message.is_read:
+            message.is_read = True
+            db.session.commit()
+        
+        return render_template('student/message_view.html', message=message)
+    except Exception as e:
+        logger.error(f"Error in view_message: {e}")
+        flash('查看消息时出错', 'danger')
+        return redirect(url_for('student.messages'))
+
+@student_bp.route('/message/create', methods=['GET', 'POST'])
+@student_required
+def create_message():
+    try:
+        if request.method == 'POST':
+            subject = request.form.get('subject')
+            content = request.form.get('content')
+            
+            if not subject or not content:
+                flash('主题和内容不能为空', 'danger')
+                return redirect(url_for('student.create_message'))
+            
+            # 创建消息，发送给管理员
+            # 查找管理员用户
+            admin_role = db.session.query(Role).filter_by(name='Admin').first()
+            if not admin_role:
+                flash('无法找到管理员，请联系系统管理员', 'danger')
+                return redirect(url_for('student.messages'))
+            
+            admin_user = User.query.filter_by(role_id=admin_role.id).first()
+            if not admin_user:
+                flash('无法找到管理员，请联系系统管理员', 'danger')
+                return redirect(url_for('student.messages'))
+            
+            # 创建消息
+            message = Message(
+                sender_id=current_user.id,
+                receiver_id=admin_user.id,
+                subject=subject,
+                content=content
+            )
+            
+            db.session.add(message)
+            db.session.commit()
+            
+            log_action('send_message', f'发送消息给管理员: {subject}')
+            flash('消息发送成功', 'success')
+            return redirect(url_for('student.messages'))
+        
+        return render_template('student/message_form.html', title='发送消息')
+    except Exception as e:
+        logger.error(f"Error in create_message: {e}")
+        flash('发送消息时出错', 'danger')
+        return redirect(url_for('student.messages'))
+
+@student_bp.route('/message/<int:id>/delete', methods=['POST'])
+@student_required
+def delete_message(id):
+    try:
+        message = Message.query.get_or_404(id)
+        
+        # 验证当前用户是否是消息的发送者或接收者
+        if message.sender_id != current_user.id and message.receiver_id != current_user.id:
+            flash('您无权删除此消息', 'danger')
+            return redirect(url_for('student.messages'))
+        
+        # 删除消息
+        db.session.delete(message)
+        db.session.commit()
+        
+        log_action('delete_message', f'删除消息: {message.subject}')
+        flash('消息已删除', 'success')
+        return redirect(url_for('student.messages'))
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error in delete_message: {e}")
+        flash('删除消息时出错', 'danger')
+        return redirect(url_for('student.messages'))
+
+@student_bp.route('/notifications')
+@student_required
+def notifications():
+    try:
+        page = request.args.get('page', 1, type=int)
+        
+        # 获取当前时间，确保带有时区信息
+        now = ensure_timezone_aware(datetime.now())
+        
+        # 获取有效的通知（未过期或无过期日期）
+        notifications = Notification.query.filter(
+            or_(
+                Notification.expiry_date == None,
+                Notification.expiry_date >= now
+            )
+        ).order_by(Notification.is_important.desc(), Notification.created_at.desc()).paginate(page=page, per_page=10)
+        
+        # 获取当前用户已读通知的ID列表
+        read_notification_ids = db.session.query(NotificationRead.notification_id).filter(
+            NotificationRead.user_id == current_user.id
+        ).all()
+        read_notification_ids = [r[0] for r in read_notification_ids]
+        
+        return render_template('student/notifications.html', 
+                              notifications=notifications,
+                              read_notification_ids=read_notification_ids)
+    except Exception as e:
+        logger.error(f"Error in notifications page: {e}")
+        flash('加载通知列表时出错', 'danger')
+        return redirect(url_for('student.dashboard'))
+
+@student_bp.route('/notification/<int:id>')
+@student_required
+def view_notification(id):
+    try:
+        notification = Notification.query.get_or_404(id)
+        
+        # 标记为已读
+        read_record = NotificationRead.query.filter_by(
+            notification_id=id,
+            user_id=current_user.id
+        ).first()
+        
+        if not read_record:
+            read_record = NotificationRead(
+                notification_id=id,
+                user_id=current_user.id
+            )
+            db.session.add(read_record)
+            db.session.commit()
+        
+        return render_template('student/notification_view.html', notification=notification)
+    except Exception as e:
+        logger.error(f"Error in view_notification: {e}")
+        flash('查看通知时出错', 'danger')
+        return redirect(url_for('student.notifications'))
+
+@student_bp.route('/notification/<int:id>/mark_read', methods=['POST'])
+@student_required
+def mark_notification_read(id):
+    try:
+        notification = Notification.query.get_or_404(id)
+        
+        # 检查是否已经标记为已读
+        read_record = NotificationRead.query.filter_by(
+            notification_id=id,
+            user_id=current_user.id
+        ).first()
+        
+        if not read_record:
+            read_record = NotificationRead(
+                notification_id=id,
+                user_id=current_user.id
+            )
+            db.session.add(read_record)
+            db.session.commit()
+        
+        return jsonify({'success': True})
+    except Exception as e:
+        logger.error(f"Error in mark_notification_read: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@student_bp.route('/api/notifications/unread')
+@student_required
+def get_unread_notifications():
+    try:
+        # 获取当前时间，确保带有时区信息
+        now = ensure_timezone_aware(datetime.now())
+        
+        # 获取未读的重要通知
+        important_notifications = Notification.query.filter(
+            Notification.is_important == True,
+            or_(
+                Notification.expiry_date == None,
+                Notification.expiry_date >= now
+            ),
+            ~Notification.id.in_(
+                db.session.query(NotificationRead.notification_id).filter(
+                    NotificationRead.user_id == current_user.id
+                )
+            )
+        ).order_by(Notification.created_at.desc()).all()
+        
+        # 格式化通知数据
+        notifications_data = []
+        for notification in important_notifications:
+            notifications_data.append({
+                'id': notification.id,
+                'title': notification.title,
+                'content': notification.content,
+                'created_at': notification.created_at.strftime('%Y-%m-%d %H:%M')
+            })
+        
+        return jsonify({
+            'success': True,
+            'notifications': notifications_data
+        })
+    except Exception as e:
+        logger.error(f"Error in get_unread_notifications: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
