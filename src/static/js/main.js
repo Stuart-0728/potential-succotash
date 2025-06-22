@@ -532,37 +532,74 @@ function getCsrfToken() {
 
 // 显示通知横幅
 function displayNotifications() {
-    // 检查是否有通知元素
-    var notificationContainer = document.querySelector('.notification-container');
-    if (!notificationContainer) {
-        // 创建通知容器
-        notificationContainer = document.createElement('div');
-        notificationContainer.className = 'notification-container position-fixed top-0 start-0 end-0 p-2 d-flex flex-column align-items-center';
-        notificationContainer.style.zIndex = '1050';
-        document.body.appendChild(notificationContainer);
-    }
+    // 查找页面中的所有通知
+    const notifications = document.querySelectorAll('.notification-banner');
     
-    // 如果页面上有公共通知，可以在这里添加额外的处理
-    var publicNotifications = document.querySelectorAll('.public-notification');
-    if (publicNotifications.length > 0) {
-        // 公共通知已经在页面上显示，不需要额外处理
-        console.log('公共通知已在页面上显示');
-    }
-    
-    // 获取未读通知（如果用户已登录）
-    if (typeof isAuthenticated !== 'undefined' && isAuthenticated) {
-        fetch('/api/notifications/unread')
-            .then(response => response.json())
-            .then(data => {
-                if (data.notifications && data.notifications.length > 0) {
-                    // 显示通知数量徽章
-                    updateNotificationBadge(data.notifications.length);
+    if (notifications.length > 0) {
+        // 如果有通知，创建通知容器
+        let notificationContainer = document.querySelector('.notification-container');
+        
+        if (!notificationContainer) {
+            notificationContainer = document.createElement('div');
+            notificationContainer.className = 'notification-container';
+            notificationContainer.style.position = 'fixed';
+            notificationContainer.style.top = '70px';
+            notificationContainer.style.right = '20px';
+            notificationContainer.style.zIndex = '1050';
+            notificationContainer.style.maxWidth = '350px';
+            notificationContainer.style.width = '100%';
+            document.body.appendChild(notificationContainer);
+        }
+        
+        // 显示每个通知
+        notifications.forEach((notification, index) => {
+            const clone = notification.cloneNode(true);
+            clone.style.display = 'block';
+            clone.style.opacity = '0';
+            clone.style.transform = 'translateY(-20px)';
+            clone.style.transition = 'all 0.3s ease-in-out';
+            
+            // 将通知添加到容器中
+            notificationContainer.appendChild(clone);
+            
+            // 延迟显示，使其有动画效果
+            setTimeout(() => {
+                clone.style.opacity = '1';
+                clone.style.transform = 'translateY(0)';
+            }, index * 200);
+            
+            // 添加关闭按钮事件
+            const closeBtn = clone.querySelector('.close-btn');
+            if (closeBtn) {
+                closeBtn.addEventListener('click', function() {
+                    const notificationId = this.getAttribute('data-notification-id');
+                    if (notificationId) {
+                        markNotificationAsRead(notificationId);
+                    }
                     
-                    // 显示最新的通知作为横幅
-                    showNotificationBanner(data.notifications[0]);
+                    clone.style.opacity = '0';
+                    clone.style.transform = 'translateY(-20px)';
+                    
+                    setTimeout(() => {
+                        clone.remove();
+                    }, 300);
+                });
+            }
+            
+            // 10秒后自动关闭
+            setTimeout(() => {
+                if (clone && clone.parentNode) {
+                    clone.style.opacity = '0';
+                    clone.style.transform = 'translateY(-20px)';
+                    
+                    setTimeout(() => {
+                        if (clone && clone.parentNode) {
+                            clone.remove();
+                        }
+                    }, 300);
                 }
-            })
-            .catch(error => console.error('获取通知失败:', error));
+            }, 10000 + index * 1000);
+        });
     }
 }
 

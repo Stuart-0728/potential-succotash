@@ -41,8 +41,8 @@ def dashboard():
             flash('请先完善个人信息', 'warning')
             return redirect(url_for('student.edit_profile'))
         
-        # 获取当前时间，确保带有时区信息
-        now = ensure_timezone_aware(datetime.now())
+        # 获取当前北京时间用于模板显示
+        beijing_now = get_beijing_time()
         
         # 获取推荐活动
         recommended_activities = get_recommended_activities(current_user.id)
@@ -64,12 +64,12 @@ def dashboard():
             Activity.status == 'active'
         ).count()
         
-        # 获取即将开始的活动 - 确保时区安全比较
+        # 获取即将开始的活动 - 只考虑活动状态为active
         upcoming_registrations = Registration.query.join(
             Activity, Registration.activity_id == Activity.id
         ).filter(
             Registration.user_id == current_user.id,
-            Activity.status == 'active'  # 只考虑活动状态，不再比较时间
+            Activity.status == 'active'  # 只考虑活动状态，不比较时间以避免时区问题
         ).count()
         
         return render_template('student/dashboard.html',
@@ -79,7 +79,7 @@ def dashboard():
                              upcoming_activities=recommended_activities,
                              total_activities=total_activities,
                              ongoing_activities=ongoing_activities,
-                             now=now,
+                             now=beijing_now,
                              display_datetime=display_datetime)
     except Exception as e:
         logger.error(f"Error in student dashboard: {e}")

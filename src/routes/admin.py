@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify, current_app, send_file, abort, session
 from flask_login import login_required, current_user
-from src.models import db, User, Activity, Registration, StudentInfo, SystemLog, Tag, Notification, NotificationRead, Role, PointsHistory, Message
+from src.models import db, User, Activity, Registration, StudentInfo, SystemLog, Tag, Notification, NotificationRead, Role, PointsHistory, Message, activity_tags, student_tags
 from src.routes.utils import admin_required, log_action
 from datetime import datetime, timedelta
 import logging
@@ -298,6 +298,9 @@ def delete_activity(id):
         activity = Activity.query.get_or_404(id)
         force_delete = request.args.get('force', 'false').lower() == 'true'
         
+        # 导入ActivityCheckin和ActivityReview
+        from src.models import ActivityCheckin, ActivityReview
+        
         # 使用事务
         with db.session.begin_nested():
             if force_delete:
@@ -589,12 +592,12 @@ def statistics():
         
         # 获取最近7天的注册数据
         daily_registrations = db.session.query(
-            func.date(Registration.created_at).label('date'),
+            func.date(Registration.register_time).label('date'),
             func.count(Registration.id).label('count')
         ).filter(
-            Registration.created_at.between(start_date, end_date)
+            Registration.register_time.between(start_date, end_date)
         ).group_by(
-            func.date(Registration.created_at)
+            func.date(Registration.register_time)
         ).all()
         
         # 获取最近7天的用户注册数据
