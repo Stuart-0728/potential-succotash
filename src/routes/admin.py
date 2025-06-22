@@ -154,9 +154,9 @@ def create_activity():
                 title=form.title.data,
                 description=form.description.data,
                 location=form.location.data,
-                start_time=normalize_datetime_for_db(form.start_time.data),
-                end_time=normalize_datetime_for_db(form.end_time.data),
-                registration_deadline=normalize_datetime_for_db(form.registration_deadline.data),
+                start_time=form.start_time.data,  # LocalizedDateTimeField已经处理了时区转换
+                end_time=form.end_time.data,  # LocalizedDateTimeField已经处理了时区转换
+                registration_deadline=form.registration_deadline.data,  # LocalizedDateTimeField已经处理了时区转换
                 max_participants=form.max_participants.data,
                 type=form.type.data if hasattr(form, 'type') else '其他',
                 status=form.status.data,
@@ -235,10 +235,11 @@ def edit_activity(id):
                     if tag:
                         activity.tags.append(tag)
                 
-                # 确保时间字段正确处理
-                activity.start_time = normalize_datetime_for_db(activity.start_time)
-                activity.end_time = normalize_datetime_for_db(activity.end_time)
-                activity.registration_deadline = normalize_datetime_for_db(activity.registration_deadline)
+                # 注意：不再需要调用normalize_datetime_for_db函数
+                # LocalizedDateTimeField类的populate_obj方法已经正确处理了时区转换
+                # activity.start_time = normalize_datetime_for_db(activity.start_time)
+                # activity.end_time = normalize_datetime_for_db(activity.end_time)
+                # activity.registration_deadline = normalize_datetime_for_db(activity.registration_deadline)
                 
                 db.session.commit()
                 

@@ -10,7 +10,7 @@ import random
 import string
 from datetime import datetime, timedelta
 from src.models import db, Activity, Tag, StudentInfo, SystemLog, Registration, AIChatHistory, AIChatSession, activity_tags, PointsHistory
-from src.utils.time_helpers import get_beijing_time
+from src.utils.time_helpers import get_beijing_time, ensure_timezone_aware
 
 utils_bp = Blueprint('utils', __name__)
 logger = logging.getLogger(__name__)
@@ -104,6 +104,7 @@ def log_action(action, details=None, user_id=None):
     try:
         from src.models import SystemLog, db
         import datetime
+        from src.utils.time_helpers import ensure_timezone_aware
         
         if user_id is None and current_user.is_authenticated:
             user_id = current_user.id
@@ -113,7 +114,7 @@ def log_action(action, details=None, user_id=None):
             action=action,
             details=details,
             ip_address=request.remote_addr,
-            created_at=datetime.datetime.now()
+            created_at=ensure_timezone_aware(datetime.datetime.now())
         )
         
         db.session.add(log)
@@ -626,7 +627,7 @@ def add_points(user_id, points, reason, activity_id=None):
             points_change=points,
             reason=reason,
             activity_id=activity_id,
-            created_at=datetime.now()
+            created_at=ensure_timezone_aware(datetime.now())
         )
         
         # 保存更改

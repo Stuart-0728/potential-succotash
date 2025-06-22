@@ -41,6 +41,9 @@ def dashboard():
             flash('请先完善个人信息', 'warning')
             return redirect(url_for('student.edit_profile'))
         
+        # 获取当前时间，确保带有时区信息
+        now = ensure_timezone_aware(datetime.now())
+        
         # 获取推荐活动
         recommended_activities = get_recommended_activities(current_user.id)
         
@@ -66,7 +69,7 @@ def dashboard():
             Activity, Registration.activity_id == Activity.id
         ).filter(
             Registration.user_id == current_user.id,
-            Activity.start_time > ensure_timezone_aware(datetime.now())
+            Activity.start_time > now
         ).count()
         
         return render_template('student/dashboard.html',
@@ -76,7 +79,7 @@ def dashboard():
                              upcoming_activities=recommended_activities,
                              total_activities=total_activities,
                              ongoing_activities=ongoing_activities,
-                             now=ensure_timezone_aware(datetime.now()))
+                             now=now)
     except Exception as e:
         logger.error(f"Error in student dashboard: {e}")
         flash('加载面板时发生错误', 'danger')
@@ -89,8 +92,8 @@ def activities():
         page = request.args.get('page', 1, type=int)
         status = request.args.get('status', 'active')
         
-        # 获取当前北京时间
-        now = get_beijing_time()
+        # 获取当前时间，确保带有时区信息
+        now = ensure_timezone_aware(datetime.now())
         
         # 基本查询
         query = Activity.query
@@ -164,7 +167,7 @@ def activity_detail(id):
         registered_count = Registration.query.filter_by(activity_id=id, status='registered').count()
         
         # 检查是否可以报名
-        now = get_beijing_time()
+        now = ensure_timezone_aware(datetime.now())
         can_register = (
             activity.status == 'active' and 
             activity.registration_deadline >= now and 
@@ -195,8 +198,8 @@ def register_activity(id):
     try:
         activity = Activity.query.get_or_404(id)
         
-        # 使用北京时间进行判断
-        now = get_beijing_time()
+        # 使用带时区的当前时间进行判断
+        now = ensure_timezone_aware(datetime.now())
         
         # 检查活动是否可报名
         if activity.status != 'active' or activity.registration_deadline < now:
@@ -250,7 +253,8 @@ def cancel_registration(id):
         
         # 检查活动是否已开始
         activity = Activity.query.get(id)
-        if activity.start_time <= ensure_timezone_aware(datetime.now()):
+        now = ensure_timezone_aware(datetime.now())
+        if activity.start_time <= now:
             flash('活动已开始，无法取消报名', 'danger')
             return redirect(url_for('student.activity_detail', id=id))
         
@@ -685,10 +689,9 @@ def checkin():
         logger.info(f"活动签到状态: 活动ID={activity_id}, 签到已手动开启={checkin_enabled}")
         
         # 验证当前时间是否在活动时间范围内
-        now = get_localized_now()
+        now = ensure_timezone_aware(datetime.now())
         
         # 确保活动时间有时区信息
-        from src.utils.time_helpers import ensure_timezone_aware
         start_time = ensure_timezone_aware(activity.start_time)
         end_time = ensure_timezone_aware(activity.end_time)
         
