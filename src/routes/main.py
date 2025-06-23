@@ -1,11 +1,12 @@
-from flask import Blueprint, render_template, redirect, url_for, flash, request, current_app, abort
+from flask import Blueprint, render_template, redirect, url_for, flash, request, current_app, abort, send_from_directory, g, session, jsonify
 from flask_login import login_required, current_user
-from src.models import db, Activity, Registration, User, Tag, Notification
 from datetime import datetime, timedelta
 import logging
-from src.routes.utils import log_action
-from src.utils.time_helpers import get_beijing_time, ensure_timezone_aware, get_localized_now, display_datetime
-from sqlalchemy import func, desc, text
+from sqlalchemy import func, desc, text, and_, or_
+from sqlalchemy.orm import joinedload
+import time
+import traceback
+import pytz
 
 logger = logging.getLogger(__name__)
 
@@ -13,70 +14,107 @@ main_bp = Blueprint('main', __name__)
 
 @main_bp.route('/')
 def index():
-    now = datetime.now()
+    """首页"""
     try:
-        # 获取特色活动（按创建时间最新）
-        featured_activities = Activity.query.filter_by(
-            is_featured=True,
-            status='active'
-        ).order_by(Activity.created_at.desc()).limit(3).all()
+        start_time = datetime.now()
         
-        # 获取即将开始的活动（按开始时间最近）
-        upcoming_activities = Activity.query.filter_by(
-            status='active'
-        ).order_by(Activity.start_time).limit(3).all()
+        # 延迟导入，避免循环导入问题
+        from src import db
+        from src.models import Activity, Registration, User, Tag, Notification
+        from src.utils.time_helpers import get_beijing_time, ensure_timezone_aware, get_localized_now, safe_less_than, safe_greater_than, safe_compare
         
-        # 获取热门活动（报名人数最多）
-        popular_activities_subquery = db.session.query(
-            Activity.id,
-            func.count(Registration.id).label('reg_count')
-        ).join(
-            Registration, Activity.id == Registration.activity_id
-        ).filter(
+        # 获取当前北京时间
+        now = get_beijing_time()
+        logger.info(f"当前北京时间: {now}")
+        
+        # 获取未来7天内的活动
+        end_date = now + timedelta(days=7)
+        
+        # 查询未来7天内的活动，按开始时间升序排序
+        upcoming_activities = Activity.query.filter(
+            Activity.start_time > now,
+            Activity.start_time <= end_date,
             Activity.status == 'active'
-        ).group_by(
-            Activity.id
-        ).subquery()
+        ).order_by(Activity.start_time).all()
         
+        # 获取即将开始的活动（24小时内）
+        soon_activities = []
+        for activity in upcoming_activities:
+            # 检查活动是否已经结束
+            if activity.end_time <= now:
+                logger.info(f"活动[{activity.id}-{activity.title}] 结束时间: {activity.end_time} <= 当前时间: {now}, 不显示在即将开始列表")
+                continue
+                
+            # 检查活动是否在24小时内开始
+            time_diff = activity.start_time - now
+            if time_diff.total_seconds() <= 24 * 3600:  # 24小时内
+                soon_activities.append(activity)
+        
+        # 获取当前正在进行的活动
+        current_activities = Activity.query.filter(
+            Activity.start_time <= now,
+            Activity.end_time > now,
+            Activity.status == 'active'
+        ).all()
+        
+        # 获取最新的5个活动
+        latest_activities = Activity.query.filter(
+            Activity.status == 'active'
+        ).order_by(desc(Activity.created_at)).limit(5).all()
+        
+        # 获取热门活动（报名人数最多的5个未结束活动）
         popular_activities = db.session.query(
-            Activity, popular_activities_subquery.c.reg_count
-        ).join(
-            popular_activities_subquery,
-            Activity.id == popular_activities_subquery.c.id
-        ).order_by(
-            desc(popular_activities_subquery.c.reg_count)
-        ).limit(3).all()
+            Activity, func.count(Registration.id).label('reg_count')
+        ).join(Registration).filter(
+            Activity.status == 'active',
+            Activity.end_time > now
+        ).group_by(Activity).order_by(
+            desc('reg_count')
+        ).limit(5).all()
         
-        # 从查询结果中提取活动对象
-        popular_activity_objects = [item[0] for item in popular_activities]
+        # 将查询结果转换为活动列表
+        popular_activities = [item[0] for item in popular_activities]
         
-        # 获取全局通知（公开且未过期的）
-        current_time = get_beijing_time()
-        public_notifications = Notification.query.filter(
-            Notification.is_public == True
-        ).order_by(Notification.created_at.desc()).limit(5).all()
+        # 获取最新公告
+        notifications = Notification.query.filter(
+            Notification.is_public == True,
+            or_(
+                Notification.expiry_date.is_(None),
+                Notification.expiry_date > now
+            )
+        ).order_by(desc(Notification.created_at)).limit(5).all()
         
-        return render_template('main/index.html',
-                              featured_activities=featured_activities,
+        end_time = datetime.now()
+        logger.info(f"首页加载耗时: {(end_time - start_time).total_seconds():.2f} 秒")
+        
+        return render_template('main/index.html', 
                               upcoming_activities=upcoming_activities,
-                              popular_activities=popular_activity_objects,
-                              public_notifications=public_notifications,
-                              now=now,
-                              display_datetime=display_datetime)
+                              soon_activities=soon_activities,
+                              current_activities=current_activities,
+                              latest_activities=latest_activities,
+                              popular_activities=popular_activities,
+                              notifications=notifications,
+                              now=now)
     except Exception as e:
-        logger.error(f"Error in index: {e}")
-        # 如果出错，返回空列表
-        return render_template('main/index.html',
-                              featured_activities=[],
+        logger.error(f"Error in index: {str(e)}")
+        logger.error(traceback.format_exc())
+        flash('加载首页时发生错误，请稍后再试', 'danger')
+        return render_template('main/index.html', 
                               upcoming_activities=[],
+                              soon_activities=[],
+                              current_activities=[],
+                              latest_activities=[],
                               popular_activities=[],
-                              public_notifications=[],
-                              now=now,
-                              display_datetime=display_datetime)
+                              notifications=[])
 
 @main_bp.route('/activities')
 def activities():
     try:
+        # 延迟导入，避免循环导入问题
+        from src.models import Activity, Registration
+        from src.utils.time_helpers import get_beijing_time, safe_less_than, safe_greater_than, safe_compare
+        from src import db
+        
         # 获取当前北京时间
         now = get_beijing_time()
         
@@ -96,17 +134,11 @@ def activities():
                 (Activity.location.ilike(f'%{search_query}%'))
             )
         
-        # 根据状态筛选
+        # 根据状态筛选 - 不比较时间，只使用活动状态
         if status == 'active':
-            query = query.filter(
-                Activity.status == 'active',
-                Activity.registration_deadline >= now
-            )
+            query = query.filter(Activity.status == 'active')
         elif status == 'past':
-            query = query.filter(
-                (Activity.status == 'completed') |
-                (Activity.registration_deadline < now)
-            )
+            query = query.filter(Activity.status == 'completed')
         
         # 分页
         activities_list = query.order_by(Activity.created_at.desc()).paginate(
@@ -127,7 +159,10 @@ def activities():
                                search_query=search_query,
                                current_status=status,
                                registered_activity_ids=registered_activity_ids,
-                               now=now)
+                               now=now,
+                               safe_less_than=safe_less_than,
+                               safe_greater_than=safe_greater_than,
+                               safe_compare=safe_compare)
         
     except Exception as e:
         logger.error(f"Error in activities page: {e}")
@@ -135,67 +170,68 @@ def activities():
         return render_template('main/search.html', 
                                activities=None,
                                search_query='',
-                               current_status='active')
+                               current_status='active',
+                               safe_less_than=safe_less_than,
+                               safe_greater_than=safe_greater_than,
+                               safe_compare=safe_compare)
 
-@main_bp.route('/activity/<int:id>')
-def activity_detail(id):
-    """允许任何人查看活动详情，但只有学生可以报名"""
-    now = datetime.now()
+@main_bp.route('/activity/<int:activity_id>')
+def activity_detail(activity_id):
+    """活动详情页"""
     try:
-        # 检查活动是否存在
-        activity = Activity.query.get_or_404(id)
+        # 延迟导入，避免循环导入问题
+        from src import db
+        from src.models import Activity, Registration, User, Tag
+        from src.utils.time_helpers import get_beijing_time
         
-        # 获取创建者信息
-        creator = User.query.get(activity.created_by) if activity.created_by else None
-        
-        # 检查用户是否已报名
-        registration = None
-        can_register = False
-        if current_user.is_authenticated and hasattr(current_user, 'role') and current_user.role:
-            if current_user.role.name.lower() == 'student':
-                registration = Registration.query.filter_by(
-                    activity_id=id,
-                    user_id=current_user.id
-                ).first()
-                
-                # 判断是否可以报名：活动状态为active，当前时间在报名截止时间之前，且未报名或已取消报名
-                can_register = (
-                    activity.status == 'active' and
-                    activity.registration_deadline >= ensure_timezone_aware(now) and
-                    (not registration or registration.status == 'cancelled')
-                )
+        activity = Activity.query.get_or_404(activity_id)
         
         # 获取报名人数
-        registration_count = Registration.query.filter_by(
-            activity_id=id,
-            status='registered'
-        ).count()
+        registration_count = Registration.query.filter_by(activity_id=activity_id).count()
+        logger.info(f"活动ID={activity_id} 的报名人数: {registration_count}")
         
-        # 获取活动标签
-        tags = activity.tags
+        # 检查当前用户是否已报名
+        is_registered = False
+        if current_user.is_authenticated:
+            registration = Registration.query.filter_by(
+                user_id=current_user.id,
+                activity_id=activity_id
+            ).first()
+            is_registered = registration is not None
         
-        return render_template('main/activity_detail.html',
-                               activity=activity,
-                               registration=registration,
-                               can_register=can_register,
-                               tags=tags,
-                               registration_count=registration_count,
-                               creator=creator,
-                               now=now)
+        # 获取当前北京时间
+        now = get_beijing_time()
+        
+        # 判断是否可以报名
+        can_register = (
+            not is_registered and 
+            activity.status == 'active' and
+            activity.registration_deadline > now and
+            (activity.max_participants == 0 or registration_count < activity.max_participants)
+        )
+        
+        # 判断是否可以取消报名
+        can_cancel = (
+            is_registered and
+            activity.start_time > now
+        )
+        
+        return render_template('main/activity_detail.html', 
+                              activity=activity,
+                              registration_count=registration_count,
+                              is_registered=is_registered,
+                              can_register=can_register,
+                              can_cancel=can_cancel,
+                              now=now)
     except Exception as e:
-        logger.error(f"Error in activity_detail: {e}")
-        flash('加载活动详情时出错', 'danger')
+        logger.error(f"Error in activity_detail: {str(e)}")
+        flash('加载活动详情时发生错误，请稍后再试', 'danger')
         return redirect(url_for('main.index'))
 
 @main_bp.route('/about')
 def about():
-    now = datetime.now()
-    try:
-        return render_template('main/about.html', now=now)
-    except Exception as e:
-        logger.error(f"Error in about page: {e}")
-        flash('加载关于页面时出错', 'danger')
-        return redirect(url_for('main.index'))
+    """关于页面"""
+    return render_template('main/about.html')
 
 @main_bp.route('/contact')
 def contact():
@@ -226,87 +262,35 @@ def terms():
 
 @main_bp.route('/search')
 def search():
-    now = datetime.now()
+    """搜索页面"""
+    query = request.args.get('q', '')
+    if not query:
+        return render_template('main/search.html', results=[], query='')
+    
     try:
-        query = request.args.get('q', '')
-        tag_id = request.args.get('tag', type=int)
-        status = request.args.get('status', 'active')
-        sort_by = request.args.get('sort', 'newest')
-        start_date = request.args.get('start_date')
-        end_date = request.args.get('end_date')
+        # 延迟导入，避免循环导入问题
+        from src import db
+        from src.models import Activity
+        from src.utils.time_helpers import get_beijing_time
         
-        if not query and not tag_id and not start_date and not end_date and status == 'active':
-            return redirect(url_for('main.index'))
-        
-        # 基础查询
-        activities_query = Activity.query
-        
-        # 根据关键词搜索
-        if query:
-            activities_query = activities_query.filter(
-                text("title LIKE :query OR description LIKE :query")
-            ).params(query=f"%{query}%")
-        
-        # 根据标签搜索
-        if tag_id:
-            activities_query = activities_query.join(Activity.tags).filter(Tag.id == tag_id)
-        
-        # 根据状态搜索
-        if status != 'all':
-            activities_query = activities_query.filter(Activity.status == status)
-        
-        # 根据日期搜索
-        if start_date:
-            try:
-                start_date_obj = datetime.strptime(start_date, '%Y-%m-%d')
-                activities_query = activities_query.filter(Activity.start_time >= start_date_obj)
-            except ValueError:
-                pass
-        
-        if end_date:
-            try:
-                end_date_obj = datetime.strptime(end_date, '%Y-%m-%d')
-                end_date_obj = end_date_obj.replace(hour=23, minute=59, second=59)
-                activities_query = activities_query.filter(Activity.end_time <= end_date_obj)
-            except ValueError:
-                pass
-        
-        # 排序
-        if sort_by == 'newest':
-            activities_query = activities_query.order_by(Activity.created_at.desc())
-        elif sort_by == 'start_time':
-            activities_query = activities_query.order_by(Activity.start_time)
-        elif sort_by == 'popular':
-            # 这里需要一个子查询来获取报名人数
-            subquery = db.session.query(
-                Registration.activity_id, 
-                func.count(Registration.id).label('reg_count')
-            ).group_by(Registration.activity_id).subquery()
-            
-            activities_query = activities_query.outerjoin(
-                subquery, Activity.id == subquery.c.activity_id
-            ).order_by(
-                desc(subquery.c.reg_count.nullsfirst())
+        # 搜索活动标题和描述
+        results = Activity.query.filter(
+            Activity.status == 'active',
+            or_(
+                Activity.title.ilike(f'%{query}%'),
+                Activity.description.ilike(f'%{query}%'),
+                Activity.location.ilike(f'%{query}%'),
+                Activity.type.ilike(f'%{query}%')
             )
+        ).all()
         
-        # 执行查询
-        activities = activities_query.all()
-        
-        # 获取所有标签用于筛选
-        tags = Tag.query.order_by(Tag.name).all()
-        
-        return render_template('main/search.html',
-                              query=query,
-                              activities=activities,
-                              tags=tags,
-                              selected_tag=tag_id,
-                              status=status,
-                              start_date=start_date,
-                              end_date=end_date,
-                              sort_by=sort_by,
-                              total=len(activities),
-                              now=now)
+        return render_template('main/search.html', results=results, query=query)
     except Exception as e:
-        logger.error(f"Error in search: {e}")
-        flash('搜索时出错', 'danger')
-        return redirect(url_for('main.index'))
+        logger.error(f"Error in search: {str(e)}")
+        flash('搜索时发生错误，请稍后再试', 'danger')
+        return render_template('main/search.html', results=[], query=query)
+
+@main_bp.route('/uploads/<path:filename>')
+def uploaded_file(filename):
+    """提供上传文件的访问"""
+    return send_from_directory(current_app.config['UPLOAD_FOLDER'], filename)

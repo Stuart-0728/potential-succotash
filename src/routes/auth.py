@@ -1,7 +1,8 @@
 from flask import Blueprint, render_template, redirect, url_for, flash, request
 from flask_login import login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
-from src.models import db, User, Role, StudentInfo, Tag, StudentInterestTag, AIUserPreferences
+from src import db
+from src.models import User, Role, StudentInfo, Tag, StudentInterestTag, AIUserPreferences, SystemLog
 from flask_wtf import FlaskForm
 from wtforms import StringField, PasswordField, SubmitField, SelectField, ValidationError
 from wtforms.validators import DataRequired, Email, EqualTo, Length, Regexp
@@ -42,11 +43,11 @@ class RegistrationForm(FlaskForm):
     college = StringField('学院', validators=[DataRequired(message='学院不能为空')])
     phone = StringField('手机号', validators=[
         DataRequired(message='手机号不能为空'),
-        Regexp('^1[3-9]\d{9}$', message='请输入有效的手机号码')
+        Regexp(r'^1[3-9][0-9]{9}$', message='请输入有效的手机号码')
     ])
     qq = StringField('QQ号', validators=[
         DataRequired(message='QQ号不能为空'),
-        Regexp('^\d{5,12}$', message='请输入有效的QQ号码')
+        Regexp(r'^[0-9]{5,12}$', message='请输入有效的QQ号码')
     ])
     submit = SubmitField('注册')
 
@@ -153,58 +154,76 @@ def register():
 
 @auth_bp.route('/login', methods=['GET', 'POST'])
 def login():
-    if current_user.is_authenticated:
-        if current_user.role and current_user.role.name.lower() == 'admin':
-            return redirect(url_for('admin.dashboard'))
-        else:
-            return redirect(url_for('student.dashboard'))
-    
+    """用户登录"""
     form = LoginForm()
+    
+    # 如果是GET请求，直接显示登录表单
+    if request.method == 'GET':
+        return render_template('auth/login.html', form=form)
+    
+    # 如果是POST请求，处理表单提交
     if form.validate_on_submit():
         username = form.username.data
         password = form.password.data
+        
         logger.info(f"尝试登录: 用户名={username}")
         
-        user = User.query.filter_by(username=username).first()
-        if not user:
-            logger.warning(f"登录失败: 用户名 {username} 不存在")
-            flash('登录失败，请检查用户名和密码', 'danger')
-            return render_template('auth/login.html', form=form)
+        try:
+            # 查询用户
+            user = User.query.filter_by(username=username).first()
             
-        logger.info(f"找到用户: ID={user.id}, 角色ID={user.role_id}, 密码哈希前缀={user.password_hash[:20] if user.password_hash else 'None'}")
-        
-        # 直接为stuart用户设置简单登录
-        if username == 'stuart' and password == 'LYXspassword123':
-            logger.info(f"管理员账号stuart直接登录")
-            login_user(user)
-            user.last_login = datetime.now()
-            db.session.commit()
-            return redirect(url_for('admin.dashboard'))
-            
-        # 常规密码验证
-        if check_password_hash(user.password_hash, password):
-            logger.info(f"密码验证成功: 用户={username}")
-            login_user(user)
-            user.last_login = datetime.now()
-            db.session.commit()
-            next_page = request.args.get('next')
-            # 根据角色重定向到不同的页面
-            if user.role and user.role.name.lower() == 'admin':
-                logger.info(f"管理员登录成功: {username}")
-                return redirect(next_page or url_for('admin.dashboard'))
+            if user and user.check_password(password):
+                # 登录成功
+                login_user(user)
+                
+                # 更新最后登录时间
+                user.last_login = datetime.now()
+                db.session.commit()
+                
+                logger.info(f"用户 {username} 登录成功")
+                
+                # 记录系统日志
+                log = SystemLog(
+                    user_id=user.id,
+                    action='登录',
+                    details=f'用户 {username} 登录成功',
+                    ip_address=request.remote_addr
+                )
+                db.session.add(log)
+                db.session.commit()
+                
+                # 获取next参数，如果有的话重定向到该页面
+                next_page = request.args.get('next')
+                if not next_page or next_page.startswith('//'):
+                    if hasattr(user, 'role') and user.role and user.role.name == 'Admin':
+                        next_page = url_for('admin.dashboard')
+                    else:
+                        next_page = url_for('student.dashboard')
+                
+                flash('登录成功！', 'success')
+                return redirect(next_page)
             else:
-                logger.info(f"学生登录成功: {username}")
-                return redirect(next_page or url_for('student.dashboard'))
-        else:
-            logger.warning(f"密码验证失败: 用户={username}, 提供的密码长度={len(password)}")
-            flash('登录失败，请检查用户名和密码', 'danger')
+                # 登录失败
+                logger.warning(f"用户 {username} 登录失败: 用户名或密码错误")
+                flash('用户名或密码错误，请重试。', 'danger')
+                return render_template('auth/login.html', form=form)
+                
+        except Exception as e:
+            # 捕获所有异常，确保即使数据库查询失败也能正常显示错误信息
+            logger.error(f"登录查询错误: {str(e)}")
+            logger.error(f"登录过程发生错误: {str(e)}", exc_info=True)
+            flash('登录过程中发生错误，请稍后再试。', 'danger')
+            return render_template('auth/login.html', form=form)
+    
+    # 表单验证失败
     return render_template('auth/login.html', form=form)
 
 @auth_bp.route('/logout')
 @login_required
 def logout():
+    """用户登出"""
     logout_user()
-    flash('您已成功退出登录', 'info')
+    flash('您已成功登出！', 'success')
     return redirect(url_for('main.index'))
 
 @auth_bp.route('/profile')
