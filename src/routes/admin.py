@@ -3181,7 +3181,10 @@ def activity_view(id):
             Registration.id.label('id'),
             Registration.register_time.label('registration_time'),
             Registration.check_in_time,
-            StudentInfo.label('student')
+            StudentInfo.real_name.label('student_name'),
+            StudentInfo.student_id.label('student_id'),
+            StudentInfo.college.label('college'),
+            StudentInfo.major.label('major')
         ).all()
         
         # 导入display_datetime函数供模板使用
