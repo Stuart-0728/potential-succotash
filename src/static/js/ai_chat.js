@@ -622,16 +622,67 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // 公共API
         clearHistory: () => {
-            chatSession.clearMessages();
-            chatUI.clearMessagesUI();
-            chatUI.addMessageToUI(AI_CHAT_CONFIG.initialBotMessage, 'bot');
+            // 先发送清除请求到后端
+            fetch(`/utils/ai_chat/clear?session_id=${chatSession.sessionId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': chatSession.getCsrfToken()
+                }
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('清除历史记录失败');
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log('清除历史记录成功:', data);
+                // 清除本地消息
+                chatSession.messages = [];
+                chatUI.clearMessagesUI();
+                chatUI.addMessageToUI(AI_CHAT_CONFIG.initialBotMessage, 'bot');
+                // 清除cookie中的消息
+                chatSession.deleteCookie('messages');
+            })
+            .catch(error => {
+                console.error('清除历史记录失败:', error);
+                alert('清除历史记录失败，请重试');
+            });
         },
         
         // 清除所有会话历史
         clearAllHistory: () => {
-            chatSession.clearAllHistory();
-            chatUI.clearMessagesUI();
-            chatUI.addMessageToUI(AI_CHAT_CONFIG.initialBotMessage, 'bot');
+            // 发送清除所有历史的请求到后端
+            fetch('/utils/ai_chat/clear_history', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': chatSession.getCsrfToken()
+                },
+                body: JSON.stringify({
+                    session_id: chatSession.sessionId
+                })
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('清除所有历史记录失败');
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log('清除所有历史记录成功:', data);
+                // 清除本地消息
+                chatSession.messages = [];
+                chatUI.clearMessagesUI();
+                chatUI.addMessageToUI(AI_CHAT_CONFIG.initialBotMessage, 'bot');
+                // 清除cookie中的消息
+                chatSession.deleteCookie('messages');
+            })
+            .catch(error => {
+                console.error('清除所有历史记录失败:', error);
+                alert('清除所有历史记录失败，请重试');
+            });
         },
         
         // 获取协会信息
