@@ -192,6 +192,12 @@ def create_activity():
     """创建活动"""
     form = ActivityForm()
     
+    # 加载所有标签并设置选项
+    tags_stmt = db.select(Tag).order_by(Tag.name)
+    tags = db.session.execute(tags_stmt).scalars().all()
+    choices = [(tag.id, tag.name) for tag in tags]
+    form.tags.choices = choices
+    
     if form.validate_on_submit():
         try:
             # 获取表单数据
@@ -202,11 +208,9 @@ def create_activity():
             end_time = form.end_time.data
             registration_deadline = form.registration_deadline.data
             max_participants = form.max_participants.data
-            organizer = form.organizer.data
-            contact = form.contact.data
-            requirements = form.requirements.data
-            activity_type = form.activity_type.data
             points = form.points.data
+            status = form.status.data
+            is_featured = form.is_featured.data
             
             # 改进的时区处理逻辑
             # 先检查时间对象是否为None
@@ -241,16 +245,40 @@ def create_activity():
                 end_time=end_time,
                 registration_deadline=registration_deadline,
                 max_participants=max_participants,
-                organizer=organizer,
-                contact=contact,
-                requirements=requirements,
-                activity_type=activity_type,
-                points=points
+                points=points,
+                status=status,
+                is_featured=is_featured,
+                created_by=current_user.id
             )
             
+            # 处理标签
+            selected_tag_ids = request.form.getlist('tags')
+            if selected_tag_ids:
+                # 根据ID直接查询标签对象
+                valid_tag_ids = []
+                for tag_id_str in selected_tag_ids:
+                    try:
+                        if tag_id_str and str(tag_id_str).strip().isdigit():
+                            valid_tag_ids.append(int(tag_id_str))
+                    except Exception as e:
+                        logger.warning(f"处理标签ID时出错: {e}, tag_id={tag_id_str}")
+                
+                logger.info(f"活动标签处理 - 有效标签ID: {valid_tag_ids}")
+                
+                # 批量获取标签
+                if valid_tag_ids:
+                    tags_stmt = db.select(Tag).filter(Tag.id.in_(valid_tag_ids))
+                    selected_tags = db.session.execute(tags_stmt).scalars().all()
+                    logger.info(f"活动标签处理 - 找到{len(selected_tags)}个标签")
+                    
+                    # 添加标签关联
+                    for tag in selected_tags:
+                        activity.tags.append(tag)
+                        logger.info(f"活动标签处理 - 添加标签: [{tag.id}]{tag.name}")
+            
             # 处理海报图片上传
-            if form.poster_image.data:
-                filename = handle_poster_upload(form.poster_image.data, None)
+            if form.poster.data:
+                filename = handle_poster_upload(form.poster.data, None)
                 if filename:
                     activity.poster_image = filename
             
