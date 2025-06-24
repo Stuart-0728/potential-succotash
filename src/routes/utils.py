@@ -9,6 +9,7 @@ import json
 import random
 import string
 from datetime import datetime, timedelta
+from sqlalchemy import func
 from src.models import db, Activity, Tag, StudentInfo, SystemLog, Registration, AIChatHistory, AIChatSession, activity_tags, PointsHistory, User, Role, Message
 from src.utils.time_helpers import get_beijing_time, ensure_timezone_aware
 
