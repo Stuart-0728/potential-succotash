@@ -30,6 +30,7 @@
                         </div>
                         <div class="card-body">
                             <form method="post" action="{{ url_for('admin.reset_system') }}" id="resetForm">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                                 <div class="mb-3">
                                     <div class="form-check">
                                         <input class="form-check-input" type="checkbox" id="reset_users" name="reset_users">

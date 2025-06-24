@@ -96,12 +96,12 @@
                                     <!-- 检查是否已经开启签到，并显示相应的按钮 -->
                                     {% if activity.checkin_enabled %}
                                     <form action="{{ url_for('admin.toggle_checkin', id=activity.id) }}" method="post" class="mb-4">
-                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                                         <button type="submit" class="btn btn-danger">关闭签到</button>
                                     </form>
                                     {% else %}
                                     <form action="{{ url_for('admin.toggle_checkin', id=activity.id) }}" method="post" class="mb-4">
-                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                                         <button type="submit" class="btn btn-success">开启签到</button>
                                     </form>
                                     {% endif %}
