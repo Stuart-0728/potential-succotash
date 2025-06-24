@@ -342,6 +342,25 @@
             modal.style.display = 'none';
         }
         
+        // 获取CSRF令牌
+        function getCsrfToken() {
+            // 从cookie中获取CSRF令牌
+            const cookies = document.cookie.split(';');
+            for (let cookie of cookies) {
+                const [name, value] = cookie.trim().split('=');
+                if (name === 'csrf_token') {
+                    return decodeURIComponent(value);
+                }
+            }
+            // 如果没有找到，则尝试从meta标签获取
+            const metaToken = document.querySelector('meta[name="csrf-token"]');
+            if (metaToken) {
+                return metaToken.getAttribute('content');
+            }
+            // 如果仍然没有找到，返回空字符串
+            return '';
+        }
+        
         // 使用火山API替代Gemini API
         async function callGemini(prompt) {
             showModal('正在思考中，请稍候...');
@@ -365,45 +384,22 @@
                     },
                     body: JSON.stringify({ prompt: prompt })
                 });
-
-                if (!response.ok) {
-                    if (response.status === 401) {
-                        hideModal();
-                        return "请先<a href='/auth/login' class='text-blue-500 hover:underline'>登录</a>后再使用AI功能。";
-                    }
-                    throw new Error(`API 请求失败，状态码: ${response.status}`);
-                }
-
-                const result = await response.json();
+                
+                const data = await response.json();
+                
                 hideModal();
-
-                if (result.content) {
-                    return result.content;
-                } else if (result.error) {
-                    console.error('API返回错误:', result.error);
-                    return `抱歉，AI服务暂时不可用: ${result.error}`;
-                } else {
-                    return "抱歉，无法获取有效的回答。请稍后再试。";
+                
+                if (!data.success) {
+                    console.error('API错误:', data.error || data.content);
+                    return `AI助手暂时无法回答您的问题。${data.error || data.content || '发生了未知错误，请稍后再试。'}`;
                 }
+                
+                return data.content;
             } catch (error) {
-                console.error('API Error:', error);
+                console.error('API调用错误:', error);
                 hideModal();
-                return `抱歉，请求处理过程中发生错误。请稍后再试。`;
+                return "与AI助手通信时发生错误，请稍后再试。详细错误: " + error.message;
             }
-        }
-        
-        // 获取CSRF令牌
-        function getCsrfToken() {
-            // 从cookie中获取CSRF令牌
-            const cookies = document.cookie.split(';');
-            for (let cookie of cookies) {
-                const [name, value] = cookie.trim().split('=');
-                if (name === 'csrf_token') {
-                    return decodeURIComponent(value);
-                }
-            }
-            // 如果没有找到，返回空字符串
-            return '';
         }
 
         // Section 1: Aristotle's View

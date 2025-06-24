@@ -467,10 +467,9 @@ def ai_chat():
 
     return Response(generate(), mimetype='text/event-stream')
 
-# AI聊天历史记录API
-@utils_bp.route('/api/ai_chat/history', methods=['GET'])
+@utils_bp.route('/ai_chat/history', methods=['GET'])
 @login_required
-def ai_chat_history():
+def ai_chat_history_endpoint():
     """获取AI聊天历史记录"""
     session_id = request.args.get('session_id')
     if not session_id:
@@ -482,10 +481,10 @@ def ai_chat_history():
     
     try:
         # 查询历史记录
-        history_messages = AIChatHistory.query.filter_by(
+        history_messages = db.session.execute(db.select(AIChatHistory).filter_by(
             session_id=session_id,
             user_id=current_user.id
-        ).order_by(AIChatHistory.timestamp).all()
+        ).order_by(AIChatHistory.timestamp)).scalars().all()
         
         # 格式化消息
         messages = [
@@ -510,10 +509,17 @@ def ai_chat_history():
             'data': []
         }), 500
 
-@utils_bp.route('/api/ai_chat/clear', methods=['POST'])
+# 添加utils前缀路由
+@utils_bp.route('/utils/ai_chat/history', methods=['GET'])
 @login_required
-def ai_chat_clear_history():
-    """清除AI聊天历史记录"""
+def utils_ai_chat_history():
+    """获取AI聊天历史记录 - 带utils前缀的版本"""
+    return ai_chat_history_endpoint()
+
+@utils_bp.route('/ai_chat/clear', methods=['POST'])
+@login_required
+def ai_chat_clear():
+    """清除指定会话的AI聊天历史记录"""
     session_id = request.args.get('session_id')
     if not session_id:
         return jsonify({
@@ -522,84 +528,72 @@ def ai_chat_clear_history():
         }), 400
     
     try:
-        # 查询该会话是否属于当前用户
-        session = db.session.execute(db.select(AIChatSession).filter_by(
-            id=session_id,
-            user_id=current_user.id
-        )).scalar_one_or_none()
-        
-        if not session:
-            return jsonify({
-                'success': False,
-                'message': '会话不存在或无权限清除'
-            }), 403
-        
         # 删除历史记录
-        AIChatHistory.query.filter_by(
+        db.session.execute(db.delete(AIChatHistory).filter_by(
             session_id=session_id,
             user_id=current_user.id
-        ).delete()
-        
-        # 提交更改
+        ))
         db.session.commit()
-        
-        # 记录操作日志
-        log_action(
-            action='clear_ai_chat_history',
-            details=f'清除AI聊天历史记录，会话ID: {session_id}'
-        )
         
         return jsonify({
             'success': True,
             'message': '成功清除历史记录'
         })
     except Exception as e:
-        db.session.rollback()
         logger.error(f"清除AI聊天历史记录失败: {str(e)}")
+        db.session.rollback()
         return jsonify({
             'success': False,
             'message': f'清除历史记录失败: {str(e)}'
         }), 500
 
-@utils_bp.route('/api/ai_chat/clear_history', methods=['POST'])
+# 添加utils前缀路由
+@utils_bp.route('/utils/ai_chat/clear', methods=['POST'])
 @login_required
-def ai_chat_clear_all_history():
+def utils_ai_chat_clear():
+    """清除指定会话的AI聊天历史记录 - 带utils前缀的版本"""
+    return ai_chat_clear()
+
+@utils_bp.route('/ai_chat/clear_history', methods=['POST'])
+@login_required
+def ai_chat_clear_history():
     """清除用户所有AI聊天历史记录"""
     try:
-        # 查询用户的所有会话
+        # 删除用户的所有聊天记录
         sessions = db.session.execute(db.select(AIChatSession).filter_by(
             user_id=current_user.id
         )).scalars().all()
         
-        # 记录会话数量用于日志
-        session_count = len(sessions)
+        for session in sessions:
+            db.session.execute(db.delete(AIChatHistory).filter_by(
+                session_id=session.id
+            ))
         
-        # 删除用户的所有历史记录
-        deleted_count = AIChatHistory.query.filter_by(
+        # 也可以选择删除会话本身
+        db.session.execute(db.delete(AIChatSession).filter_by(
             user_id=current_user.id
-        ).delete()
+        ))
         
-        # 提交更改
         db.session.commit()
-        
-        # 记录操作日志
-        log_action(
-            action='clear_all_ai_chat_history',
-            details=f'清除所有AI聊天历史记录，共删除{deleted_count}条记录，涉及{session_count}个会话'
-        )
         
         return jsonify({
             'success': True,
-            'message': f'成功清除所有历史记录，共{deleted_count}条',
-            'deleted_count': deleted_count
+            'message': '成功清除所有历史记录'
         })
     except Exception as e:
-        db.session.rollback()
         logger.error(f"清除所有AI聊天历史记录失败: {str(e)}")
+        db.session.rollback()
         return jsonify({
             'success': False,
-            'message': f'清除历史记录失败: {str(e)}'
+            'message': f'清除所有历史记录失败: {str(e)}'
         }), 500
+
+# 添加utils前缀路由
+@utils_bp.route('/utils/ai_chat/clear_history', methods=['POST'])
+@login_required
+def utils_ai_chat_clear_history():
+    """清除用户所有AI聊天历史记录 - 带utils前缀的版本"""
+    return ai_chat_clear_history()
 
 # 添加缺失的add_points函数
 def add_points(user_id, points, reason, activity_id=None):

@@ -78,6 +78,25 @@ class AIChatSession {
         return sessionId;
     }
 
+    // 获取CSRF令牌
+    getCsrfToken() {
+        // 从cookie中获取CSRF令牌
+        const cookies = document.cookie.split(';');
+        for (let cookie of cookies) {
+            const [name, value] = cookie.trim().split('=');
+            if (name === 'csrf_token') {
+                return decodeURIComponent(value);
+            }
+        }
+        // 如果没有找到，则尝试从meta标签获取
+        const metaToken = document.querySelector('meta[name="csrf-token"]');
+        if (metaToken) {
+            return metaToken.getAttribute('content');
+        }
+        // 如果仍然没有找到，返回空字符串
+        return '';
+    }
+
     // 添加消息
     addMessage(content, role) {
         const message = {
@@ -100,10 +119,11 @@ class AIChatSession {
     clearMessages() {
         this.messages = [];
         // 调用后端API清除历史记录
-        fetch(`/api/ai_chat/clear?session_id=${this.sessionId}`, {
+        fetch(`/utils/ai_chat/clear?session_id=${this.sessionId}`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
+                'X-CSRF-Token': this.getCsrfToken()
             }
         })
         .catch(error => console.error('清除历史记录失败:', error));
@@ -113,10 +133,11 @@ class AIChatSession {
     clearAllHistory() {
         this.messages = [];
         // 调用后端API清除所有历史记录
-        fetch('/api/ai_chat/clear_history', {
+        fetch('/utils/ai_chat/clear_history', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
+                'X-CSRF-Token': this.getCsrfToken()
             }
         })
         .then(response => response.json())
@@ -146,7 +167,7 @@ class AIChatSession {
         }
         
         // 从后端API加载历史记录
-        fetch(`/api/ai_chat/history?session_id=${this.sessionId}`)
+        fetch(`/utils/ai_chat/history?session_id=${this.sessionId}`)
             .then(response => {
                 if (!response.ok) {
                     throw new Error('加载历史记录失败');
