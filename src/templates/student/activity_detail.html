@@ -107,7 +107,7 @@
                 </div>
             </div>
 
-            {% if activity.poster_url %}
+            {% if activity.poster_image or poster_url %}
             <div class="card border-0 bg-light mb-4">
                 <div class="card-header bg-light border-0">
                     <h5 class="mb-0 fw-bold">
@@ -115,7 +115,13 @@
                     </h5>
                 </div>
                 <div class="card-body text-center">
-                    <img src="{{ activity.poster_url }}" alt="活动海报" class="img-fluid rounded shadow-sm" style="max-height: 400px;">
+                    {% if poster_url %}
+                    <img src="{{ poster_url }}" alt="活动海报" class="img-fluid rounded shadow-sm" style="max-height: 400px;">
+                    {% elif 'banner' in activity.poster_image %}
+                    <img src="{{ url_for('static', filename='img/' + activity.poster_image) }}" alt="活动海报" class="img-fluid rounded shadow-sm" style="max-height: 400px;">
+                    {% else %}
+                    <img src="{{ url_for('static', filename='uploads/posters/' + activity.poster_image) }}" alt="活动海报" class="img-fluid rounded shadow-sm" style="max-height: 400px;">
+                    {% endif %}
                 </div>
             </div>
             {% endif %}

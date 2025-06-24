@@ -175,7 +175,13 @@ class Activity(db.Model):
     @property
     def poster_url(self):
         """提供向后兼容的poster_url属性"""
-        return None  # 数据库中不再有此字段，返回None
+        if not self.poster_image:
+            return None
+        # 返回相对路径，模板中可以与url_for一起使用
+        elif 'banner' in self.poster_image:
+            return f"/static/img/{self.poster_image}"
+        else:
+            return f"/static/uploads/posters/{self.poster_image}"
     
     @property
     def poster(self):

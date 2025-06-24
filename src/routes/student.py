@@ -329,6 +329,14 @@ def activity_detail(id):
         from flask_wtf import FlaskForm
         form = FlaskForm()
         
+        # 兼容性处理：如果模板使用poster_url但Activity中返回None
+        poster_url = None
+        if activity.poster_image:
+            if 'banner' in activity.poster_image:
+                poster_url = url_for('static', filename=f'img/{activity.poster_image}')
+            else:
+                poster_url = url_for('static', filename=f'uploads/posters/{activity.poster_image}')
+
         return render_template('student/activity_detail.html',
                               form=form,
                               activity=activity,
@@ -351,7 +359,8 @@ def activity_detail(id):
                               now=now,
                               display_datetime=display_datetime,
                               safe_less_than=safe_less_than,
-                              safe_greater_than=safe_greater_than)
+                              safe_greater_than=safe_greater_than,
+                              poster_url=poster_url)
                               
     except Exception as e:
         logger.error(f"加载活动详情出错: {str(e)}", exc_info=True)

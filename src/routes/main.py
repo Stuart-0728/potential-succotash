@@ -64,9 +64,13 @@ def index():
                             os.path.join(static_folder, 'img', 'banner1.jpg'),
                             os.path.join(static_folder, 'img', 'banner2.jpg')
                         ]
-                        for alt_path in alt_paths:
+                        
+                        # 找到第一个存在的备用文件并设置为海报图片
+                        for i, alt_path in enumerate(alt_paths):
                             if os.path.exists(alt_path):
-                                logger.info(f"  但备用文件存在: {alt_path}")
+                                backup_filename = f"banner{i+1}.jpg"
+                                activity.poster_image = backup_filename
+                                logger.info(f"  设置备用海报文件: {backup_filename}")
                                 break
                         else:
                             logger.warning("  所有备用文件也不存在")
@@ -104,6 +108,16 @@ def index():
             status='published'
         ).order_by(Announcement.created_at.desc()).limit(3).all()
         
+        # 获取公共通知
+        public_notifications = Notification.query.filter_by(
+            is_public=True
+        ).filter(
+            db.or_(
+                Notification.expiry_date.is_(None),
+                Notification.expiry_date > datetime.utcnow()
+            )
+        ).order_by(Notification.created_at.desc()).limit(3).all()
+        
         # 确保模板可以使用时间处理函数
         from src.utils.time_helpers import display_datetime
         
@@ -112,6 +126,7 @@ def index():
                             upcoming_activities=upcoming_activities,
                             popular_activities=popular_activities,
                             announcements=announcements,
+                            public_notifications=public_notifications,
                             display_datetime=display_datetime)
     except Exception as e:
         logger.error(f"Error in index: {e}", exc_info=True)
@@ -120,7 +135,8 @@ def index():
                                upcoming_activities=[],
                                popular_activities=[],
                                featured_activities=[],
-                               announcements=[])
+                               announcements=[],
+                               public_notifications=[])
 
 @main_bp.route('/activities')
 def activities():

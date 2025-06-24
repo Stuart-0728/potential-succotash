@@ -16,10 +16,17 @@
                 
                 {% if activity.poster_image %}
                 <div class="text-center p-3">
+                    {% if 'banner' in activity.poster_image %}
+                    <img src="{{ url_for('static', filename='img/' + activity.poster_image) }}" 
+                         class="img-fluid rounded" 
+                         alt="{{ activity.title }}" 
+                         style="max-height: 400px;">
+                    {% else %}
                     <img src="{{ url_for('static', filename='uploads/posters/' + activity.poster_image) }}" 
                          class="img-fluid rounded" 
                          alt="{{ activity.title }}" 
                          style="max-height: 400px;">
+                    {% endif %}
                 </div>
                 {% endif %}
                 
