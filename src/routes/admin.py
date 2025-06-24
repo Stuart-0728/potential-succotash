@@ -3202,3 +3202,43 @@ def activity_view(id):
         logger.error(f"Error in activity_view: {e}")
         flash('查看活动详情时出错', 'danger')
         return redirect(url_for('admin.activities'))
+
+@admin_bp.route('/activity/<int:id>/delete', methods=['POST'])
+@admin_required
+def delete_activity(id):
+    try:
+        # 获取活动
+        activity = db.get_or_404(Activity, id)
+        
+        # 检查是否强制删除
+        force_delete = request.args.get('force', 'false').lower() == 'true'
+        
+        if force_delete:
+            # 永久删除活动
+            # 首先删除相关的报名记录
+            Registration.query.filter_by(activity_id=id).delete()
+            
+            # 删除活动
+            db.session.delete(activity)
+            db.session.commit()
+            
+            # 记录操作
+            log_action('force_delete_activity', f'永久删除活动: {activity.title}')
+            
+            flash(f'活动"{activity.title}"已永久删除', 'success')
+        else:
+            # 软删除（标记为已取消）
+            activity.status = 'cancelled'
+            db.session.commit()
+            
+            # 记录操作
+            log_action('cancel_activity', f'取消活动: {activity.title}')
+            
+            flash(f'活动"{activity.title}"已标记为已取消', 'success')
+        
+        return redirect(url_for('admin.activities'))
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error deleting activity: {e}")
+        flash('删除活动时出错', 'danger')
+        return redirect(url_for('admin.activities'))
