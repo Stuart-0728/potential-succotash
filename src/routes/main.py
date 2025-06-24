@@ -8,6 +8,7 @@ import time
 import traceback
 import pytz
 from flask_wtf import FlaskForm
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +49,34 @@ def index():
         ).order_by(func.random()).limit(3)
         
         featured_activities = db.session.execute(featured_stmt).scalars().all()
+        
+        # 添加调试信息，检查活动和海报信息
+        for i, activity in enumerate(featured_activities):
+            logger.info(f"特色活动 {i+1}: ID={activity.id}, 标题={activity.title}, 海报={activity.poster_image}")
+            if activity.poster_image:
+                # 检查并修复可能包含"None"的海报路径
+                if "None" in activity.poster_image:
+                    # 从文件名中提取时间戳部分
+                    try:
+                        parts = activity.poster_image.split('_')
+                        if len(parts) >= 3:
+                            # 替换None为实际活动ID
+                            fixed_name = f"activity_{activity.id}_{parts[2]}"
+                            activity.poster_image = fixed_name
+                            logger.info(f"  修复海报文件名: {activity.poster_image}")
+                    except Exception as e:
+                        logger.error(f"  修复海报文件名出错: {e}")
+                        activity.poster_image = None
+                
+                # 检查文件是否存在
+                if activity.poster_image and current_app.static_folder:
+                    poster_path = os.path.join(current_app.static_folder, 'uploads', 'posters', activity.poster_image)
+                    if os.path.exists(poster_path):
+                        logger.info(f"  海报文件存在: {poster_path}")
+                    else:
+                        logger.warning(f"  海报文件不存在: {poster_path}")
+                        # 如果海报文件不存在，将海报字段设为None，避免前端显示错误
+                        activity.poster_image = None
         
         # 获取系统公告 - 修正查询逻辑，获取重要通知
         public_notifications_stmt = db.select(Notification).filter(

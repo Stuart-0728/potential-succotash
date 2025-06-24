@@ -103,25 +103,17 @@ def resources():
 @education_bp.route('/resource/free-fall')
 def free_fall():
     """自由落体运动探究页面"""
-    # 生成CSRF令牌供模板使用
-    csrf_token = generate_csrf()
-    return render_template('education/free_fall.html', csrf_token=csrf_token)
+    # 不需要直接生成CSRF令牌，模板中会自动调用csrf_token()函数
+    return render_template('education/free_fall.html')
 
 @education_bp.route('/api/gemini', methods=['POST'])
 def gemini_api():
     """处理AI API请求"""
     try:
-        # 检查用户是否已登录
-        if not current_user.is_authenticated:
-            current_app.logger.warning("未登录用户尝试访问AI API")
-            return jsonify({
-                'success': False,
-                'content': '请先登录后再使用AI功能'
-            }), 401
-            
         # 获取请求数据
         data = request.get_json()
-        current_app.logger.info(f"接收到API请求，用户ID: {current_user.id}")
+        user_id = current_user.id if current_user.is_authenticated else "匿名用户"
+        current_app.logger.info(f"接收到API请求，用户: {user_id}")
         
         if not data or 'prompt' not in data:
             current_app.logger.warning(f"API请求格式错误，缺少prompt字段")
@@ -134,11 +126,12 @@ def gemini_api():
         current_app.logger.info(f"提示词长度: {len(prompt)}")
         
         # 记录API调用
-        log_action(
-            action="education_ai_api",
-            details=f"调用教育资源AI API，提示词长度：{len(prompt)}",
-            user_id=current_user.id
-        )
+        if current_user.is_authenticated:
+            log_action(
+                action="education_ai_api",
+                details=f"调用教育资源AI API，提示词长度：{len(prompt)}",
+                user_id=current_user.id
+            )
         
         # 获取API密钥
         api_key = os.environ.get("ARK_API_KEY")
@@ -239,4 +232,29 @@ def test_route():
             'id': current_user.id,
             'username': current_user.username
         } if current_user.is_authenticated else None
+    })
+
+# 添加测试路由测试静态文件访问
+@education_bp.route('/test-static')
+def test_static():
+    """测试静态文件访问"""
+    # 获取上传目录中的第一个海报文件作为测试
+    static_folder = current_app.static_folder or ""
+    upload_dir = os.path.join(static_folder, 'uploads', 'posters')
+    poster_files = []
+    if os.path.exists(upload_dir):
+        poster_files = os.listdir(upload_dir)
+        poster_files = [f for f in poster_files if os.path.isfile(os.path.join(upload_dir, f))]
+    
+    test_image = poster_files[0] if poster_files else None
+    
+    # 返回测试结果
+    return jsonify({
+        'success': True,
+        'message': '静态文件测试',
+        'test_image': test_image,
+        'static_url': current_app.static_url_path,
+        'image_url': url_for('static', filename=f'uploads/posters/{test_image}') if test_image else None,
+        'upload_dir': upload_dir,
+        'file_exists': os.path.exists(upload_dir)
     }) 

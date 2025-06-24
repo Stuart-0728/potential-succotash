@@ -1,6 +1,7 @@
 import datetime
 import pytz
 from flask import current_app
+import logging
 
 def get_beijing_time():
     """
@@ -152,45 +153,39 @@ def normalize_datetime_for_db(dt):
         utc_dt = aware_dt.astimezone(pytz.utc).replace(tzinfo=None)
         return utc_dt
 
-def display_datetime(dt, format_str='%Y-%m-%d %H:%M', timezone_name=None):
+def display_datetime(dt, fmt=None):
     """
-    将数据库中的时间转换为显示时间（北京时间）
-    :param dt: 数据库中的datetime对象
-    :param format_str: 格式化字符串
-    :param timezone_name: 要转换到的时区名称，默认为None表示使用Asia/Shanghai
-    :return: 格式化后的字符串
+    将UTC时间转换为北京时间并格式化
+    
+    Args:
+        dt: 日期时间对象，可能是naive或aware
+        fmt: 格式化字符串，如果不提供则使用默认格式
+        
+    Returns:
+        str: 格式化后的时间字符串
     """
     if dt is None:
-        return ''
-        
-    if not isinstance(dt, datetime.datetime):
-        return str(dt)
+        return "未设置"
     
-    try:
-        # 确保时间有时区信息
-        if dt.tzinfo is None:
-            # 如果在Render环境中，假设时间已经是北京时间
-            if is_render_environment():
-                beijing_tz = pytz.timezone('Asia/Shanghai')
-                dt_with_tz = beijing_tz.localize(dt)
-            else:
-                # 本地环境，假设时间是UTC时间
-                dt_with_tz = pytz.utc.localize(dt)
-        else:
-            dt_with_tz = dt
-        
-        # 转换为指定时区，默认为北京时间
-        target_tz = pytz.timezone(timezone_name if timezone_name else 'Asia/Shanghai')
-        target_dt = dt_with_tz.astimezone(target_tz)
-        
-        # 格式化并返回
-        return target_dt.strftime(format_str)
-    except Exception as e:
-        # 如果出现任何错误，尝试直接格式化
+    beijing_tz = pytz.timezone('Asia/Shanghai')
+    
+    # 确保dt有时区信息
+    if dt.tzinfo is None:
+        # 无时区信息，假定为UTC
         try:
-            return dt.strftime(format_str)
-        except:
-            return str(dt)
+            dt = pytz.utc.localize(dt)
+        except (ValueError, AttributeError):
+            # 如果已经有时区但不是UTC，则转换为UTC
+            dt = dt.replace(tzinfo=pytz.UTC)
+    
+    # 转换为北京时间
+    beijing_time = dt.astimezone(beijing_tz)
+    
+    # 格式化
+    if fmt is None:
+        fmt = '%Y-%m-%d %H:%M'
+        
+    return beijing_time.strftime(fmt)
 
 def safe_compare(dt1, dt2):
     """
