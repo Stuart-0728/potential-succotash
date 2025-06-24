@@ -66,9 +66,21 @@ def handle_poster_upload(file_data, activity_id):
             unique_filename = f"activity_temp_{timestamp}{file_extension}"
             logger.info(f"活动ID为空，使用临时ID: {unique_filename}")
         else:
-            # 转换为字符串以确保拼接不出错
-            str_activity_id = str(activity_id)
-            unique_filename = f"activity_{str_activity_id}_{timestamp}{file_extension}"
+            # 检查activity_id类型，确保正确处理
+            try:
+                # 如果是ORM对象，尝试获取id属性
+                if hasattr(activity_id, 'id'):
+                    str_activity_id = str(activity_id.id)
+                    logger.info(f"从ORM对象获取活动ID: {str_activity_id}")
+                else:
+                    # 否则直接转换为字符串
+                    str_activity_id = str(activity_id)
+                    logger.info(f"直接使用活动ID: {str_activity_id}")
+                
+                unique_filename = f"activity_{str_activity_id}_{timestamp}{file_extension}"
+            except Exception as e:
+                logger.error(f"处理活动ID时出错: {e}, 使用临时ID")
+                unique_filename = f"activity_temp_{timestamp}{file_extension}"
         
         # 确保上传目录存在
         upload_dir = os.path.join(current_app.static_folder or 'src/static', 'uploads', 'posters')
