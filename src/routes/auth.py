@@ -322,7 +322,7 @@ def setup_admin():
 @login_required
 def select_tags():
     # 只有学生用户可以选择标签
-    if not current_user.is_student():
+    if not current_user.is_student:
         flash('只有学生用户可以选择标签', 'warning')
         return redirect(url_for('main.index'))
     
