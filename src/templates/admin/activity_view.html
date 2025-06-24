@@ -97,10 +97,10 @@
                                 <tbody>
                                     {% for reg in registrations %}
                                     <tr>
-                                        <td>{{ reg.student.student_id }}</td>
-                                        <td>{{ reg.student.real_name }}</td>
-                                        <td>{{ reg.student.college }}</td>
-                                        <td>{{ reg.student.major }}</td>
+                                        <td>{{ reg.student_id }}</td>
+                                        <td>{{ reg.student_name }}</td>
+                                        <td>{{ reg.college }}</td>
+                                        <td>{{ reg.major }}</td>
                                         <td>{{ display_datetime(reg.registration_time, 'Asia/Shanghai') }}</td>
                                         <td>
                                             {% if reg.check_in_time %}
