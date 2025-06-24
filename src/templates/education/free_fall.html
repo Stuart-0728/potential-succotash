@@ -369,16 +369,7 @@
             showModal('正在思考中，请稍候...');
             
             try {
-                // 检查用户是否已登录
-                const authCheckResponse = await fetch('/utils/check_login_status');
-                const authStatus = await authCheckResponse.json();
-                
-                if (!authStatus.is_logged_in) {
-                    hideModal();
-                    return "请先登录后再使用AI功能。您可以点击页面顶部的\"<a href='/auth/login' class='text-blue-500 hover:underline'>登录</a>\"按钮进行登录。";
-                }
-                
-                // 获取CSRF令牌
+                // 简化登录检查逻辑，不依赖外部API
                 const csrfToken = getCsrfToken();
                 if (!csrfToken) {
                     hideModal();
@@ -401,7 +392,7 @@
                 
                 if (!data.success) {
                     console.error('API错误:', data.error || data.content);
-                    return `AI助手暂时无法回答您的问题。${data.error || data.content || '发生了未知错误，请稍后再试。'}`;
+                    return `AI助手暂时无法回答您的问题。${data.error || data.content || '请先登录后再使用AI功能，或稍后再试。'}`;
                 }
                 
                 return data.content;

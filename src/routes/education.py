@@ -108,10 +108,17 @@ def free_fall():
     return render_template('education/free_fall.html', csrf_token=csrf_token)
 
 @education_bp.route('/api/gemini', methods=['POST'])
-@login_required
 def gemini_api():
     """处理AI API请求"""
     try:
+        # 检查用户是否已登录
+        if not current_user.is_authenticated:
+            current_app.logger.warning("未登录用户尝试访问AI API")
+            return jsonify({
+                'success': False,
+                'content': '请先登录后再使用AI功能'
+            }), 401
+            
         # 获取请求数据
         data = request.get_json()
         current_app.logger.info(f"接收到API请求，用户ID: {current_user.id}")
@@ -120,7 +127,7 @@ def gemini_api():
             current_app.logger.warning(f"API请求格式错误，缺少prompt字段")
             return jsonify({
                 'success': False,
-                'error': '请求格式错误，缺少prompt字段'
+                'content': '请求格式错误，缺少prompt字段'
             })
         
         prompt = data['prompt']
@@ -165,56 +172,71 @@ def gemini_api():
         # 记录请求开始
         current_app.logger.info(f"正在向AI API发送请求: {url}, 提示词长度：{len(prompt)}")
         
-        # 添加超时参数，避免长时间等待
-        response = requests.post(url, json=payload, headers=headers, timeout=30)
-        
-        # 记录响应状态
-        current_app.logger.info(f"AI API响应状态码：{response.status_code}")
-        
-        if response.status_code != 200:
-            current_app.logger.error(f"AI API调用失败，状态码：{response.status_code}，响应：{response.text}")
+        try:
+            # 添加超时参数，避免长时间等待
+            response = requests.post(url, json=payload, headers=headers, timeout=30)
+            
+            # 记录响应状态
+            current_app.logger.info(f"AI API响应状态码：{response.status_code}")
+            
+            if response.status_code != 200:
+                current_app.logger.error(f"AI API调用失败，状态码：{response.status_code}，响应：{response.text}")
+                return jsonify({
+                    'success': False,
+                    'content': f"AI服务暂时不可用，请稍后再试。错误码：{response.status_code}"
+                })
+            
+            response_data = response.json()
+            
+            # 使用AI标准响应格式
+            if 'choices' in response_data and len(response_data['choices']) > 0:
+                ai_response = response_data['choices'][0]['message']['content']
+                
+                # 记录成功响应
+                current_app.logger.info(f"成功获取AI响应，长度：{len(ai_response)}")
+                
+                return jsonify({
+                    'success': True,
+                    'content': ai_response
+                })
+            else:
+                current_app.logger.error(f"API响应格式异常：{response_data}")
+                return jsonify({
+                    'success': False,
+                    'content': "AI响应格式错误，请稍后再试"
+                })
+                
+        except requests.Timeout:
+            current_app.logger.error("AI API请求超时")
             return jsonify({
                 'success': False,
-                'content': f"AI服务暂时不可用，请稍后再试。错误码：{response.status_code}"
+                'content': "AI服务响应超时，请稍后再试"
             })
         
-        response_data = response.json()
-        
-        # 使用AI标准响应格式
-        if 'choices' in response_data and len(response_data['choices']) > 0:
-            ai_response = response_data['choices'][0]['message']['content']
-            
-            # 记录成功响应
-            current_app.logger.info(f"成功获取AI响应，长度：{len(ai_response)}")
-            
-            return jsonify({
-                'success': True,
-                'content': ai_response
-            })
-        else:
-            current_app.logger.error(f"API响应格式异常：{response_data}")
+        except requests.ConnectionError:
+            current_app.logger.error("连接AI服务失败")
             return jsonify({
                 'success': False,
-                'content': "AI响应格式错误，请稍后再试"
+                'content': "无法连接到AI服务，请检查网络连接"
             })
-    
-    except requests.Timeout:
-        current_app.logger.error("AI API请求超时")
-        return jsonify({
-            'success': False,
-            'content': "AI服务响应超时，请稍后再试"
-        })
-    
-    except requests.ConnectionError:
-        current_app.logger.error("连接AI服务失败")
-        return jsonify({
-            'success': False,
-            'content': "无法连接到AI服务，请检查网络连接"
-        })
     
     except Exception as e:
-        current_app.logger.error(f"AI API调用发生未知错误: {str(e)}")
+        current_app.logger.error(f"AI API调用发生未知错误: {str(e)}", exc_info=True)
         return jsonify({
             'success': False,
             'content': "处理请求时发生错误，请稍后再试"
-        }) 
+        })
+
+# 添加测试路由
+@education_bp.route('/test')
+def test_route():
+    """测试路由，用于检查教育模块是否正常工作"""
+    return jsonify({
+        'success': True,
+        'message': '教育模块正常工作',
+        'auth_status': current_user.is_authenticated,
+        'user_info': {
+            'id': current_user.id,
+            'username': current_user.username
+        } if current_user.is_authenticated else None
+    }) 
