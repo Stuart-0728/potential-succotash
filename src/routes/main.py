@@ -223,6 +223,29 @@ def activity_detail(activity_id):
         
         activity = db.get_or_404(Activity, activity_id)
         
+        # 检查海报文件是否存在，如果不存在则设置备用海报
+        if activity.poster_image:
+            static_folder = current_app.static_folder
+            if static_folder:
+                poster_path = os.path.join(static_folder, 'uploads', 'posters', activity.poster_image)
+                if not os.path.exists(poster_path):
+                    # 如果原始海报不存在，设置备用海报
+                    alt_paths = [
+                        os.path.join(static_folder, 'img', 'banner1.jpg'),
+                        os.path.join(static_folder, 'img', 'banner2.jpg'),
+                        os.path.join(static_folder, 'img', 'banner3.jpg'),
+                    ]
+                    
+                    # 找到第一个存在的备用文件并设置为海报图片
+                    for i, alt_path in enumerate(alt_paths):
+                        if os.path.exists(alt_path):
+                            backup_filename = f"banner{i+1}.jpg"
+                            activity.poster_image = backup_filename
+                            logger.info(f"  设置活动详情页备用海报: {backup_filename}")
+                            break
+                    else:
+                        logger.warning("  所有备用文件也不存在")
+        
         # 创建空表单对象用于CSRF保护
         form = FlaskForm()
         

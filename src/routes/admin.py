@@ -59,11 +59,17 @@ def handle_poster_upload(file_data, activity_id):
         
         # 生成唯一文件名 - 确保活动ID不为None
         _, file_extension = os.path.splitext(filename)
-        activity_id_str = str(activity_id) if activity_id is not None else "new"
-        unique_filename = f"activity_{activity_id_str}_{datetime.now().strftime('%Y%m%d%H%M%S')}{file_extension}"
+        timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
+        
+        # 确保 activity_id 是有效的字符串
+        if activity_id is None or str(activity_id).lower() == 'none':
+            unique_filename = f"activity_temp_{timestamp}{file_extension}"
+            logger.info(f"活动ID为空，使用临时ID: {unique_filename}")
+        else:
+            unique_filename = f"activity_{activity_id}_{timestamp}{file_extension}"
         
         # 确保上传目录存在
-        upload_dir = os.path.join(current_app.static_folder, 'uploads', 'posters')
+        upload_dir = os.path.join(current_app.static_folder or 'src/static', 'uploads', 'posters')
         if not os.path.exists(upload_dir):
             os.makedirs(upload_dir, exist_ok=True)
             logger.info(f"创建上传目录: {upload_dir}")
@@ -90,7 +96,7 @@ def handle_poster_upload(file_data, activity_id):
         return unique_filename
         
     except Exception as e:
-        logger.error(f"海报上传失败: {str(e)}")
+        logger.error(f"海报上传失败: {str(e)}", exc_info=True)
         return None
 
 @admin_bp.route('/dashboard')
@@ -216,26 +222,31 @@ def create_activity():
             # 改进的时区处理逻辑
             # 先检查时间对象是否为None
             if start_time:
-                # 确保时间具有时区信息，但避免重复添加
+                # 检查是否已有时区信息，避免重复添加
                 if start_time.tzinfo is None:
                     start_time = ensure_timezone_aware(start_time)
                     logger.info(f"为start_time添加了北京时区: {start_time}")
                 else:
-                    logger.info(f"start_time已有时区信息，无需添加: {start_time}")
+                    # 如果已有时区信息，只需确保是UTC时区
+                    start_time = start_time.astimezone(pytz.utc)
             
             if end_time:
+                # 检查是否已有时区信息，避免重复添加
                 if end_time.tzinfo is None:
                     end_time = ensure_timezone_aware(end_time)
                     logger.info(f"为end_time添加了北京时区: {end_time}")
                 else:
-                    logger.info(f"end_time已有时区信息，无需添加: {end_time}")
+                    # 如果已有时区信息，只需确保是UTC时区
+                    end_time = end_time.astimezone(pytz.utc)
             
             if registration_deadline:
+                # 检查是否已有时区信息，避免重复添加
                 if registration_deadline.tzinfo is None:
                     registration_deadline = ensure_timezone_aware(registration_deadline)
                     logger.info(f"为registration_deadline添加了北京时区: {registration_deadline}")
                 else:
-                    logger.info(f"registration_deadline已有时区信息，无需添加: {registration_deadline}")
+                    # 如果已有时区信息，只需确保是UTC时区
+                    registration_deadline = registration_deadline.astimezone(pytz.utc)
             
             # 创建活动
             activity = Activity(
@@ -278,10 +289,36 @@ def create_activity():
                         logger.info(f"活动标签处理 - 添加标签: [{tag.id}]{tag.name}")
             
             # 处理海报图片上传
-            if form.poster.data:
-                filename = handle_poster_upload(form.poster.data, None)
-                if filename:
-                    activity.poster_image = filename
+            if form.poster.data and hasattr(form.poster.data, 'filename') and form.poster.data.filename:
+                try:
+                    # 记录调试信息
+                    logger.info(f"准备上传海报，活动ID={activity.id}, 文件名={form.poster.data.filename}")
+                    
+                    # 使用活动的实际ID上传图片
+                    poster_filename = handle_poster_upload(form.poster.data, activity.id)
+                    if poster_filename:
+                        # 记录旧海报文件名，以便稍后删除
+                        old_poster = activity.poster_image
+                        
+                        # 更新海报文件名
+                        activity.poster_image = poster_filename
+                        logger.info(f"活动海报文件名已更新: {poster_filename}")
+                        
+                        # 尝试删除旧海报文件（如果存在且不是默认banner）
+                        if old_poster and 'banner' not in old_poster:
+                            try:
+                                old_poster_path = os.path.join(current_app.static_folder or 'src/static', 'uploads', 'posters', old_poster)
+                                if os.path.exists(old_poster_path):
+                                    os.remove(old_poster_path)
+                                    logger.info(f"已删除旧海报文件: {old_poster_path}")
+                            except Exception as e:
+                                logger.warning(f"删除旧海报文件时出错: {e}")
+                    else:
+                        logger.error("上传海报失败，未获得有效的文件名")
+                        flash('上传海报失败，请重试', 'warning')
+                except Exception as e:
+                    logger.error(f"上传海报时出错: {e}", exc_info=True)
+                    flash('上传海报时出错，但活动信息已保存', 'warning')
             
             # 保存到数据库
             db.session.add(activity)
@@ -343,15 +380,30 @@ def edit_activity(id):
             # 先保存表单中的时间字段，将它们转换为带时区的UTC时间
             start_time = form.start_time.data
             if start_time:
-                start_time = beijing_tz.localize(start_time).astimezone(pytz.utc)
+                # 检查是否已有时区信息，避免重复添加
+                if start_time.tzinfo is None:
+                    start_time = beijing_tz.localize(start_time).astimezone(pytz.utc)
+                else:
+                    # 如果已有时区信息，只需确保是UTC时区
+                    start_time = start_time.astimezone(pytz.utc)
             
             end_time = form.end_time.data
             if end_time:
-                end_time = beijing_tz.localize(end_time).astimezone(pytz.utc)
+                # 检查是否已有时区信息，避免重复添加
+                if end_time.tzinfo is None:
+                    end_time = beijing_tz.localize(end_time).astimezone(pytz.utc)
+                else:
+                    # 如果已有时区信息，只需确保是UTC时区
+                    end_time = end_time.astimezone(pytz.utc)
             
             registration_deadline = form.registration_deadline.data
             if registration_deadline:
-                registration_deadline = beijing_tz.localize(registration_deadline).astimezone(pytz.utc)
+                # 检查是否已有时区信息，避免重复添加
+                if registration_deadline.tzinfo is None:
+                    registration_deadline = beijing_tz.localize(registration_deadline).astimezone(pytz.utc)
+                else:
+                    # 如果已有时区信息，只需确保是UTC时区
+                    registration_deadline = registration_deadline.astimezone(pytz.utc)
             
             # 使用form填充对象
             form.populate_obj(activity)
@@ -416,13 +468,33 @@ def edit_activity(id):
             # 处理上传的图片
             if form.poster.data and hasattr(form.poster.data, 'filename') and form.poster.data.filename:
                 try:
+                    logger.info(f"编辑活动: 准备上传海报，活动ID={activity.id}, 文件名={form.poster.data.filename}")
+                    
+                    # 使用实际的活动ID上传海报
                     poster_filename = handle_poster_upload(form.poster.data, activity.id)
                     if poster_filename:
+                        # 记录旧海报文件名，以便稍后删除
+                        old_poster = activity.poster_image
+                        
+                        # 更新海报文件名
                         activity.poster_image = poster_filename
-                        logger.info(f"活动海报文件名已保存到数据库: {poster_filename}")
+                        logger.info(f"编辑活动: 海报文件名已更新: {poster_filename}")
+                        
+                        # 尝试删除旧海报文件（如果存在且不是默认banner）
+                        if old_poster and old_poster.strip() and 'banner' not in old_poster:
+                            try:
+                                old_poster_path = os.path.join(current_app.static_folder or 'src/static', 'uploads', 'posters', old_poster)
+                                if os.path.exists(old_poster_path):
+                                    os.remove(old_poster_path)
+                                    logger.info(f"编辑活动: 已删除旧海报文件: {old_poster_path}")
+                            except Exception as e:
+                                logger.warning(f"编辑活动: 删除旧海报文件时出错: {e}")
+                    else:
+                        logger.error("编辑活动: 上传海报失败，未获得有效的文件名")
+                        flash('上传海报失败，请重试', 'warning')
                 except Exception as e:
-                    logger.error(f"上传海报时出错: {e}")
-                    flash('上传海报时出错，但活动信息已保存', 'warning')
+                    logger.error(f"编辑活动: 上传海报时出错: {e}", exc_info=True)
+                    flash('上传海报时出错，但其他活动信息已保存', 'warning')
             
             # 记录更新时间，使用UTC时间
             activity.updated_at = datetime.now(pytz.utc)
