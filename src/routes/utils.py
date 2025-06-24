@@ -204,19 +204,31 @@ def ai_chat():
     # 验证API密钥
     api_key = os.environ.get("ARK_API_KEY")
     if not api_key:
-        logger.error("ARK_API_KEY 环境变量未设置")
-        return jsonify({
-            'success': False,
-            'error': 'AI 服务配置错误：API 密钥未设置'
-        }), 500
+        # 尝试从应用配置获取API密钥
+        api_key = current_app.config.get('VOLCANO_API_KEY')
+        if not api_key:
+            logger.error("未找到API密钥，既没有ARK_API_KEY环境变量，也没有VOLCANO_API_KEY配置")
+            return jsonify({
+                'success': False,
+                'error': 'AI 服务配置错误：API 密钥未设置'
+            }), 500
 
     # API端点
     url = "https://ark.cn-beijing.volces.com/api/v3/chat/completions"
+    
+    # 如果API密钥是火山引擎API密钥格式，则使用火山引擎API端点
+    if api_key and api_key.startswith("ccde") or 'VOLCANO_API_KEY' in os.environ:
+        url = "https://render-api.volcengine.com/api/v1/chat/completions"
+        logger.info("使用火山引擎API端点")
+    
     headers = {
         "Content-Type": "application/json",
-        "Authorization": f"Bearer {api_key}",
-        "X-Request-Id": str(uuid.uuid4())
+        "Authorization": f"Bearer {api_key}"
     }
+    
+    # 如果是火山引擎API，需要添加请求ID
+    if url.startswith("https://ark.cn-beijing.volces.com"):
+        headers["X-Request-Id"] = str(uuid.uuid4())
 
     # 获取用户信息
     student_info = None
@@ -648,3 +660,12 @@ def random_string(length=6):
     """
     characters = string.ascii_letters + string.digits
     return ''.join(random.choice(characters) for _ in range(length))
+
+@utils_bp.route('/check_login_status')
+def check_login_status():
+    """检查用户登录状态"""
+    return jsonify({
+        'is_logged_in': current_user.is_authenticated,
+        'user_id': current_user.id if current_user.is_authenticated else None,
+        'username': current_user.username if current_user.is_authenticated else None
+    })

@@ -1,38 +1,32 @@
-import sys
 import os
+import sys
 import logging
-import argparse
 
-# 将项目根目录添加到Python路径
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+# 设置日志记录
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - INFO - %(message)s'
+)
 
-# 配置基本日志
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
-
 logger.info("正在启动应用...")
 
-try:
-    from src import create_app
-    app = create_app()
-    logger.info("应用创建成功")
-except Exception as e:
-    logger.error(f"应用创建失败: {e}", exc_info=True)
-    raise
+# 设置环境变量，确保它们在应用创建前被配置
+os.environ.setdefault('FLASK_CONFIG', 'production')
+
+# 设置火山API密钥
+if 'ARK_API_KEY' not in os.environ and 'VOLCANO_API_KEY' in os.environ:
+    os.environ['ARK_API_KEY'] = os.environ['VOLCANO_API_KEY']
+    logger.info("已将VOLCANO_API_KEY设置为ARK_API_KEY")
+
+# 添加应用路径到Python路径
+current_dir = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, current_dir)
+
+# 创建应用
+from src import create_app
+app = create_app()
+logger.info("应用创建成功")
 
 if __name__ == "__main__":
-    # 解析命令行参数
-    parser = argparse.ArgumentParser(description='启动Flask应用服务器')
-    parser.add_argument('--port', type=int, default=8081, help='指定运行端口 (默认: 8081)')
-    parser.add_argument('--host', type=str, default='0.0.0.0', help='指定主机地址 (默认: 0.0.0.0)')
-    parser.add_argument('--debug', action='store_true', default=True, help='是否启用调试模式 (默认: 启用)')
-    
-    args = parser.parse_args()
-    
-    # 使用指定的端口
-    port = args.port
-    host = args.host
-    debug = args.debug
-    
-    logger.info(f"应用将在 http://{host if host != '0.0.0.0' else '127.0.0.1'}:{port} 上运行")
-    app.run(host=host, port=port, debug=debug)
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
