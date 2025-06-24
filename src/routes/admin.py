@@ -66,20 +66,25 @@ def handle_poster_upload(file_data, activity_id):
             unique_filename = f"activity_temp_{timestamp}{file_extension}"
             logger.info(f"活动ID为空，使用临时ID: {unique_filename}")
         else:
-            # 处理活动ID - 如果是对象，获取id属性；如果是基本类型，直接使用
-            try:
-                # 尝试访问id属性，适用于ORM对象
-                if hasattr(activity_id, 'id'):
-                    str_activity_id = str(activity_id.id)
-                    logger.info(f"从对象中提取活动ID: {str_activity_id}")
-                else:
-                    # 如果不是对象或没有id属性，直接使用
-                    str_activity_id = str(activity_id)
-                    logger.info(f"直接使用活动ID: {str_activity_id}")
-            except Exception as e:
-                # 如果出错，直接尝试转换为字符串
+            # 先转换成字符串，处理整数ID情况
+            if isinstance(activity_id, int):
                 str_activity_id = str(activity_id)
-                logger.warning(f"处理活动ID时出错，使用直接转换: {str_activity_id}, 错误: {e}")
+                logger.info(f"活动ID是整数，直接转换为字符串: {str_activity_id}")
+            else:
+                # 处理活动ID - 如果是对象，获取id属性；如果是基本类型，直接使用
+                try:
+                    # 尝试访问id属性，适用于ORM对象
+                    if hasattr(activity_id, 'id'):
+                        str_activity_id = str(activity_id.id)
+                        logger.info(f"从对象中提取活动ID: {str_activity_id}")
+                    else:
+                        # 如果不是对象或没有id属性，直接使用
+                        str_activity_id = str(activity_id)
+                        logger.info(f"直接使用活动ID: {str_activity_id}")
+                except Exception as e:
+                    # 如果出错，直接尝试转换为字符串
+                    str_activity_id = str(activity_id)
+                    logger.warning(f"处理活动ID时出错，使用直接转换: {str_activity_id}, 错误: {e}")
             
             unique_filename = f"activity_{str_activity_id}_{timestamp}{file_extension}"
         
