@@ -1,0 +1,54 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ title }} - 重庆师范大学师能素质协会{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{{ url_for('admin.dashboard') }}">管理面板</a></li>
+            <li class="breadcrumb-item"><a href="{{ url_for('admin.announcements') }}">公告管理</a></li>
+            <li class="breadcrumb-item active" aria-current="page">{{ title }}</li>
+        </ol>
+    </nav>
+
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-primary text-white">
+            <h4 class="mb-0">{{ title }}</h4>
+        </div>
+        <div class="card-body">
+            <form method="post" enctype="multipart/form-data">
+                <div class="mb-3">
+                    <label for="title" class="form-label">公告标题 <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control" id="title" name="title" required 
+                           value="{{ announcement.title if announcement else '' }}">
+                </div>
+                
+                <div class="mb-3">
+                    <label for="content" class="form-label">公告内容 <span class="text-danger">*</span></label>
+                    <textarea class="form-control" id="content" name="content" rows="10" required>{{ announcement.content if announcement else '' }}</textarea>
+                    <div class="form-text">支持基本HTML标签，如&lt;b&gt;, &lt;i&gt;, &lt;u&gt;, &lt;a&gt;等</div>
+                </div>
+                
+                <div class="mb-3">
+                    <label for="status" class="form-label">状态</label>
+                    <select class="form-select" id="status" name="status">
+                        <option value="draft" {% if announcement and announcement.status == 'draft' %}selected{% endif %}>草稿</option>
+                        <option value="published" {% if not announcement or announcement.status == 'published' %}selected{% endif %}>已发布</option>
+                        <option value="archived" {% if announcement and announcement.status == 'archived' %}selected{% endif %}>已归档</option>
+                    </select>
+                </div>
+                
+                <div class="d-flex justify-content-between">
+                    <a href="{{ url_for('admin.announcements') }}" class="btn btn-secondary">
+                        <i class="fas fa-arrow-left me-1"></i>返回
+                    </a>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save me-1"></i>保存
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %} 

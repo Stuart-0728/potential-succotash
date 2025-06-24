@@ -6,16 +6,10 @@ DO $$
 DECLARE
     r RECORD;
 BEGIN
-    -- 禁用触发器
-    EXECUTE 'SET session_replication_role = replica';
-    
     -- 删除所有表格
     FOR r IN (SELECT tablename FROM pg_tables WHERE schemaname = 'public') LOOP
         EXECUTE 'DROP TABLE IF EXISTS ' || quote_ident(r.tablename) || ' CASCADE';
     END LOOP;
-    
-    -- 恢复触发器
-    EXECUTE 'SET session_replication_role = DEFAULT';
     
     RAISE NOTICE '所有表格已删除';
 END $$;

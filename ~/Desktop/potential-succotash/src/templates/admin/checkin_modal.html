@@ -23,7 +23,7 @@
                     </div>
                     
                     <div class="mt-3">
-                        <p class="mb-2"><strong>活动时间：</strong> {{ activity.start_time.strftime('%Y-%m-%d %H:%M') }} 至 {{ activity.end_time.strftime('%Y-%m-%d %H:%M') }}</p>
+                        <p class="mb-2"><strong>活动时间：</strong> {{ display_datetime(activity.start_time) }} 至 {{ display_datetime(activity.end_time) }}</p>
                         <p><strong>活动地点：</strong> {{ activity.location }}</p>
                     </div>
                     

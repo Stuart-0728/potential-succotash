@@ -25,27 +25,41 @@
                 
                 <div class="d-flex justify-content-between text-muted mb-3">
                     <div>
-                        <strong>发件人:</strong> {{ message.sender.username }}
-                        {% if message.sender.student_info %}
-                            ({{ message.sender.student_info.real_name }})
+                        <strong>发件人:</strong> 
+                        {% if sender %}
+                            {{ sender.username }}
+                            {% if sender_info %}
+                                ({{ sender_info.real_name }})
+                            {% endif %}
+                        {% else %}
+                            未知用户
                         {% endif %}
                     </div>
                     <div>
-                        <strong>时间:</strong> {{ display_datetime(message.created_at) }}
+                        <strong>时间:</strong> {{ display_datetime(message.created_at, None, '%Y-%m-%d %H:%M:%S') if message.created_at else '未知时间' }}
                     </div>
                 </div>
                 
                 <div class="text-muted mb-3">
-                    <strong>收件人:</strong> {{ message.receiver.username }}
-                    {% if message.receiver.student_info %}
-                        ({{ message.receiver.student_info.real_name }})
+                    <strong>收件人:</strong> 
+                    {% if receiver %}
+                        {{ receiver.username }}
+                        {% if receiver_info %}
+                            ({{ receiver_info.real_name }})
+                        {% endif %}
+                    {% else %}
+                        未知用户
                     {% endif %}
                 </div>
                 
                 <div class="card">
                     <div class="card-body">
                         <div class="message-content">
-                            {{ message.content|nl2br }}
+                            {% if message.content %}
+                                <pre class="message-text" style="white-space: pre-wrap; font-family: inherit;">{{ message.content }}</pre>
+                            {% else %}
+                                <em>（无内容）</em>
+                            {% endif %}
                         </div>
                     </div>
                 </div>

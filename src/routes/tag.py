@@ -8,7 +8,7 @@ tag_bp = Blueprint('tag', __name__, url_prefix='/tags')
 @tag_bp.route('/', methods=['GET'])
 @login_required
 def tag_list():
-    tags = Tag.query.all()
+    tags = db.session.execute(db.select(Tag)).scalars().all()
     return render_template('admin/tags.html', tags=tags)
 
 # 新建标签
@@ -20,7 +20,7 @@ def create_tag():
     if not name:
         flash('标签名不能为空', 'danger')
         return redirect(url_for('tag.tag_list'))
-    if Tag.query.filter_by(name=name).first():
+    if db.session.execute(db.select(Tag).filter_by(name=name)).scalar_one_or_none():
         flash('标签已存在', 'warning')
         return redirect(url_for('tag.tag_list'))
     tag = Tag(name=name, description=desc)
@@ -33,7 +33,7 @@ def create_tag():
 @tag_bp.route('/delete/<int:tag_id>', methods=['POST'])
 @login_required
 def delete_tag(tag_id):
-    tag = Tag.query.get_or_404(tag_id)
+    tag = db.get_or_404(Tag, tag_id)
     db.session.delete(tag)
     db.session.commit()
     flash('标签已删除', 'success')
@@ -45,7 +45,7 @@ def delete_tag(tag_id):
 def assign_tag():
     activity_id = request.form.get('activity_id')
     tag_ids = request.form.getlist('tag_ids')
-    activity = Activity.query.get(activity_id)
+    activity = db.session.get(Activity, activity_id)
     if not activity:
         return jsonify({'success': False, 'msg': '活动不存在'})
     # 清空原有标签

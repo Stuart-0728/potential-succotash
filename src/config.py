@@ -1,130 +1,200 @@
 import os
 import logging
-from logging.handlers import RotatingFileHandler
 import secrets
-import pytz
+from datetime import timedelta
+from dotenv import load_dotenv
+
+# 在文件顶部，确保 .env 文件总是在配置被读取前加载
+load_dotenv() 
+
+# 基础路径配置
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+INSTANCE_PATH = os.path.join(BASE_DIR, 'instance')
+DB_PATH = os.path.join(INSTANCE_PATH, 'cqnu_association.db')
+LOG_PATH = os.path.join(BASE_DIR, 'logs')
+UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static', 'uploads')
+SESSION_FILE_DIR = os.path.join(BASE_DIR, 'flask_session')
+
+# 确保目录存在并设置权限
+def ensure_directories():
+    """确保必要的目录存在并设置正确的权限"""
+    # 确保instance目录存在
+    if not os.path.exists(INSTANCE_PATH):
+        try:
+            os.makedirs(INSTANCE_PATH, mode=0o755)
+            print(f"已创建数据库目录: {INSTANCE_PATH}")
+        except Exception as e:
+            print(f"创建数据库目录失败: {e}")
+    
+    # 检查instance目录权限
+    try:
+        instance_perms = os.stat(INSTANCE_PATH).st_mode & 0o777
+        if instance_perms != 0o755:
+            os.chmod(INSTANCE_PATH, 0o755)
+            print(f"已修改数据库目录权限为755: {INSTANCE_PATH}")
+    except Exception as e:
+        print(f"修改数据库目录权限失败: {e}")
+    
+    # 检查数据库文件权限
+    if os.path.exists(DB_PATH):
+        try:
+            db_perms = os.stat(DB_PATH).st_mode & 0o777
+            if db_perms != 0o644:
+                os.chmod(DB_PATH, 0o644)
+                print(f"已修改数据库文件权限为644: {DB_PATH}")
+        except Exception as e:
+            print(f"修改数据库文件权限失败: {e}")
+    
+    # 确保日志目录存在
+    if not os.path.exists(LOG_PATH):
+        os.makedirs(LOG_PATH)
+    
+    # 确保上传目录存在
+    if not os.path.exists(UPLOAD_FOLDER):
+        os.makedirs(UPLOAD_FOLDER)
+        # 创建海报目录
+        poster_path = os.path.join(UPLOAD_FOLDER, 'posters')
+        if not os.path.exists(poster_path):
+            os.makedirs(poster_path)
+    
+    # 确保session目录存在
+    if not os.path.exists(SESSION_FILE_DIR):
+        os.makedirs(SESSION_FILE_DIR)
+
+# 创建并设置目录权限
+ensure_directories()
 
 class Config:
+    """应用配置类"""
+    # 基础配置
     SECRET_KEY = os.environ.get('SECRET_KEY') or secrets.token_hex(16)
-    
-    # 数据库配置
-    # 检测是否在Render上运行
-    IS_RENDER_ENVIRONMENT = os.environ.get('RENDER', False) or os.environ.get('IS_RENDER', False)
-    
-    # 如果存在 DATABASE_URL 环境变量（Render平台提供），则使用它，否则使用SQLite
-    database_url = os.environ.get('DATABASE_URL')
-    if database_url and database_url.startswith('postgres://'):
-        # 将 postgres:// 替换为 postgresql:// 以符合 SQLAlchemy 要求
-        SQLALCHEMY_DATABASE_URI = database_url.replace('postgres://', 'postgresql://')
-    else:
-        SQLALCHEMY_DATABASE_URI = database_url or 'sqlite:///' + os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'instance', 'cqnu_association.db')
-    
-    SQLALCHEMY_TRACK_MODIFICATIONS = False
-    
-    # 文件上传路径
-    UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'src/static/uploads')
-    ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'}
+    PERMANENT_SESSION_LIFETIME = timedelta(days=7)  # 会话持续7天
     
     # 日志配置
-    LOG_FOLDER = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'src/logs')
-    LOG_LEVEL = logging.INFO
+    LOG_PATH = LOG_PATH
+    LOG_FILE = os.path.join(LOG_PATH, 'cqnu_association.log')
+    LOG_LEVEL = os.environ.get('LOG_LEVEL', 'INFO')
     LOG_FORMAT = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    LOG_BACKUP_COUNT = int(os.environ.get('LOG_BACKUP_COUNT', 10))
+    LOG_MAX_BYTES = int(os.environ.get('LOG_MAX_BYTES', 10 * 1024 * 1024))  # 10MB
     
-    # 每页显示的记录数
-    POSTS_PER_PAGE = 10
+    # 上传文件配置
+    UPLOAD_FOLDER = UPLOAD_FOLDER
+    ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'pdf', 'docx', 'xlsx', 'pptx', 'txt', 'zip'}
+    MAX_CONTENT_LENGTH = int(os.environ.get('MAX_CONTENT_LENGTH', 16 * 1024 * 1024))  # 默认16MB
     
-    # 时区设置
-    TIMEZONE = 'Asia/Shanghai'
+    # 数据库配置
+    INSTANCE_PATH = INSTANCE_PATH
+    DB_PATH = DB_PATH
     
-    CACHE_TYPE = 'simple'
-    CACHE_DEFAULT_TIMEOUT = 300
-    # 添加时区名称，方便在模板中使用
-    TIMEZONE_NAME = 'Asia/Shanghai'
+    # --- 用下面的代码块替换掉旧的数据库URI设置逻辑 ---
+    DATABASE_URL = os.environ.get('DATABASE_URL')
+    if not DATABASE_URL:
+        raise ValueError("关键错误：环境变量 DATABASE_URL 未设置！请检查你的 .env 文件是否在项目根目录并且内容正确。")
     
-    # SQLite 连接配置
-    @staticmethod
-    def get_sqlite_uri(db_path):
-        """获取sqlite数据库URI"""
-        return f'sqlite:///{db_path}'
+    # 兼容 Heroku/Render 的 postgres:// 前缀
+    if DATABASE_URL.startswith("postgres://"):
+        SQLALCHEMY_DATABASE_URI = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+    else:
+        SQLALCHEMY_DATABASE_URI = DATABASE_URL
+    # --- 替换结束 ---
     
-    @staticmethod
-    def get_postgres_uri():
-        """获取PostgreSQL数据库URI"""
-        user = os.environ.get('DB_USER', 'postgres')
-        password = os.environ.get('DB_PASSWORD', '')
-        host = os.environ.get('DB_HOST', 'localhost')
-        port = os.environ.get('DB_PORT', '5432')
-        db = os.environ.get('DB_NAME', 'cqnu_association')
-        return f'postgresql://{user}:{password}@{host}:{port}/{db}'
+    # SQLAlchemy配置
+    SQLALCHEMY_TRACK_MODIFICATIONS = False
+    SQLALCHEMY_ENGINE_OPTIONS = {
+        'pool_pre_ping': True,
+        'connect_args': {'check_same_thread': False} if 'sqlite:' in str(SQLALCHEMY_DATABASE_URI) else {},
+    }
     
-    @staticmethod
-    def get_engine_options():
-        """获取数据库引擎选项"""
-        uri = os.environ.get('DATABASE_URL', '')
-        if uri and 'sqlite' in uri:
-            return {}
-        else:
-            # 为PostgreSQL添加时区设置
-            return {
-                'connect_args': {'timezone': '+08:00'}
-            } 
-
-    @staticmethod
-    def init_app(app):
-        """初始化应用程序"""
-        # 确保日志目录存在
-        if not os.path.exists(Config.LOG_FOLDER):
-            os.makedirs(Config.LOG_FOLDER)
-        
-        # 配置文件日志
-        file_handler = RotatingFileHandler(
-            os.path.join(Config.LOG_FOLDER, 'cqnu_association.log'),
-            maxBytes=10 * 1024 * 1024,  # 10MB
-            backupCount=10
-        )
-        file_handler.setFormatter(logging.Formatter(Config.LOG_FORMAT))
-        file_handler.setLevel(Config.LOG_LEVEL)
-        
-        # 配置控制台日志
-        console_handler = logging.StreamHandler()
-        console_handler.setFormatter(logging.Formatter(Config.LOG_FORMAT))
-        console_handler.setLevel(Config.LOG_LEVEL)
-        
-        # 将处理器添加到应用日志记录器
-        app.logger.addHandler(file_handler)
-        app.logger.addHandler(console_handler)
-        app.logger.setLevel(Config.LOG_LEVEL)
-        
-        # 确保上传目录存在
-        if not os.path.exists(Config.UPLOAD_FOLDER):
-            os.makedirs(Config.UPLOAD_FOLDER)
-            
-        # 添加Render环境标识和时区配置
-        app.config['IS_RENDER_ENVIRONMENT'] = Config.IS_RENDER_ENVIRONMENT
-        app.config['TIMEZONE'] = Config.TIMEZONE
-        
-        if Config.IS_RENDER_ENVIRONMENT:
-            app.logger.info("检测到Render环境，已启用特定配置")
-            app.logger.info(f"系统时区设置: {Config.TIMEZONE}")
+    # 时区配置
+    TIMEZONE_NAME = os.environ.get('TIMEZONE_NAME', 'Asia/Shanghai')
+    
+    # 如果使用PostgreSQL，设置时区
+    if 'postgresql:' in str(SQLALCHEMY_DATABASE_URI):
+        SQLALCHEMY_ENGINE_OPTIONS['connect_args'] = {
+            'options': f'-c timezone=UTC'  # 强制PostgreSQL连接使用UTC时区
+        }
+    
+    # Flask-Session配置
+    SESSION_TYPE = 'filesystem'
+    SESSION_FILE_DIR = SESSION_FILE_DIR
+    SESSION_PERMANENT = True
+    SESSION_USE_SIGNER = True
+    
+    # Flask-Cache配置
+    CACHE_TYPE = 'SimpleCache'
+    CACHE_DEFAULT_TIMEOUT = int(os.environ.get('CACHE_TIMEOUT', 300))
+    
+    # Flask-Limiter配置
+    RATELIMIT_STORAGE_URL = os.environ.get('RATELIMIT_STORAGE_URL', 'memory://')
+    RATELIMIT_DEFAULT = os.environ.get('RATELIMIT_DEFAULT', '200 per day, 50 per hour')
+    RATELIMIT_STRATEGY = 'fixed-window'
+    
+    # 系统设置
+    APP_NAME = os.environ.get('APP_NAME', '重庆师范大学师能素质协会')
+    ITEMS_PER_PAGE = int(os.environ.get('ITEMS_PER_PAGE', 10))
+    
+    # 活动类型
+    ACTIVITY_TYPES = ['cultural', 'sports', 'academic', 'volunteer', 'competition', 'other']
+    
+    @classmethod
+    def init_app(cls, app):
+        """初始化应用配置"""
+        # 打印时区信息到日志
+        app.logger.info(f"使用数据库: {app.config['SQLALCHEMY_DATABASE_URI']}")
+        app.logger.info(f"使用时区: {app.config['TIMEZONE_NAME']}")
 
 class DevelopmentConfig(Config):
     """开发环境配置"""
     DEBUG = True
-
-class ProductionConfig(Config):
-    """生产环境配置"""
-    DEBUG = False
-    LOG_LEVEL = logging.WARNING
-
+    SQLALCHEMY_ECHO = os.environ.get('SQLALCHEMY_ECHO', 'false').lower() == 'true'
+    
 class TestingConfig(Config):
     """测试环境配置"""
     TESTING = True
-    SQLALCHEMY_DATABASE_URI = 'sqlite:///:memory:'
+    SQLALCHEMY_DATABASE_URI = os.environ.get('TEST_DATABASE_URL') or 'sqlite:///:memory:'
+    WTF_CSRF_ENABLED = False
+    
+class ProductionConfig(Config):
+    """生产环境配置"""
+    DEBUG = False
+    TESTING = False
+    
+    @classmethod
+    def init_app(cls, app):
+        Config.init_app(app)
+        
+        # 生产环境下的额外配置
+        import logging
+        from logging.handlers import SMTPHandler
+        
+        # 获取邮件配置
+        mail_server = os.environ.get('MAIL_SERVER')
+        mail_port = int(os.environ.get('MAIL_PORT', 25))
+        mail_sender = os.environ.get('MAIL_SENDER')
+        mail_admin = os.environ.get('MAIL_ADMIN')
+        mail_username = os.environ.get('MAIL_USERNAME')
+        mail_password = os.environ.get('MAIL_PASSWORD')
+        
+        # 只有当必要的配置都存在时才添加邮件处理器
+        if mail_server and mail_sender and mail_admin:
+            # 配置邮件错误日志
+            mail_handler = SMTPHandler(
+                mailhost=(mail_server, mail_port),
+                fromaddr=mail_sender,
+                toaddrs=[mail_admin],
+                subject='应用错误',
+                credentials=(mail_username, mail_password) if mail_username and mail_password else None,
+                secure=()
+            )
+            mail_handler.setLevel(logging.ERROR)
+            app.logger.addHandler(mail_handler)
 
-# 配置字典
+# 根据环境变量选择配置
 config = {
     'development': DevelopmentConfig,
-    'production': ProductionConfig,
     'testing': TestingConfig,
+    'production': ProductionConfig,
+    
     'default': DevelopmentConfig
 } 

@@ -12,7 +12,7 @@ from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask_caching import Cache
 from datetime import datetime
-from src.config import Config
+from src.config import config, Config
 
 # 创建SQLAlchemy实例
 db = SQLAlchemy()
@@ -54,7 +54,6 @@ def create_app(config_name=None):
     app = Flask(__name__, instance_relative_config=True)
     
     # 从config.py导入配置
-    from .config import config
     app.config.from_object(config[config_name])
     
     # 必须显式调用init_app方法以确保权限设置等自定义初始化
@@ -79,7 +78,7 @@ def create_app(config_name=None):
     
     # 初始化模型 - 在应用上下文中进行，确保db已经初始化
     with app.app_context():
-        # 导入所有模型
+        # 初始化数据库模型
         from src.models import User, StudentInfo, Activity, Registration, Tag, Role
         from src.models import PointsHistory, ActivityReview, Announcement, SystemLog
         from src.models import ActivityCheckin, Message, Notification, NotificationRead
@@ -92,7 +91,7 @@ def create_app(config_name=None):
         @login_manager.user_loader
         def load_user(user_id):
             """加载用户信息，供Flask-Login使用"""
-            return User.query.get(int(user_id))
+            return db.session.get(User, int(user_id))
     
     # 注册蓝图 - 在模型初始化之后
     register_blueprints(app)
@@ -163,8 +162,10 @@ def create_app(config_name=None):
     # 调用确保数据库结构的脚本
     with app.app_context():
         try:
-            from scripts.ensure_db_structure import ensure_db_structure
-            ensure_db_structure()
+            # 注释掉以下两行，因为它们是为本地SQLite设计的，在连接PostgreSQL时会引发问题
+            # from scripts.ensure_db_structure import ensure_db_structure
+            # ensure_db_structure()
+            app.logger.info("已跳过SQLite数据库结构检查，因为当前使用PostgreSQL数据库")
         except ImportError:
             app.logger.warning("未找到确保数据库结构的脚本，跳过初始化")
         except Exception as e:
@@ -247,73 +248,70 @@ def register_commands(app):
     @app.cli.command('create-admin')
     def create_admin():
         """创建管理员账户"""
-        from .models import User
+        from src.models import User, Role
         from werkzeug.security import generate_password_hash
         
-        username = app.config.get('ADMIN_USERNAME', 'admin')
-        password = app.config.get('ADMIN_PASSWORD', 'admin')
+        # 检查是否已存在管理员角色
+        admin_role = db.session.execute(db.select(Role).filter_by(name='Admin')).scalar_one_or_none()
+        if admin_role is None:
+            admin_role = Role(name='Admin', description='管理员')
+            db.session.add(admin_role)
+            db.session.commit()
+            app.logger.info('已创建管理员角色')
         
-        # 检查管理员是否已存在
-        admin = User.query.filter_by(username=username).first()
-        if admin:
-            print(f'管理员 {username} 已经存在')
-            return
-        
-        # 创建管理员
-        admin = User(
-            username=username,
-            password_hash=generate_password_hash(password),
-            is_admin=True,
-            is_active=True,
-            real_name='管理员',
-            student_id='admin',
-            email='admin@example.com'
-        )
-        
-        db.session.add(admin)
-        db.session.commit()
-        
-        print(f'已创建管理员账户: {username}')
+        # 创建管理员用户
+        admin = db.session.execute(db.select(User).filter_by(username='admin')).scalar_one_or_none()
+        if admin is None:
+            admin = User(
+                username='admin',
+                email='admin@example.com',
+                password_hash=generate_password_hash('admin123'),
+                role_id=admin_role.id
+            )
+            db.session.add(admin)
+            db.session.commit()
+            app.logger.info('已创建管理员用户: admin/admin123')
+        else:
+            app.logger.info('管理员用户已存在')
     
     @app.cli.command('initialize-db')
     def initialize_db():
         """初始化数据库"""
         db.create_all()
-        print('数据库初始化完成')
+        app.logger.info('已初始化数据库表')
 
 def register_template_functions(app):
-    """注册全局模板函数"""
-    try:
-        # 导入时间处理函数
-        from src.utils.time_helpers import display_datetime, get_beijing_time, format_datetime, safe_less_than, safe_greater_than, safe_compare
-        
-        # 注册时间处理全局模板函数
-        app.jinja_env.globals['display_datetime'] = display_datetime
-        app.jinja_env.globals['format_datetime'] = format_datetime
-        app.jinja_env.globals['get_beijing_time'] = get_beijing_time
-        # 添加安全时间比较函数
-        app.jinja_env.globals['safe_less_than'] = safe_less_than
-        app.jinja_env.globals['safe_greater_than'] = safe_greater_than
-        app.jinja_env.globals['safe_compare'] = safe_compare
-        logger.info("已注册时间处理全局模板函数")
-        
-    except Exception as e:
-        app.logger.error(f"注册模板函数时出错: {e}")
-        
-        # 注册一些备用函数，以防时间处理模块出错
-        def fallback_display_datetime(dt, format_str='%Y-%m-%d %H:%M'):
-            if dt is None:
-                return ""
-            if isinstance(dt, str):
-                return dt
-            return dt.strftime(format_str)
-        
-        def fallback_now():
-            return datetime.now()
-        
-        app.jinja_env.globals.update(display_datetime=fallback_display_datetime)
-        app.jinja_env.globals.update(now_beijing=fallback_now)
-        app.logger.warning("已注册备用时间处理函数")
+    """注册模板函数"""
+    # 从utils.time_helpers导入时间处理函数
+    from src.utils.time_helpers import display_datetime, format_datetime, get_beijing_time
+    
+    # 注册时间处理函数
+    @app.template_filter('datetime')
+    def _display_datetime(dt, fmt=None):
+        """格式化日期时间，考虑时区转换"""
+        return display_datetime(dt, fmt=fmt)
+    
+    @app.template_filter('format_date')
+    def _format_date(dt):
+        """格式化为日期"""
+        return display_datetime(dt, fmt='%Y-%m-%d')
+    
+    @app.template_filter('format_time')
+    def _format_time(dt):
+        """格式化为时间"""
+        return display_datetime(dt, fmt='%H:%M:%S')
+    
+    @app.template_filter('format_datetime')
+    def _format_datetime(dt, fmt='%Y-%m-%d %H:%M'):
+        """简单格式化日期时间，不考虑时区转换"""
+        return format_datetime(dt, fmt)
+    
+    @app.template_global('now')
+    def _now():
+        """获取当前北京时间"""
+        return get_beijing_time()
+    
+    app.logger.info('已注册时间处理全局模板函数')
 
 def register_context_processors(app):
     """注册全局上下文处理器"""

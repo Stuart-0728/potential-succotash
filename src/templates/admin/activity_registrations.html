@@ -27,11 +27,11 @@
             <div class="row">
                 <div class="col-md-6">
                     <p><strong>地点：</strong>{{ activity.location }}</p>
-                    <p><strong>开始时间：</strong>{{ activity.start_time.strftime('%Y-%m-%d %H:%M') }}</p>
-                    <p><strong>结束时间：</strong>{{ activity.end_time.strftime('%Y-%m-%d %H:%M') }}</p>
+                    <p><strong>开始时间：</strong>{{ display_datetime(activity.start_time) }}</p>
+                    <p><strong>结束时间：</strong>{{ display_datetime(activity.end_time) }}</p>
                 </div>
                 <div class="col-md-6">
-                    <p><strong>报名截止：</strong>{{ activity.registration_deadline.strftime('%Y-%m-%d %H:%M') }}</p>
+                    <p><strong>报名截止：</strong>{{ display_datetime(activity.registration_deadline) }}</p>
                     <p><strong>最大人数：</strong>{{ activity.max_participants if activity.max_participants > 0 else '不限' }}</p>
                     <p><strong>状态：</strong>
                         {% if activity.status == 'active' %}
@@ -111,7 +111,7 @@
                                 <td>{{ reg.college }}</td>
                                 <td>{{ reg.major }}</td>
                                 <td>{{ reg.phone }}</td>
-                                <td>{{ reg.register_time.strftime('%Y-%m-%d %H:%M') }}</td>
+                                <td>{{ display_datetime(reg.register_time) }}</td>
                                 <td>
                                     {% if reg.status == 'registered' %}
                                         <span class="badge bg-primary">已报名</span>
@@ -126,12 +126,14 @@
                                     <div class="btn-group btn-group-sm">
                                         {% if reg.status == 'registered' %}
                                             <form action="{{ url_for('admin.update_registration_status', id=reg.registration_id) }}" method="post" style="display:inline;">
+                                                {{ form.hidden_tag() }}
                                                 <input type="hidden" name="status" value="attended">
                                                 <button type="submit" class="btn btn-outline-success" title="标记为已参加">
                                                     <i class="fas fa-check"></i>
                                                 </button>
                                             </form>
                                             <form action="{{ url_for('admin.update_registration_status', id=reg.registration_id) }}" method="post" style="display:inline;">
+                                                {{ form.hidden_tag() }}
                                                 <input type="hidden" name="status" value="cancelled">
                                                 <button type="submit" class="btn btn-outline-danger" title="标记为已取消">
                                                     <i class="fas fa-times"></i>
@@ -139,6 +141,7 @@
                                             </form>
                                         {% elif reg.status == 'attended' %}
                                             <form action="{{ url_for('admin.update_registration_status', id=reg.registration_id) }}" method="post" style="display:inline;">
+                                                {{ form.hidden_tag() }}
                                                 <input type="hidden" name="status" value="registered">
                                                 <button type="submit" class="btn btn-outline-primary" title="恢复为已报名">
                                                     <i class="fas fa-undo"></i>
@@ -146,12 +149,14 @@
                                             </form>
                                         {% elif reg.status == 'cancelled' %}
                                             <form action="{{ url_for('admin.update_registration_status', id=reg.registration_id) }}" method="post" style="display:inline;">
+                                                {{ form.hidden_tag() }}
                                                 <input type="hidden" name="status" value="registered">
                                                 <button type="submit" class="btn btn-outline-primary" title="恢复为已报名">
                                                     <i class="fas fa-undo"></i>
                                                 </button>
                                             </form>
                                             <form action="{{ url_for('admin.update_registration_status', id=reg.registration_id) }}" method="post" style="display:inline;">
+                                                {{ form.hidden_tag() }}
                                                 <input type="hidden" name="status" value="attended">
                                                 <button type="submit" class="btn btn-outline-success" title="标记为已参加">
                                                     <i class="fas fa-check"></i>

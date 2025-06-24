@@ -12,7 +12,7 @@
             <div class="card h-100">
                 <div class="card-body">
                     <h5 class="card-title">{{ act.title }}</h5>
-                    <p class="card-text text-muted">{{ act.start_time.strftime('%Y-%m-%d %H:%M') }} 至 {{ act.end_time.strftime('%Y-%m-%d %H:%M') }}</p>
+                    <p class="card-text text-muted">{{ display_datetime(act.start_time) }} 至 {{ display_datetime(act.end_time) }}</p>
                     <p class="card-text">{{ act.description[:80] }}{% if act.description|length > 80 %}...{% endif %}</p>
                     <a href="{{ url_for('student.activity_detail', id=act.id) }}" class="btn btn-primary btn-sm">查看详情</a>
                 </div>

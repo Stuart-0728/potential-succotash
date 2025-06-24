@@ -1,25 +1,40 @@
-from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify, current_app, send_file, abort, session
-from flask_login import login_required, current_user
-from src.models import db, User, Activity, Registration, StudentInfo, SystemLog, Tag, Notification, NotificationRead, Role, PointsHistory, Message, activity_tags, student_tags
-from src.routes.utils import admin_required, log_action
-from datetime import datetime, timedelta
-import logging
+import sys
 import os
-import json
-import csv
-from io import StringIO
-import shutil
-from sqlalchemy import func, desc, or_, and_
-from wtforms import StringField, TextAreaField, IntegerField, SelectField, SubmitField, BooleanField, DateField, SelectMultipleField, FileField, HiddenField
-from wtforms.validators import DataRequired, Length, Optional, NumberRange, Email
-from flask_wtf import FlaskForm
-from flask_wtf.file import FileAllowed
-from werkzeug.utils import secure_filename
-import pandas as pd
-from src.utils.time_helpers import get_localized_now, get_beijing_time, ensure_timezone_aware, display_datetime, normalize_datetime_for_db
-from src.forms import ActivityForm
+sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
+import logging
+from datetime import datetime, timedelta
+import hashlib
+import json
+import re
+import io
+from io import BytesIO  # 添加BytesIO导入
+import csv
+import qrcode
+from PIL import Image
+import base64
+import pandas as pd  # 添加pandas导入
+import tempfile  # 添加tempfile导入
+import zipfile  # 添加zipfile导入
+import pytz
+from flask import (
+    Blueprint, render_template, redirect, url_for, flash, request, current_app, 
+    send_from_directory, send_file, Response, make_response, jsonify
+)
+from flask_login import current_user, login_required
+from sqlalchemy import func, desc, or_, and_, extract, text, case
+from sqlalchemy.orm import joinedload
+from werkzeug.utils import secure_filename
+from src.models import db, User, Role, StudentInfo, Activity, Registration, SystemLog, Tag, Message, Notification, NotificationRead, PointsHistory, ActivityReview, ActivityCheckin, AIChatHistory, AIChatSession, AIUserPreferences, student_tags, activity_tags, Announcement
+from src.routes.utils import admin_required, log_action
+from src.utils.time_helpers import normalize_datetime_for_db, display_datetime, ensure_timezone_aware, get_beijing_time, get_localized_now, safe_less_than, safe_greater_than
+from src.forms import ActivityForm  # 添加ActivityForm导入
+from flask_wtf.csrf import generate_csrf
+
+# 创建蓝图
 admin_bp = Blueprint('admin', __name__)
+
+# 配置日志记录器
 logger = logging.getLogger(__name__)
 
 def handle_poster_upload(file_data, activity_id):
@@ -30,11 +45,14 @@ def handle_poster_upload(file_data, activity_id):
         activity_id: 活动ID
     
     Returns:
-        str: 保存后的文件路径（相对于static目录）
+        str: 保存后的文件名（不包含路径）
     """
     try:
-        if not file_data:
+        if not file_data or not hasattr(file_data, 'filename') or not file_data.filename:
+            logger.warning("无效的文件上传")
             return None
+        
+        logger.info(f"开始处理海报上传: 文件名={file_data.filename}, 活动ID={activity_id}")
         
         # 确保文件名安全
         filename = secure_filename(file_data.filename)
@@ -47,15 +65,28 @@ def handle_poster_upload(file_data, activity_id):
         upload_dir = os.path.join(current_app.static_folder, 'uploads', 'posters')
         if not os.path.exists(upload_dir):
             os.makedirs(upload_dir, exist_ok=True)
+            logger.info(f"创建上传目录: {upload_dir}")
         
         # 保存文件
         file_path = os.path.join(upload_dir, unique_filename)
         file_data.save(file_path)
+        logger.info(f"海报文件已保存到: {file_path}")
         
-        # 返回相对路径（用于存储在数据库中）
-        relative_path = f"/static/uploads/posters/{unique_filename}"
-        logger.info(f"活动海报已上传: {relative_path}")
-        return relative_path
+        # 检查文件是否成功保存
+        if not os.path.exists(file_path):
+            logger.error(f"文件保存失败，无法找到: {file_path}")
+            return None
+        
+        # 设置文件权限为可读
+        try:
+            os.chmod(file_path, 0o644)
+            logger.info(f"设置文件权限为644: {file_path}")
+        except Exception as e:
+            logger.warning(f"无法设置文件权限: {e}")
+        
+        # 返回文件名（不包含路径）
+        logger.info(f"活动海报已上传: {unique_filename}")
+        return unique_filename
         
     except Exception as e:
         logger.error(f"海报上传失败: {str(e)}")
@@ -64,22 +95,32 @@ def handle_poster_upload(file_data, activity_id):
 @admin_bp.route('/dashboard')
 @admin_required
 def dashboard():
+    # 导入display_datetime函数供所有模板使用
+    from src.utils.time_helpers import display_datetime
     try:
         # 获取基本统计数据
-        total_students = db.session.query(StudentInfo).count()
-        total_activities = Activity.query.count()
-        active_activities = Activity.query.filter_by(status='active').count()
+        total_students_stmt = db.select(func.count()).select_from(StudentInfo)
+        total_students = db.session.execute(total_students_stmt).scalar()
+        
+        total_activities_stmt = db.select(func.count()).select_from(Activity)
+        total_activities = db.session.execute(total_activities_stmt).scalar()
+        
+        active_activities_stmt = db.select(func.count()).select_from(Activity).filter_by(status='active')
+        active_activities = db.session.execute(active_activities_stmt).scalar()
         
         # 获取最近活动
-        recent_activities = Activity.query.order_by(Activity.created_at.desc()).limit(5).all()
+        recent_activities_stmt = db.select(Activity).order_by(Activity.created_at.desc()).limit(5)
+        recent_activities = db.session.execute(recent_activities_stmt).scalars().all()
         
         # 获取最近注册的学生 - 修复查询，使用Role关联而不是role_id
-        recent_students = User.query.join(Role).filter(Role.name == 'Student').join(
+        recent_students_stmt = db.select(User).join(Role).filter(Role.name == 'Student').join(
             StudentInfo, User.id == StudentInfo.user_id
-        ).order_by(User.created_at.desc()).limit(5).all()
+        ).order_by(User.created_at.desc()).limit(5)
+        recent_students = db.session.execute(recent_students_stmt).scalars().all()
         
         # 获取报名统计
-        total_registrations = Registration.query.count()
+        total_registrations_stmt = db.select(func.count()).select_from(Registration)
+        total_registrations = db.session.execute(total_registrations_stmt).scalar()
         
         return render_template('admin/dashboard.html',
                               total_students=total_students,
@@ -87,7 +128,8 @@ def dashboard():
                               active_activities=active_activities,
                               recent_activities=recent_activities,
                               recent_students=recent_students,
-                              total_registrations=total_registrations)
+                              total_registrations=total_registrations,
+                              display_datetime=display_datetime)
     except Exception as e:
         logger.error(f"Error in admin dashboard: {e}")
         flash('加载管理面板时出错', 'danger')
@@ -100,29 +142,45 @@ def activities(status='all'):
     try:
         page = request.args.get('page', 1, type=int)
         
-        query = Activity.query
+        # 基本查询
+        query = db.select(Activity)
         
         # 根据状态筛选
         if status == 'active':
-            query = query.filter_by(status='active')
+            query = query.filter(Activity.status == 'active')
         elif status == 'completed':
-            query = query.filter_by(status='completed')
+            query = query.filter(Activity.status == 'completed')
         elif status == 'cancelled':
-            query = query.filter_by(status='cancelled')
+            query = query.filter(Activity.status == 'cancelled')
+        
+        # 排序
+        query = query.order_by(Activity.created_at.desc())
         
         # 分页查询
-        activities = query.order_by(Activity.created_at.desc()).paginate(page=page, per_page=10)
+        activities = db.paginate(query, page=page, per_page=10)
         
         # 为每个活动提前统计报名人数，避免模板中重复查询
         registration_counts = {}
         for activity in activities.items:
-            count = Registration.query.filter_by(activity_id=activity.id, status='registered').count()
+            # 报名人数计算，同时考虑'registered'和'attended'两种状态
+            reg_stmt = db.select(func.count()).select_from(Registration).filter(
+                Registration.activity_id == activity.id,
+                or_(
+                    Registration.status == 'registered',
+                    Registration.status == 'attended'
+                )
+            )
+            count = db.session.execute(reg_stmt).scalar()
             registration_counts[activity.id] = count
+        
+        # 导入display_datetime函数供模板使用
+        from src.utils.time_helpers import display_datetime
         
         return render_template('admin/activities.html', 
                               activities=activities, 
                               current_status=status,
-                              registration_counts=registration_counts)
+                              registration_counts=registration_counts,
+                              display_datetime=display_datetime)
     except Exception as e:
         logger.error(f"Error in activities page: {e}")
         flash('加载活动列表时出错', 'danger')
@@ -135,7 +193,8 @@ def create_activity():
         form = ActivityForm()
         
         # 加载所有标签并设置选项
-        tags = Tag.query.order_by(Tag.name).all()
+        tags_stmt = db.select(Tag).order_by(Tag.name)
+        tags = db.session.execute(tags_stmt).scalars().all()
         choices = [(tag.id, tag.name) for tag in tags]
         form.tags.choices = choices
         
@@ -144,26 +203,52 @@ def create_activity():
             form.tags.data = []
         
         if form.validate_on_submit():
+            # 导入pytz用于时区处理
+            beijing_tz = pytz.timezone('Asia/Shanghai')
+            
+            # 处理时间字段，将无时区时间转换为带时区的UTC时间
+            start_time = form.start_time.data
+            if start_time:
+                start_time = beijing_tz.localize(start_time).astimezone(pytz.utc)
+            
+            end_time = form.end_time.data
+            if end_time:
+                end_time = beijing_tz.localize(end_time).astimezone(pytz.utc)
+            
+            registration_deadline = form.registration_deadline.data
+            if registration_deadline:
+                registration_deadline = beijing_tz.localize(registration_deadline).astimezone(pytz.utc)
+            
+            # 当前时间也需要是UTC时区
+            now = datetime.now(pytz.utc)
+            
             # 创建新活动
             activity = Activity(
                 title=form.title.data,
                 description=form.description.data,
                 location=form.location.data,
-                start_time=form.start_time.data,  # LocalizedDateTimeField已经处理了时区转换
-                end_time=form.end_time.data,  # LocalizedDateTimeField已经处理了时区转换
-                registration_deadline=form.registration_deadline.data,  # LocalizedDateTimeField已经处理了时区转换
+                start_time=start_time,
+                end_time=end_time,
+                registration_deadline=registration_deadline,
                 max_participants=form.max_participants.data,
-                type=form.type.data if hasattr(form, 'type') else '其他',
+                type='其他',  # 默认活动类型
                 status=form.status.data,
                 is_featured=form.is_featured.data,
                 points=form.points.data or (20 if form.is_featured.data else 10),
-                created_by=current_user.id
+                created_by=current_user.id,
+                # 添加新字段的默认值
+                checkin_enabled=False,
+                checkin_key=None,
+                checkin_key_expires=None,
+                created_at=now,
+                updated_at=now
             )
             
             # 处理标签
             tag_ids = request.form.getlist('tags')  # 直接从请求中获取多选框值
             for tag_id in tag_ids:
-                tag = Tag.query.get(int(tag_id))
+                tag_stmt = db.select(Tag).filter_by(id=int(tag_id))
+                tag = db.session.execute(tag_stmt).scalar_one_or_none()
                 if tag:
                     activity.tags.append(tag)
             
@@ -176,118 +261,216 @@ def create_activity():
             
             # 处理上传的图片
             if form.poster.data:
-                poster_path = handle_poster_upload(form.poster.data, activity.id)
-                if poster_path:
-                    activity.poster_url = poster_path
+                poster_filename = handle_poster_upload(form.poster.data, activity.id)
+                if poster_filename:
+                    activity.poster_image = poster_filename
                     db.session.commit()
+                    logger.info(f"活动海报文件名已保存到数据库: {poster_filename}")
             
-            flash('活动创建成功', 'success')
+            flash('活动创建成功!', 'success')
             return redirect(url_for('admin.activities'))
         
-        return render_template('admin/activity_form.html', form=form, title='创建新活动')
-    
+        return render_template('admin/activity_form.html', form=form, title='创建活动')
     except Exception as e:
-        logger.error(f"加载创建活动页面时出错: {str(e)}")
-        logger.error(f"错误类型: {type(e)}")
-        logger.error(f"堆栈跟踪: ", exc_info=True)
-        flash('加载创建活动页面时出错', 'danger')
-        return redirect(url_for('admin.dashboard'))
+        db.session.rollback()
+        logger.error(f"Error in create_activity: {e}")
+        flash('创建活动时出错，请重试', 'danger')
+        return redirect(url_for('admin.activities'))
 
 @admin_bp.route('/activity/<int:id>/edit', methods=['GET', 'POST'])
 @admin_required
 def edit_activity(id):
     try:
-        activity = Activity.query.get_or_404(id)
+        activity = db.get_or_404(Activity, id)
         form = ActivityForm(obj=activity)
         
         # 加载所有标签并设置选项
-        tags = Tag.query.order_by(Tag.name).all()
-        form.tags.choices = [(tag.id, tag.name) for tag in tags]
+        tags_stmt = db.select(Tag).order_by(Tag.name)
+        tags = db.session.execute(tags_stmt).scalars().all()
+        choices = [(tag.id, tag.name) for tag in tags]
+        form.tags.choices = choices
         
-        # 设置当前活动的已选标签
+        # 设置当前已有的标签
         if request.method == 'GET':
             form.tags.data = [tag.id for tag in activity.tags]
-            # 设置is_featured和points字段的值
-            form.is_featured.data = activity.is_featured
-            form.points.data = activity.points or (20 if activity.is_featured else 10)
         
-        if request.method == 'POST' and form.validate_on_submit():
+        if form.validate_on_submit():
+            # 导入pytz用于时区处理
+            beijing_tz = pytz.timezone('Asia/Shanghai')
+            
+            # 更新活动信息，但先保存标签引用
+            selected_tag_ids = request.form.getlist('tags')
+            
+            # 使用form填充对象，但先处理poster字段
+            # 防止文件字段被意外设置为字符串
+            poster_data = form.poster.data
+            form.poster.data = None
+            
+            # 保存当前签到设置和创建者ID，因为表单中没有这些字段
+            checkin_enabled = activity.checkin_enabled
+            checkin_key = activity.checkin_key
+            checkin_key_expires = activity.checkin_key_expires
+            created_by_id = activity.created_by  # 保存创建者ID
+            
+            # 先保存表单中的时间字段，将它们转换为带时区的UTC时间
+            start_time = form.start_time.data
+            if start_time:
+                start_time = beijing_tz.localize(start_time).astimezone(pytz.utc)
+            
+            end_time = form.end_time.data
+            if end_time:
+                end_time = beijing_tz.localize(end_time).astimezone(pytz.utc)
+            
+            registration_deadline = form.registration_deadline.data
+            if registration_deadline:
+                registration_deadline = beijing_tz.localize(registration_deadline).astimezone(pytz.utc)
+            
+            # 使用form填充对象
+            form.populate_obj(activity)
+            
+            # 使用转换后的时间覆盖填充的时间字段
+            activity.start_time = start_time
+            activity.end_time = end_time
+            activity.registration_deadline = registration_deadline
+            
+            # 恢复保存的值
+            activity.checkin_enabled = checkin_enabled
+            activity.checkin_key = checkin_key
+            activity.checkin_key_expires = checkin_key_expires
+            
+            # 恢复创建者ID
+            activity.created_by = created_by_id
+            
+            # 恢复poster数据以便后续处理
+            form.poster.data = poster_data
+            
+            # 处理标签，完全重写这一部分
             try:
-                # 将表单数据复制到活动对象，但不包括标签
-                for field in form:
-                    if field.name != 'tags' and field.name != 'submit' and field.name != 'poster':
-                        setattr(activity, field.name, field.data)
+                # 清空当前活动的标签关联
+                activity.tags = []
+                db.session.flush()  # 立即执行，确保清空生效
                 
-                # 确保points字段有值
-                if not activity.points:
-                    activity.points = 20 if activity.is_featured else 10
+                # 记录处理进度
+                logger.info(f"活动标签处理 - 已清空现有标签")
                 
-                # 处理标签
-                activity.tags.clear()
-                tag_ids = request.form.getlist('tags')  # 直接从请求中获取多选框值
-                for tag_id in tag_ids:
-                    tag = Tag.query.get(int(tag_id))
-                    if tag:
-                        activity.tags.append(tag)
+                if selected_tag_ids:
+                    # 根据ID直接查询标签对象
+                    valid_tag_ids = []
+                    for tag_id_str in selected_tag_ids:
+                        try:
+                            if tag_id_str and str(tag_id_str).strip().isdigit():
+                                valid_tag_ids.append(int(tag_id_str))
+                        except Exception as e:
+                            logger.warning(f"处理标签ID时出错: {e}, tag_id={tag_id_str}")
+                    
+                    logger.info(f"活动标签处理 - 有效标签ID: {valid_tag_ids}")
+                    
+                    # 批量获取标签
+                    if valid_tag_ids:
+                        tags_stmt = db.select(Tag).filter(Tag.id.in_(valid_tag_ids))
+                        selected_tags = db.session.execute(tags_stmt).scalars().all()
+                        logger.info(f"活动标签处理 - 找到{len(selected_tags)}个标签")
+                        
+                        # 添加标签关联
+                        for tag in selected_tags:
+                            activity.tags.append(tag)
+                            logger.info(f"活动标签处理 - 添加标签: [{tag.id}]{tag.name}")
                 
-                # 注意：不再需要调用normalize_datetime_for_db函数
-                # LocalizedDateTimeField类的populate_obj方法已经正确处理了时区转换
-                # activity.start_time = normalize_datetime_for_db(activity.start_time)
-                # activity.end_time = normalize_datetime_for_db(activity.end_time)
-                # activity.registration_deadline = normalize_datetime_for_db(activity.registration_deadline)
-                
-                db.session.commit()
-                
-                log_action('edit_activity', f'编辑活动: {activity.title}')
-                flash('活动更新成功', 'success')
-                return redirect(url_for('admin.activities'))
+                logger.info(f"活动标签处理 - 最终标签数量: {len(activity.tags)}")
             except Exception as e:
-                db.session.rollback()
-                logger.error(f"Error updating activity: {e}")
-                flash(f'更新活动时出错: {str(e)}', 'danger')
+                logger.error(f"处理标签时出现异常: {e}", exc_info=True)
+                flash('处理活动标签时出错，其他信息已保存', 'warning')
+            
+            # 更新积分，确保重点活动有足够积分
+            if activity.is_featured and (activity.points is None or activity.points < 20):
+                activity.points = 20
+            
+            # 处理上传的图片
+            if form.poster.data and hasattr(form.poster.data, 'filename') and form.poster.data.filename:
+                try:
+                    poster_filename = handle_poster_upload(form.poster.data, activity.id)
+                    if poster_filename:
+                        activity.poster_image = poster_filename
+                        logger.info(f"活动海报文件名已保存到数据库: {poster_filename}")
+                except Exception as e:
+                    logger.error(f"上传海报时出错: {e}")
+                    flash('上传海报时出错，但活动信息已保存', 'warning')
+            
+            # 记录更新时间，使用UTC时间
+            activity.updated_at = datetime.now(pytz.utc)
+            
+            # 如果状态变为已完成，记录完成时间
+            if activity.status == 'completed' and not activity.completed_at:
+                activity.completed_at = datetime.now(pytz.utc)
+            
+            db.session.commit()
+            
+            # 记录日志
+            log_action('edit_activity', f'编辑活动: {activity.title}')
+            
+            flash('活动更新成功!', 'success')
+            return redirect(url_for('admin.activities'))
         
-        return render_template('admin/activity_form.html', form=form, activity=activity)
+        return render_template('admin/activity_form.html', form=form, title='编辑活动', activity=activity)
     except Exception as e:
+        db.session.rollback()
         logger.error(f"Error in edit_activity: {e}")
-        flash('编辑活动时出错', 'danger')
+        flash('编辑活动时出错，请重试', 'danger')
         return redirect(url_for('admin.activities'))
 
 @admin_bp.route('/activity/<int:id>/view')
 @admin_required
 def activity_view(id):
     try:
-        activity = Activity.query.get_or_404(id)
-        registrations = Registration.query.filter_by(
-            activity_id=id
-        ).join(
+        from flask_wtf.csrf import generate_csrf
+        
+        activity = db.get_or_404(Activity, id)
+        
+        # 获取创建者信息
+        creator = db.session.get(User, activity.created_by) if activity.created_by else None
+        
+        # 获取报名人数 - 修复逻辑，同时统计registered和attended状态
+        registration_count = Registration.query.filter(
+            Registration.activity_id == id,
+            db.or_(
+                Registration.status == 'registered',
+                Registration.status == 'attended'
+            )
+        ).count()
+        
+        # 获取签到人数 - 检查是否有check_in_time
+        checkin_count = Registration.query.filter(
+            Registration.activity_id == id,
+            Registration.check_in_time.isnot(None)
+        ).count()
+        
+        # 获取参与者信息
+        registrations = db.session.query(Registration).join(
             User, Registration.user_id == User.id
         ).join(
             StudentInfo, User.id == StudentInfo.user_id
-        ).add_columns(
-            Registration.id.label('registration_id'),
-            Registration.register_time,
-            Registration.status,
-            Registration.check_in_time,
-            StudentInfo.real_name,
-            StudentInfo.student_id,
-            StudentInfo.grade,
-            StudentInfo.college,
-            StudentInfo.major
+        ).filter(
+            Registration.activity_id == id
         ).all()
         
-        registration_count = len(registrations)
+        # 导入display_datetime函数供模板使用
+        from src.utils.time_helpers import display_datetime, safe_less_than, safe_greater_than
         
-        # 计算已签到人数
-        checked_in_count = sum(1 for reg in registrations if reg.check_in_time is not None)
+        # 生成CSRF令牌
+        csrf_token = generate_csrf()
         
         return render_template('admin/activity_view.html', 
-                              activity=activity,
-                              registrations=registrations,
-                              registration_count=registration_count,
-                              checked_in_count=checked_in_count)
-        
+                             activity=activity,
+                             creator=creator,
+                             registrations_count=registration_count,
+                             checkins_count=checkin_count,
+                             registrations=registrations,
+                             display_datetime=display_datetime,
+                             safe_less_than=safe_less_than,
+                             safe_greater_than=safe_greater_than,
+                             csrf_token=csrf_token)
     except Exception as e:
-        logger.error(f"Error in activity_view: {e}")
+        logger.error(f"查看活动详情出错: {e}")
         flash('查看活动详情时出错', 'danger')
         return redirect(url_for('admin.activities'))
 
@@ -295,40 +478,49 @@ def activity_view(id):
 @admin_required
 def delete_activity(id):
     try:
-        activity = Activity.query.get_or_404(id)
+        activity = db.get_or_404(Activity, id)
         force_delete = request.args.get('force', 'false').lower() == 'true'
-        
-        # 导入ActivityCheckin和ActivityReview
-        from src.models import ActivityCheckin, ActivityReview
         
         # 使用事务
         with db.session.begin_nested():
             if force_delete:
                 # 强制删除活动及相关数据
-                # 先删除积分历史记录
+                
+                # 1. 删除积分历史记录
                 PointsHistory.query.filter_by(activity_id=activity.id).delete()
+                
+                # 2. 删除报名记录
                 Registration.query.filter_by(activity_id=activity.id).delete()
+                
+                # 3. 删除活动评价
                 ActivityReview.query.filter_by(activity_id=activity.id).delete()
+                
+                # 4. 删除签到记录
                 ActivityCheckin.query.filter_by(activity_id=activity.id).delete()
                 
-                # 删除活动与标签的关联
+                # 5. 删除活动与标签的关联
                 activity.tags = []
                 
-                # 删除活动
+                # 6. 删除活动
                 db.session.delete(activity)
                 log_action('delete_activity', f'永久删除活动: {activity.title}')
                 flash('活动已永久删除', 'success')
-            elif Registration.query.filter_by(activity_id=activity.id).count() == 0:
+            elif db.session.execute(db.select(func.count()).select_from(Registration).filter_by(activity_id=activity.id)).scalar() == 0:
                 # 如果没有报名记录，直接删除活动
-                # 先删除积分历史记录
+                
+                # 1. 删除积分历史记录
                 PointsHistory.query.filter_by(activity_id=activity.id).delete()
+                
+                # 2. 删除活动评价
                 ActivityReview.query.filter_by(activity_id=activity.id).delete()
+                
+                # 3. 删除签到记录
                 ActivityCheckin.query.filter_by(activity_id=activity.id).delete()
                 
-                # 删除活动与标签的关联
+                # 4. 删除活动与标签的关联
                 activity.tags = []
                 
-                # 删除活动
+                # 5. 删除活动
                 db.session.delete(activity)
                 log_action('delete_activity', f'删除活动: {activity.title}')
                 flash('活动已删除', 'success')
@@ -355,7 +547,8 @@ def students():
         page = request.args.get('page', 1, type=int)
         search = request.args.get('search', '')
         
-        query = StudentInfo.query.join(User, StudentInfo.user_id == User.id)
+        # 使用SQLAlchemy 2.0风格查询
+        query = db.select(StudentInfo).join(User, StudentInfo.user_id == User.id)
         
         if search:
             query = query.filter(
@@ -368,7 +561,15 @@ def students():
                 )
             )
         
-        students = query.order_by(StudentInfo.id.desc()).paginate(page=page, per_page=20)
+        # 使用db.paginate进行分页
+        students = db.paginate(query.order_by(StudentInfo.id.desc()), page=page, per_page=20)
+        
+        # 确保所有学生记录都有qq和has_selected_tags字段的值
+        for student in students.items:
+            if not hasattr(student, 'qq'):
+                student.qq = ''
+            if not hasattr(student, 'has_selected_tags'):
+                student.has_selected_tags = False
         
         return render_template('admin/students.html', students=students, search=search)
     except Exception as e:
@@ -380,7 +581,7 @@ def students():
 @admin_required
 def delete_student(id):
     try:
-        user = User.query.get_or_404(id)
+        user = db.get_or_404(User, id)
         
         # 确保是学生账号
         if user.role_id != 2:
@@ -390,14 +591,14 @@ def delete_student(id):
         # 按照正确的顺序删除关联数据，避免外键约束错误
         
         # 1. 删除AI用户偏好设置
-        ai_preferences = AIUserPreferences.query.filter_by(user_id=id).first()
+        ai_preferences = db.session.execute(db.select(AIUserPreferences).filter_by(user_id=id)).scalar_one_or_none()
         if ai_preferences:
             logger.info(f"删除用户 {user.username} 的AI偏好设置")
             db.session.delete(ai_preferences)
             db.session.commit()
         
         # 2. 删除AI聊天历史记录
-        ai_chat_histories = AIChatHistory.query.filter_by(user_id=id).all()
+        ai_chat_histories = db.session.execute(db.select(AIChatHistory).filter_by(user_id=id)).scalars().all()
         if ai_chat_histories:
             logger.info(f"删除用户 {user.username} 的AI聊天历史记录: {len(ai_chat_histories)}条")
             for history in ai_chat_histories:
@@ -405,7 +606,7 @@ def delete_student(id):
             db.session.commit()
         
         # 3. 删除AI聊天会话
-        ai_chat_sessions = AIChatSession.query.filter_by(user_id=id).all()
+        ai_chat_sessions = db.session.execute(db.select(AIChatSession).filter_by(user_id=id)).scalars().all()
         if ai_chat_sessions:
             logger.info(f"删除用户 {user.username} 的AI聊天会话: {len(ai_chat_sessions)}个")
             for session in ai_chat_sessions:
@@ -413,9 +614,9 @@ def delete_student(id):
             db.session.commit()
         
         # 4. 删除积分历史记录
-        student_info = StudentInfo.query.filter_by(user_id=id).first()
+        student_info = db.session.execute(db.select(StudentInfo).filter_by(user_id=id)).scalar_one_or_none()
         if student_info:
-            points_history = PointsHistory.query.filter_by(student_id=student_info.id).all()
+            points_history = db.session.execute(db.select(PointsHistory).filter_by(student_id=student_info.id)).scalars().all()
             if points_history:
                 logger.info(f"删除用户 {user.username} 的积分历史记录: {len(points_history)}条")
                 for history in points_history:
@@ -423,7 +624,7 @@ def delete_student(id):
                 db.session.commit()
         
         # 5. 删除活动评价
-        activity_reviews = ActivityReview.query.filter_by(user_id=id).all()
+        activity_reviews = db.session.execute(db.select(ActivityReview).filter_by(user_id=id)).scalars().all()
         if activity_reviews:
             logger.info(f"删除用户 {user.username} 的活动评价: {len(activity_reviews)}条")
             for review in activity_reviews:
@@ -431,7 +632,7 @@ def delete_student(id):
             db.session.commit()
         
         # 6. 删除签到记录
-        checkins = ActivityCheckin.query.filter_by(user_id=id).all()
+        checkins = db.session.execute(db.select(ActivityCheckin).filter_by(user_id=id)).scalars().all()
         if checkins:
             logger.info(f"删除用户 {user.username} 的签到记录: {len(checkins)}条")
             for checkin in checkins:
@@ -439,7 +640,7 @@ def delete_student(id):
             db.session.commit()
         
         # 7. 删除报名记录
-        registrations = Registration.query.filter_by(user_id=id).all()
+        registrations = db.session.execute(db.select(Registration).filter_by(user_id=id)).scalars().all()
         if registrations:
             logger.info(f"删除用户 {user.username} 的报名记录: {len(registrations)}条")
             for reg in registrations:
@@ -472,14 +673,19 @@ def delete_student(id):
 @admin_bp.route('/student/<int:id>')
 @admin_required
 def student_view(id):
-    student = StudentInfo.query.get_or_404(id)
-    user = User.query.get(student.user_id)
-    points_history = PointsHistory.query.filter_by(student_id=student.id).order_by(PointsHistory.created_at.desc()).all()
-    registrations = Registration.query.filter_by(user_id=user.id).all()
+    student = db.get_or_404(StudentInfo, id)
+    user = db.get_or_404(User, student.user_id)
+    
+    # 使用SQLAlchemy 2.0风格查询
+    points_stmt = db.select(PointsHistory).filter_by(student_id=student.id).order_by(PointsHistory.created_at.desc())
+    points_history = db.session.execute(points_stmt).scalars().all()
+    
+    reg_stmt = db.select(Registration).filter_by(user_id=user.id)
+    registrations = db.session.execute(reg_stmt).scalars().all()
     
     # 处理注册信息，添加活动标题
     for reg in registrations:
-        activity = Activity.query.get(reg.activity_id)
+        activity = db.get_or_404(Activity, reg.activity_id)
         if activity:
             reg.activity_title = activity.title
         else:
@@ -489,7 +695,8 @@ def student_view(id):
     selected_tag_ids = [tag.id for tag in student.tags] if student.tags else []
     
     # 获取所有标签
-    all_tags = Tag.query.all()
+    tags_stmt = db.select(Tag)
+    all_tags = db.session.execute(tags_stmt).scalars().all()
     
     return render_template('admin/student_view.html', student=student, user=user, 
                            points_history=points_history, registrations=registrations,
@@ -498,7 +705,7 @@ def student_view(id):
 @admin_bp.route('/student/<int:id>/update-tags', methods=['POST'])
 @admin_required
 def update_student_tags(id):
-    student = StudentInfo.query.get_or_404(id)
+    student = db.get_or_404(StudentInfo, id)
     
     try:
         # 获取提交的标签ID
@@ -509,12 +716,14 @@ def update_student_tags(id):
         
         # 添加新的标签关联
         for tag_id in tag_ids:
-            tag = Tag.query.get(int(tag_id))
+            tag_stmt = db.select(Tag).filter_by(id=int(tag_id))
+            tag = db.session.execute(tag_stmt).scalar_one_or_none()
             if tag:
                 student.tags.append(tag)
         
         # 更新学生标签选择状态
-        student.has_selected_tags = True if tag_ids else False
+        if hasattr(student, 'has_selected_tags'):
+            student.has_selected_tags = True if tag_ids else False
         db.session.commit()
         
         flash('学生标签更新成功！', 'success')
@@ -529,7 +738,7 @@ def update_student_tags(id):
 @admin_required
 def adjust_student_points(id):
     try:
-        student_info = StudentInfo.query.get_or_404(id)
+        student_info = db.get_or_404(StudentInfo, id)
         points = request.form.get('points', type=int)
         reason = request.form.get('reason', '').strip()
         
@@ -581,34 +790,37 @@ def statistics():
         end_date = normalize_datetime_for_db(end_date)
         
         # 获取最近7天的活动数据
-        daily_activities = db.session.query(
+        daily_activities_stmt = db.select(
             func.date(Activity.created_at).label('date'),
             func.count(Activity.id).label('count')
         ).filter(
             Activity.created_at.between(start_date, end_date)
         ).group_by(
             func.date(Activity.created_at)
-        ).all()
+        )
+        daily_activities = db.session.execute(daily_activities_stmt).all()
         
         # 获取最近7天的注册数据
-        daily_registrations = db.session.query(
+        daily_registrations_stmt = db.select(
             func.date(Registration.register_time).label('date'),
             func.count(Registration.id).label('count')
         ).filter(
             Registration.register_time.between(start_date, end_date)
         ).group_by(
             func.date(Registration.register_time)
-        ).all()
+        )
+        daily_registrations = db.session.execute(daily_registrations_stmt).all()
         
         # 获取最近7天的用户注册数据
-        daily_users = db.session.query(
+        daily_users_stmt = db.select(
             func.date(User.created_at).label('date'),
             func.count(User.id).label('count')
         ).filter(
             User.created_at.between(start_date, end_date)
         ).group_by(
             func.date(User.created_at)
-        ).all()
+        )
+        daily_users = db.session.execute(daily_users_stmt).all()
         
         # 将查询结果转换为字典格式，方便前端使用
         date_format = '%Y-%m-%d'
@@ -640,26 +852,36 @@ def statistics():
         }
         
         # 获取活动类型分布
-        activity_types = db.session.query(
+        activity_types_stmt = db.select(
             Activity.type,
             func.count(Activity.id).label('count')
-        ).group_by(Activity.type).all()
+        ).group_by(Activity.type)
+        activity_types = db.session.execute(activity_types_stmt).all()
         
         # 转换为前端可用的格式
         type_labels = [t.type for t in activity_types]
         type_data = [t.count for t in activity_types]
         
         # 获取标签统计
-        tag_stats = db.session.query(
-            Tag.name,
-            func.count(Activity.id).label('count')
-        ).join(
-            Activity.tags
-        ).group_by(Tag.name).order_by(desc('count')).limit(10).all()
-        
-        # 转换为前端可用的格式
-        tag_labels = [t.name for t in tag_stats]
-        tag_data = [t.count for t in tag_stats]
+        try:
+            tag_stats_stmt = db.select(
+                Tag.name,
+                func.count(Activity.id).label('count')
+            ).join(
+                activity_tags, Tag.id == activity_tags.c.tag_id
+            ).join(
+                Activity, Activity.id == activity_tags.c.activity_id
+            ).group_by(Tag.name).order_by(desc('count')).limit(10)
+            
+            tag_stats = db.session.execute(tag_stats_stmt).all()
+            
+            # 转换为前端可用的格式
+            tag_labels = [t.name for t in tag_stats]
+            tag_data = [t.count for t in tag_stats]
+        except Exception as e:
+            logger.error(f"获取标签统计失败: {e}")
+            tag_labels = []
+            tag_data = []
         
         return render_template(
             'admin/statistics.html',
@@ -675,13 +897,19 @@ def statistics():
         return redirect(url_for('admin.dashboard'))
 
 @admin_bp.route('/api/statistics')
+@admin_bp.route('/admin/api/statistics')  # 添加一个包含admin前缀的路由
 @admin_required
 def api_statistics():
     try:
         # 活动状态统计
-        active_count = Activity.query.filter_by(status='active').count()
-        completed_count = Activity.query.filter_by(status='completed').count()
-        cancelled_count = Activity.query.filter_by(status='cancelled').count()
+        active_count_stmt = db.select(func.count()).select_from(Activity).filter_by(status='active')
+        active_count = db.session.execute(active_count_stmt).scalar()
+        
+        completed_count_stmt = db.select(func.count()).select_from(Activity).filter_by(status='completed')
+        completed_count = db.session.execute(completed_count_stmt).scalar()
+        
+        cancelled_count_stmt = db.select(func.count()).select_from(Activity).filter_by(status='cancelled')
+        cancelled_count = db.session.execute(cancelled_count_stmt).scalar()
         
         registration_stats = {
             'labels': ['进行中', '已结束', '已取消'],
@@ -689,8 +917,15 @@ def api_statistics():
         }
         
         # 学生参与度统计
-        total_students = User.query.filter_by(role_id=2).count()
-        active_students = Registration.query.with_entities(Registration.user_id).distinct().count()
+        student_role_stmt = db.select(Role.id).filter_by(name='Student')
+        student_role_id = db.session.execute(student_role_stmt).scalar()
+        
+        total_students_stmt = db.select(func.count()).select_from(User).filter_by(role_id=student_role_id)
+        total_students = db.session.execute(total_students_stmt).scalar()
+        
+        active_students_stmt = db.select(func.count(Registration.user_id.distinct())).select_from(Registration)
+        active_students = db.session.execute(active_students_stmt).scalar()
+        
         inactive_students = total_students - active_students if total_students > active_students else 0
         
         participation_stats = {
@@ -716,19 +951,19 @@ def api_statistics():
             month_label = current_month.strftime('%Y-%m')
             months.append(month_label)
             
-            # 当月活动数
-            month_activities = Activity.query.filter(
-                Activity.created_at >= month_start,
-                Activity.created_at < month_end
-            ).count()
-            activities_count.append(month_activities)
+            # 活动数量
+            monthly_activities_stmt = db.select(func.count()).select_from(Activity).filter(
+                Activity.created_at.between(month_start, month_end)
+            )
+            monthly_activities = db.session.execute(monthly_activities_stmt).scalar() or 0
+            activities_count.append(monthly_activities)
             
-            # 当月报名数
-            month_registrations = Registration.query.filter(
-                Registration.register_time >= month_start,
-                Registration.register_time < month_end
-            ).count()
-            registrations_count.append(month_registrations)
+            # 报名数量
+            monthly_registrations_stmt = db.select(func.count()).select_from(Registration).filter(
+                Registration.register_time.between(month_start, month_end)
+            )
+            monthly_registrations = db.session.execute(monthly_registrations_stmt).scalar() or 0
+            registrations_count.append(monthly_registrations)
         
         monthly_stats = {
             'labels': months,
@@ -749,7 +984,7 @@ def api_statistics():
 @admin_required
 def activity_registrations(id):
     try:
-        activity = Activity.query.get_or_404(id)
+        activity = db.get_or_404(Activity, id)
         
         # 获取报名学生列表 - 修复报名详情查看问题
         registrations = Registration.query.filter_by(
@@ -773,19 +1008,24 @@ def activity_registrations(id):
         ).all()
         
         # 统计报名状态
-        registered_count = Registration.query.filter_by(activity_id=id, status='registered').count()
-        cancelled_count = Registration.query.filter_by(activity_id=id, status='cancelled').count()
-        attended_count = Registration.query.filter_by(activity_id=id, status='attended').count()
+        registered_count = db.session.execute(db.select(func.count()).select_from(Registration).filter_by(activity_id=id, status='registered')).scalar()
+        cancelled_count = db.session.execute(db.select(func.count()).select_from(Registration).filter_by(activity_id=id, status='cancelled')).scalar()
+        attended_count = db.session.execute(db.select(func.count()).select_from(Registration).filter_by(activity_id=id, status='attended')).scalar()
         
         # 修复签到状态统计 - 确保报名统计准确性
         # 这里处理签到后的状态计数，让前端能正确显示
+        
+        # 创建CSRF表单对象
+        from flask_wtf import FlaskForm
+        form = FlaskForm()
         
         return render_template('admin/activity_registrations.html',
                               activity=activity,
                               registrations=registrations,
                               registered_count=registered_count,
                               cancelled_count=cancelled_count,
-                              attended_count=attended_count)
+                              attended_count=attended_count,
+                              form=form)
     except Exception as e:
         logger.error(f"Error in activity_registrations: {e}")
         flash('查看报名情况时出错', 'danger')
@@ -795,7 +1035,7 @@ def activity_registrations(id):
 @admin_required
 def export_activity_registrations(id):
     try:
-        activity = Activity.query.get_or_404(id)
+        activity = db.get_or_404(Activity, id)
         
         # 获取报名学生列表
         registrations = Registration.query.filter_by(
@@ -1028,7 +1268,7 @@ def create_backup():
                     'email': user.email,
                     'role_id': user.role_id,
                     'active': user.active
-                } for user in User.query.all()
+                } for user in db.session.execute(db.select(User)).scalars().all()
             ]
             
             backup_data['data']['student_info'] = [
@@ -1044,7 +1284,7 @@ def create_backup():
                     'qq': info.qq,
                     'points': info.points,
                     'has_selected_tags': info.has_selected_tags
-                } for info in StudentInfo.query.all()
+                } for info in db.session.execute(db.select(StudentInfo)).scalars().all()
             ]
         
         # 活动数据
@@ -1063,7 +1303,7 @@ def create_backup():
                     'is_featured': activity.is_featured,
                     'points': activity.points,
                     'created_by': activity.created_by
-                } for activity in Activity.query.all()
+                } for activity in db.session.execute(db.select(Activity)).scalars().all()
             ]
         
         # 报名数据
@@ -1076,7 +1316,7 @@ def create_backup():
                     'check_in_time': reg.check_in_time.isoformat() if reg.check_in_time else None,
                     'status': reg.status,
                     'remark': reg.remark
-                } for reg in Registration.query.all()
+                } for reg in db.session.execute(db.select(Registration)).scalars().all()
             ]
         
         # 确保备份目录存在
@@ -1228,7 +1468,7 @@ def import_backup():
 @admin_required
 def update_registration_status(id):
     try:
-        registration = Registration.query.get_or_404(id)
+        registration = db.get_or_404(Registration, id)
         new_status = request.form.get('status')
         old_status = registration.status
         
@@ -1237,7 +1477,7 @@ def update_registration_status(id):
             return redirect(url_for('admin.activity_registrations', id=registration.activity_id))
         
         # 处理积分变更
-        activity = Activity.query.get(registration.activity_id)
+        activity = db.session.get(Activity, registration.activity_id)
         student_info = StudentInfo.query.join(User).filter(User.id == registration.user_id).first()
         
         if student_info and activity:
@@ -1279,18 +1519,18 @@ def activity_checkin(id):
             return jsonify({'success': False, 'message': '学生ID不能为空'})
         
         # 查找学生
-        student = StudentInfo.query.filter_by(student_id=student_id).first()
+        student = db.session.execute(db.select(StudentInfo).filter_by(student_id=student_id)).scalar_one_or_none()
         if not student:
             return jsonify({'success': False, 'message': '学生不存在'})
         
         # 查找活动
-        activity = Activity.query.get_or_404(id)
+        activity = db.get_or_404(Activity, id)
         
         # 查找报名记录
-        registration = Registration.query.filter_by(
+        registration = db.session.execute(db.select(Registration).filter_by(
             user_id=student.user_id,
             activity_id=id
-        ).first()
+        )).scalar_one_or_none()
         
         if not registration:
             return jsonify({'success': False, 'message': '该学生未报名此活动'})
@@ -1304,7 +1544,7 @@ def activity_checkin(id):
         
         # 添加积分奖励
         points = activity.points or (20 if activity.is_featured else 10)  # 使用活动自定义积分或默认值
-        student_info = StudentInfo.query.filter_by(user_id=student.user_id).first()
+        student_info = db.session.execute(db.select(StudentInfo).filter_by(user_id=student.user_id)).scalar_one_or_none()
         if student_info:
             if add_points(student_info.id, points, f"参与活动：{activity.title}", activity.id):
                 db.session.commit()
@@ -1323,7 +1563,8 @@ def activity_checkin(id):
 @admin_bp.route('/tags')
 @admin_required
 def manage_tags():
-    tags = Tag.query.order_by(Tag.created_at.desc()).all()
+    tags_stmt = db.select(Tag).order_by(Tag.created_at.desc())
+    tags = db.session.execute(tags_stmt).scalars().all()
     return render_template('admin/tags.html', tags=tags)
 
 @admin_bp.route('/tags/create', methods=['POST'])
@@ -1338,7 +1579,9 @@ def create_tag():
             return redirect(url_for('admin.manage_tags'))
         
         # 检查是否已存在
-        if Tag.query.filter_by(name=name).first():
+        tag_stmt = db.select(Tag).filter_by(name=name)
+        existing_tag = db.session.execute(tag_stmt).scalar_one_or_none()
+        if existing_tag:
             flash('标签已存在', 'warning')
             return redirect(url_for('admin.manage_tags'))
         
@@ -1359,7 +1602,7 @@ def create_tag():
 @admin_required
 def edit_tag(id):
     try:
-        tag = Tag.query.get_or_404(id)
+        tag = db.get_or_404(Tag, id)
         name = request.form.get('name', '').strip()
         color = request.form.get('color', 'primary')
         
@@ -1368,7 +1611,8 @@ def edit_tag(id):
             return redirect(url_for('admin.manage_tags'))
         
         # 检查新名称是否与其他标签重复
-        existing_tag = Tag.query.filter(Tag.name == name, Tag.id != id).first()
+        check_stmt = db.select(Tag).filter(Tag.name == name, Tag.id != id)
+        existing_tag = db.session.execute(check_stmt).scalar_one_or_none()
         if existing_tag:
             flash('标签名称已存在', 'warning')
             return redirect(url_for('admin.manage_tags'))
@@ -1390,7 +1634,7 @@ def edit_tag(id):
 @admin_required
 def delete_tag(id):
     try:
-        tag = Tag.query.get_or_404(id)
+        tag = db.get_or_404(Tag, id)
         name = tag.name
         
         # 从所有相关活动中移除标签
@@ -1408,27 +1652,38 @@ def delete_tag(id):
         return jsonify({'success': False, 'message': '删除标签失败'})
 
 @admin_bp.route('/api/statistics_ext')
+@admin_bp.route('/admin/api/statistics_ext')  # 添加一个包含admin前缀的路由
 @admin_required
 def api_statistics_ext():
     try:
-        # 标签热度
-        from src.models import Tag, Activity
-        tag_stats = db.session.query(
-            Tag.name, func.count(Activity.id)
-        ).outerjoin(Activity.tags).group_by(Tag.id).all()
+        # 标签热度 - 改为统计学生选择的标签而非活动标签
+        from src.models import Tag, StudentInfo, student_tags
+        
+        tag_stats_stmt = db.select(
+            Tag.name, 
+            func.count(student_tags.c.student_id).label('count')
+        ).outerjoin(
+            student_tags, Tag.id == student_tags.c.tag_id
+        ).group_by(Tag.id)
+        
+        tag_stats = db.session.execute(tag_stats_stmt).all()
+        
         tag_heat = {
             'labels': [t[0] for t in tag_stats],
             'data': [t[1] for t in tag_stats]
         }
+        
         # 积分分布
         from src.models import StudentInfo
         points_bins = [0, 10, 30, 50, 100, 200, 500, 1000]
         bin_labels = [f'{points_bins[i]}-{points_bins[i+1]-1}' for i in range(len(points_bins)-1)] + [f'{points_bins[-1]}+']
         bin_counts = [0] * len(bin_labels)  # 修正：使用bin_labels的长度
         
-        for stu in StudentInfo.query.all():
+        student_info_stmt = db.select(StudentInfo)
+        students = db.session.execute(student_info_stmt).scalars().all()
+        
+        for stu in students:
             points = stu.points or 0  # 处理None值
-            bin_found = False  # 确保每个学生只被计入一个区间
             
             # 检查最后一个区间（特殊情况）
             if points >= points_bins[-1]:
@@ -1445,7 +1700,53 @@ def api_statistics_ext():
             'labels': bin_labels,
             'data': bin_counts
         }
-        return jsonify({'tag_heat': tag_heat, 'points_dist': points_dist})
+        
+        # 添加注册趋势数据（每日新注册用户数）
+        try:
+            now = get_localized_now()
+            days_ago_30 = now - timedelta(days=30)
+            
+            registration_trend_stmt = db.select(
+                func.date(User.created_at).label('date'),
+                func.count(User.id).label('count')
+            ).filter(
+                User.created_at >= days_ago_30
+            ).group_by(
+                func.date(User.created_at)
+            )
+            
+            registration_trend = db.session.execute(registration_trend_stmt).all()
+            
+            # 将结果转换为前端可用的格式
+            reg_dates = [(days_ago_30 + timedelta(days=i)).strftime('%Y-%m-%d') for i in range(31)]
+            reg_counts = [0] * 31
+            
+            for item in registration_trend:
+                date_str = item.date.strftime('%Y-%m-%d') if hasattr(item.date, 'strftime') else str(item.date)
+                try:
+                    date_obj = datetime.strptime(date_str, '%Y-%m-%d')
+                    day_diff = (date_obj - days_ago_30).days
+                    if 0 <= day_diff < 31:
+                        reg_counts[day_diff] = item.count
+                except:
+                    pass
+            
+            registration_trend_data = {
+                'labels': reg_dates,
+                'data': reg_counts
+            }
+        except Exception as e:
+            logger.error(f"获取注册趋势数据失败: {e}")
+            registration_trend_data = {
+                'labels': [],
+                'data': []
+            }
+        
+        return jsonify({
+            'tag_heat': tag_heat, 
+            'points_dist': points_dist,
+            'registration_trend': registration_trend_data
+        })
     except Exception as e:
         logger.error(f"Error in api_statistics_ext: {e}")
         return jsonify({'error': '获取扩展统计数据失败'}), 500
@@ -1454,20 +1755,32 @@ def api_statistics_ext():
 @admin_required
 def activity_reviews(id):
     from src.models import Activity, ActivityReview
-    activity = Activity.query.get_or_404(id)
+    from src.utils.time_helpers import display_datetime
+    from flask_wtf.csrf import generate_csrf
+    
+    activity = db.get_or_404(Activity, id)
     reviews = ActivityReview.query.filter_by(activity_id=id).order_by(ActivityReview.created_at.desc()).all()
     if reviews:
         average_rating = sum(r.rating for r in reviews) / len(reviews)
     else:
         average_rating = 0
-    return render_template('admin/activity_reviews.html', activity=activity, reviews=reviews, average_rating=average_rating)
+    
+    # 生成CSRF令牌
+    csrf_token = generate_csrf()
+    
+    return render_template('admin/activity_reviews.html', 
+                         activity=activity, 
+                         reviews=reviews, 
+                         average_rating=average_rating,
+                         display_datetime=display_datetime,
+                         csrf_token=csrf_token)
 
 @admin_bp.route('/api/qrcode/checkin/<int:id>')
 @admin_required
 def generate_checkin_qrcode(id):
     try:
         # 检查活动是否存在
-        activity = Activity.query.get_or_404(id)
+        activity = db.get_or_404(Activity, id)
         
         # 获取当前本地化时间
         now = get_beijing_time()
@@ -1522,62 +1835,108 @@ def generate_checkin_qrcode(id):
         logger.error(f"生成签到二维码时出错: {e}")
         return jsonify({'success': False, 'message': '生成二维码失败'}), 500
 
-# 添加二维码签到跳转路由
-@admin_bp.route('/checkin/modal/<int:id>')
+@admin_bp.route('/checkin-modal/<int:activity_id>')
+@login_required
 @admin_required
-def checkin_modal(id):
+def checkin_modal(activity_id):
+    """签到管理界面"""
     try:
-        activity = Activity.query.get_or_404(id)
+        # 记录开始调试信息
+        logger.info(f"进入checkin_modal函数: activity_id={activity_id}")
+        
+        # 生成CSRF令牌
+        from flask_wtf.csrf import generate_csrf
+        csrf_token = generate_csrf()
+        logger.info(f"生成CSRF令牌: {csrf_token[:10]}...")
+        
+        # 导入display_datetime函数
+        from src.utils.time_helpers import display_datetime
+        logger.info(f"导入display_datetime函数: 类型={type(display_datetime)}")
+        
+        # 添加调试日志
+        logger.info(f"display_datetime类型: {type(display_datetime)}, 值: {display_datetime}")
+        
+        # 获取活动信息
+        activity = db.get_or_404(Activity, activity_id)
+        logger.info(f"获取活动信息: id={activity.id}, 标题={activity.title}")
+        
+        # 获取当前时间
+        now = get_beijing_time()
+        logger.info(f"获取当前北京时间: {now}")
         
         # 获取报名人数
-        registration_count = Registration.query.filter_by(
-            activity_id=id,
-            status='registered'
+        registration_count = Registration.query.filter(
+            Registration.activity_id == activity_id,
+            db.or_(
+                Registration.status == 'registered',
+                Registration.status == 'attended'
+            )
         ).count()
+        logger.info(f"获取报名人数: {registration_count}")
         
         # 获取签到人数
         checkin_count = Registration.query.filter(
-            Registration.activity_id == id,
+            Registration.activity_id == activity_id,
             Registration.check_in_time.isnot(None)
         ).count()
+        logger.info(f"获取签到人数: {checkin_count}")
         
         # 获取签到记录
         checkins = db.session.query(
             Registration.id,
-            Registration.check_in_time,
             StudentInfo.student_id,
             StudentInfo.real_name,
             StudentInfo.college,
-            StudentInfo.major
+            StudentInfo.major,
+            Registration.check_in_time
         ).join(
-            User, Registration.user_id == User.id
-        ).join(
-            StudentInfo, User.id == StudentInfo.user_id
+            StudentInfo, Registration.user_id == StudentInfo.user_id
         ).filter(
-            Registration.activity_id == id,
+            Registration.activity_id == activity_id,
             Registration.check_in_time.isnot(None)
         ).all()
+        logger.info(f"获取签到记录: {len(checkins)}条")
         
-        # 获取当前北京时间
-        now = get_beijing_time()
+        # 日志记录
+        logger.info(f"管理员访问签到模态框: 活动ID={activity_id}, 报名人数={registration_count}, 签到人数={checkin_count}")
         
-        return render_template('admin/checkin_modal.html', 
-                              activity=activity,
-                              registration_count=registration_count,
-                              checkin_count=checkin_count,
-                              checkins=checkins,
-                              now=now)
+        
+        return render_template(
+            'admin/checkin_modal.html',
+            activity=activity,
+            registration_count=registration_count,
+            checkin_count=checkin_count,
+            checkins=checkins,
+            now=now,
+            display_datetime=display_datetime,
+            csrf_token=csrf_token
+        )
+        
     except Exception as e:
-        logger.error(f"Error in checkin_modal: {e}")
-        flash('加载签到页面时出错', 'danger')
-        return redirect(url_for('admin.activity_view', id=id))
+        logger.error(f"签到模态框加载失败: {str(e)}", exc_info=True)
+        flash('加载签到管理界面失败', 'danger')
+        return redirect(url_for('admin.activities'))
+
+@admin_bp.route('/checkin-modal/<int:id>')
+@login_required
+@admin_required
+def checkin_modal_id(id):
+    """兼容旧版路由，重定向到新版签到模态框"""
+    return redirect(url_for('admin.checkin_modal', activity_id=id))
+
+@admin_bp.route('/admin/checkin-modal/<int:id>')
+@login_required
+@admin_required
+def checkin_modal_admin(id):
+    """兼容带admin前缀的路由，重定向到新版签到模态框"""
+    return redirect(url_for('admin.checkin_modal', activity_id=id))
 
 # 切换活动签到状态
 @admin_bp.route('/activity/<int:id>/toggle-checkin', methods=['POST'])
 @admin_required
 def toggle_checkin(id):
     try:
-        activity = Activity.query.get_or_404(id)
+        activity = db.get_or_404(Activity, id)
         
         # 获取当前状态
         current_status = getattr(activity, 'checkin_enabled', False)
@@ -1606,8 +1965,17 @@ def toggle_checkin(id):
         
         # 重定向回原页面
         referrer = request.referrer
-        if referrer and ('checkin/modal' in referrer):
-            return redirect(url_for('admin.checkin_modal', id=id))
+        if referrer:
+            # 修复：检查是否在checkin_modal页面
+            if 'checkin-modal' in referrer:
+                return redirect(url_for('admin.checkin_modal_id', id=id))
+            # 检查是否有其他特殊页面
+            elif '/admin/activity/' in referrer and '/view' in referrer:
+                return redirect(url_for('admin.activity_view', id=id))
+            # 否则返回到原始页面
+            return redirect(referrer)
+        
+        # 如果没有referrer，默认回到活动详情页
         return redirect(url_for('admin.activity_view', id=id))
     except Exception as e:
         db.session.rollback()
@@ -1791,7 +2159,7 @@ def reset_system():
                     'email': user.email,
                     'role_id': user.role_id,
                     'active': user.active
-                } for user in User.query.all()
+                } for user in db.session.execute(db.select(User)).scalars().all()
             ]
             backup_data['data']['student_info'] = [
                 {
@@ -1806,7 +2174,7 @@ def reset_system():
                     'qq': info.qq,
                     'points': info.points,
                     'has_selected_tags': info.has_selected_tags
-                } for info in StudentInfo.query.all()
+                } for info in db.session.execute(db.select(StudentInfo)).scalars().all()
             ]
         
         # 备份活动数据
@@ -1825,7 +2193,7 @@ def reset_system():
                     'is_featured': activity.is_featured,
                     'points': activity.points,
                     'created_by': activity.created_by
-                } for activity in Activity.query.all()
+                } for activity in db.session.execute(db.select(Activity)).scalars().all()
             ]
         
         # 备份报名数据
@@ -1838,7 +2206,7 @@ def reset_system():
                     'check_in_time': reg.check_in_time.isoformat() if reg.check_in_time else None,
                     'status': reg.status,
                     'remark': reg.remark
-                } for reg in Registration.query.all()
+                } for reg in db.session.execute(db.select(Registration)).scalars().all()
             ]
         
         # 备份标签数据
@@ -1848,7 +2216,7 @@ def reset_system():
                     'name': tag.name,
                     'description': tag.description,
                     'color': tag.color
-                } for tag in Tag.query.all()
+                } for tag in db.session.execute(db.select(Tag)).scalars().all()
             ]
         
         # 保存备份文件
@@ -1939,12 +2307,12 @@ def reset_system():
                 db.session.commit()
                 
                 # 重新创建角色
-                admin_role = Role.query.filter_by(name='Admin').first()
+                admin_role = db.session.execute(db.select(Role).filter_by(name='Admin')).scalar_one_or_none()
                 if not admin_role:
                     admin_role = Role(name='Admin', description='管理员')
                     db.session.add(admin_role)
                 
-                student_role = Role.query.filter_by(name='Student').first()
+                student_role = db.session.execute(db.select(Role).filter_by(name='Student')).scalar_one_or_none()
                 if not student_role:
                     student_role = Role(name='Student', description='学生')
                     db.session.add(student_role)
@@ -1956,6 +2324,7 @@ def reset_system():
                 db.session.rollback()
                 logger.error(f"重置用户数据时出错: {str(e)}")
                 flash(f'重置用户数据时出错: {str(e)}', 'danger')
+        
         
         if reset_logs:
             # 清空日志文件
@@ -2001,6 +2370,11 @@ def notifications():
 @admin_required
 def create_notification():
     try:
+        # 创建Flask-WTF表单对象
+        from flask_wtf import FlaskForm
+        
+        form = FlaskForm()
+        
         if request.method == 'POST':
             title = request.form.get('title')
             content = request.form.get('content')
@@ -2026,8 +2400,10 @@ def create_notification():
                 title=title,
                 content=content,
                 is_important=is_important,
+                created_at=datetime.now(),
                 created_by=current_user.id,
-                expiry_date=expiry_date
+                expiry_date=expiry_date,
+                is_public=True  # 默认为公开通知
             )
             
             db.session.add(notification)
@@ -2037,7 +2413,7 @@ def create_notification():
             flash('通知创建成功', 'success')
             return redirect(url_for('admin.notifications'))
         
-        return render_template('admin/notification_form.html', title='创建通知')
+        return render_template('admin/notification_form.html', title='创建通知', form=form)
     except Exception as e:
         logger.error(f"Error in create_notification: {e}")
         flash('创建通知时出错', 'danger')
@@ -2047,7 +2423,12 @@ def create_notification():
 @admin_required
 def edit_notification(id):
     try:
-        notification = Notification.query.get_or_404(id)
+        notification = db.get_or_404(Notification, id)
+        
+        # 创建Flask-WTF表单对象
+        from flask_wtf import FlaskForm
+        
+        form = FlaskForm()
         
         if request.method == 'POST':
             title = request.form.get('title')
@@ -2090,7 +2471,8 @@ def edit_notification(id):
         return render_template('admin/notification_form.html', 
                               notification=notification,
                               expiry_date=expiry_date,
-                              title='编辑通知')
+                              title='编辑通知',
+                              form=form)
     except Exception as e:
         logger.error(f"Error in edit_notification: {e}")
         flash('编辑通知时出错', 'danger')
@@ -2100,7 +2482,7 @@ def edit_notification(id):
 @admin_required
 def delete_notification(id):
     try:
-        notification = Notification.query.get_or_404(id)
+        notification = db.get_or_404(Notification, id)
         
         # 删除所有关联的已读记录
         NotificationRead.query.filter_by(notification_id=id).delete()
@@ -2122,27 +2504,68 @@ def delete_notification(id):
 @admin_required
 def messages():
     try:
+        # 记录日志
+        logger.info("开始加载管理员站内信页面")
+        logger.info(f"当前用户ID: {current_user.id}, 用户名: {current_user.username}")
+        
         page = request.args.get('page', 1, type=int)
         filter_type = request.args.get('filter', 'all')
         
+        logger.info(f"过滤类型: {filter_type}, 页码: {page}")
+        
+        # 检查数据库中是否存在消息
+        total_messages = db.session.execute(db.select(func.count()).select_from(Message)).scalar()
+        logger.info(f"数据库中总消息数: {total_messages}")
+        
+        # 检查当前用户的消息
+        sent_count = db.session.execute(db.select(func.count()).select_from(Message).filter_by(sender_id=current_user.id)).scalar()
+        received_count = db.session.execute(db.select(func.count()).select_from(Message).filter_by(receiver_id=current_user.id)).scalar()
+        logger.info(f"当前用户发送的消息: {sent_count}, 接收的消息: {received_count}")
+        
+        # 检查是否有可用的接收者
+        available_receivers = db.session.execute(db.select(func.count()).select_from(User).filter(User.id != current_user.id)).scalar()
+        if available_receivers == 0:
+            flash('系统中没有其他用户，无法发送消息', 'warning')
+            logger.warning("系统中没有可用的消息接收者")
+        
         # 根据过滤类型查询消息
         if filter_type == 'sent':
+            logger.info("查询已发送消息")
             query = Message.query.filter_by(sender_id=current_user.id)
         elif filter_type == 'received':
+            logger.info("查询已接收消息")
             query = Message.query.filter_by(receiver_id=current_user.id)
         else:  # 'all'
+            logger.info("查询所有消息")
+            # 使用显式导入的or_
+            from sqlalchemy import or_
             query = Message.query.filter(or_(
                 Message.sender_id == current_user.id,
                 Message.receiver_id == current_user.id
             ))
         
+        logger.info("执行分页查询")
         messages = query.order_by(Message.created_at.desc()).paginate(page=page, per_page=10)
+        logger.info(f"查询到消息数量: {len(messages.items) if messages else 0}")
+        
+        # 检查每条消息的详细信息
+        if messages and messages.items:
+            for i, msg in enumerate(messages.items):
+                logger.info(f"消息 {i+1}: ID={msg.id}, 主题={msg.subject}, 发送者ID={msg.sender_id}, 接收者ID={msg.receiver_id}, 时间={msg.created_at}")
+        
+        logger.info("渲染站内信模板")
+        # 导入display_datetime函数供模板使用
+        from src.utils.time_helpers import display_datetime
         
         return render_template('admin/messages.html', 
                               messages=messages, 
-                              filter_type=filter_type)
+                              filter_type=filter_type,
+                              no_receivers=(available_receivers == 0),
+                              display_datetime=display_datetime)
     except Exception as e:
-        logger.error(f"Error in messages page: {e}")
+        logger.error(f"Error in messages page: {str(e)}")
+        import traceback
+        logger.error(f"详细错误信息: {traceback.format_exc()}")
         flash('加载消息列表时出错', 'danger')
         return redirect(url_for('admin.dashboard'))
 
@@ -2160,7 +2583,7 @@ def create_message():
                 return redirect(url_for('admin.create_message'))
             
             # 验证接收者是否存在
-            receiver = User.query.get(receiver_id)
+            receiver = db.session.get(User, receiver_id)
             if not receiver:
                 flash('收件人不存在', 'danger')
                 return redirect(url_for('admin.create_message'))
@@ -2195,19 +2618,37 @@ def create_message():
 @admin_required
 def view_message(id):
     try:
-        message = Message.query.get_or_404(id)
+        # 查询消息
+        message = db.get_or_404(Message, id)
         
-        # 验证当前用户是否是消息的发送者或接收者
-        if message.sender_id != current_user.id and message.receiver_id != current_user.id:
-            flash('您无权查看此消息', 'danger')
-            return redirect(url_for('admin.messages'))
+        # 预加载发送者和接收者信息，避免在模板中引发懒加载
+        sender = db.session.get(User, message.sender_id) if message.sender_id else None
+        receiver = db.session.get(User, message.receiver_id) if message.receiver_id else None
         
-        # 如果当前用户是接收者且消息未读，则标记为已读
+        sender_info = None
+        receiver_info = None
+        
+        if sender:
+            sender_info = db.session.execute(db.select(StudentInfo).filter_by(user_id=sender.id)).scalar_one_or_none()
+        
+        if receiver:
+            receiver_info = db.session.execute(db.select(StudentInfo).filter_by(user_id=receiver.id)).scalar_one_or_none()
+        
+        # 如果当前管理员是接收者且消息未读，则标记为已读
         if message.receiver_id == current_user.id and not message.is_read:
             message.is_read = True
             db.session.commit()
-        
-        return render_template('admin/message_view.html', message=message)
+            
+        # 导入display_datetime
+        from src.utils.time_helpers import display_datetime
+            
+        return render_template('admin/message_view.html',
+                             message=message,
+                             sender=sender,
+                             receiver=receiver,
+                             sender_info=sender_info,
+                             receiver_info=receiver_info,
+                             display_datetime=display_datetime)
     except Exception as e:
         logger.error(f"Error in view_message: {e}")
         flash('查看消息时出错', 'danger')
@@ -2217,7 +2658,7 @@ def view_message(id):
 @admin_required
 def delete_message(id):
     try:
-        message = Message.query.get_or_404(id)
+        message = db.get_or_404(Message, id)
         
         # 验证当前用户是否是消息的发送者或接收者
         if message.sender_id != current_user.id and message.receiver_id != current_user.id:
@@ -2396,3 +2837,270 @@ def fix_timezone():
         logger.error(f"Error in fix_timezone: {e}")
         flash('访问时区修复页面时出错', 'danger')
         return redirect(url_for('admin.dashboard'))
+
+@admin_bp.route('/activity/<int:id>/change_status', methods=['POST'])
+@admin_required
+def change_activity_status(id):
+    try:
+        activity = db.get_or_404(Activity, id)
+        new_status = request.form.get('status')
+        
+        if new_status not in ['draft', 'pending', 'approved', 'active', 'completed', 'cancelled']:
+            return jsonify({'success': False, 'message': '无效的状态'}), 400
+        
+        old_status = activity.status
+        activity.status = new_status
+        
+        # 如果状态变为已完成，记录完成时间
+        if new_status == 'completed' and not activity.completed_at:
+            activity.completed_at = datetime.now()
+            
+        db.session.commit()
+        
+        log_action('change_activity_status', f'更改活动状态: {activity.title}, 从 {old_status} 到 {new_status}')
+        return jsonify({'success': True, 'message': '活动状态已更新'})
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"更改活动状态出错: {e}")
+        return jsonify({'success': False, 'message': '更改活动状态时出错'}), 500
+
+@admin_bp.route('/activity/<int:activity_id>/manual_checkin', methods=['POST'])
+@admin_required
+def manual_checkin(activity_id):
+    try:
+        registration_id = request.form.get('registration_id')
+        registration = db.get_or_404(Registration, registration_id)
+        
+        # 确保登记与活动匹配
+        if registration.activity_id != activity_id:
+            return jsonify({'success': False, 'message': '登记记录与活动不匹配'}), 400
+        
+        # 设置签到时间
+        registration.check_in_time = get_beijing_time()
+        
+        # 更新状态为已参加
+        registration.status = 'attended'
+        
+        # 检查是否需要添加积分
+        activity = db.session.get(Activity, activity_id)
+        student_info = StudentInfo.query.join(User).filter(User.id == registration.user_id).first()
+        
+        if student_info and activity and registration.status != 'attended':
+            points = activity.points or (20 if activity.is_featured else 10)
+            add_points(student_info.id, points, f"参与活动：{activity.title}", activity.id)
+        
+        db.session.commit()
+        
+        log_action('manual_checkin', f'管理员手动签到: 活动={activity.title}, 学生={student_info.real_name if student_info else "未知"}')
+        return jsonify({'success': True, 'message': '签到成功'})
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"手动签到出错: {e}")
+        return jsonify({'success': False, 'message': '签到失败'}), 500
+
+@admin_bp.route('/activity/<int:activity_id>/cancel_checkin', methods=['POST'])
+@admin_required
+def cancel_checkin(activity_id):
+    try:
+        registration_id = request.form.get('registration_id')
+        registration = db.get_or_404(Registration, registration_id)
+        
+        # 确保登记与活动匹配
+        if registration.activity_id != activity_id:
+            return jsonify({'success': False, 'message': '登记记录与活动不匹配'}), 400
+        
+        # 判断原来是否已签到
+        was_checked_in = registration.check_in_time is not None
+        
+        # 清除签到时间
+        registration.check_in_time = None
+        
+        # 如果状态是已参与，改回已报名
+        if registration.status == 'attended':
+            registration.status = 'registered'
+            
+            # 扣除积分
+            activity = db.session.get(Activity, activity_id)
+            student_info = StudentInfo.query.join(User).filter(User.id == registration.user_id).first()
+            
+            if student_info and activity and was_checked_in:
+                points = activity.points or (20 if activity.is_featured else 10)
+                add_points(student_info.id, -points, f"取消参与活动：{activity.title}", activity.id)
+        
+        db.session.commit()
+        
+        log_action('cancel_checkin', f'取消签到: 活动ID={activity_id}, 登记ID={registration_id}')
+        return jsonify({'success': True, 'message': '已取消签到'})
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"取消签到出错: {e}")
+        return jsonify({'success': False, 'message': '取消签到失败'}), 500
+
+# 添加积分辅助函数
+def add_points(student_id, points, reason, activity_id=None):
+    """为学生添加或扣除积分
+    
+    Args:
+        student_id: 学生信息ID
+        points: 积分变化，正数为增加，负数为减少
+        reason: 积分变化原因
+        activity_id: 相关活动ID，可选
+        
+    Returns:
+        bool: 操作是否成功
+    """
+    try:
+        # 获取学生信息
+        student_info = db.session.get(StudentInfo, student_id)
+        if not student_info:
+            logger.error(f"添加积分失败: 学生ID {student_id} 不存在")
+            return False
+        
+        # 更新积分
+        student_info.points = (student_info.points or 0) + points
+        
+        # 创建积分历史记录
+        points_history = PointsHistory(
+            student_id=student_id,
+            points=points,
+            reason=reason,
+            activity_id=activity_id
+        )
+        
+        db.session.add(points_history)
+        db.session.commit()
+        
+        logger.info(f"积分更新成功: 学生ID {student_id}, 变化 {points}, 原因: {reason}")
+        return True
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"添加积分失败: {e}")
+        return False
+
+# 添加时间本地化辅助函数
+def localize_time(dt):
+    """将UTC时间转换为北京时间
+    
+    Args:
+        dt: 日期时间对象
+        
+    Returns:
+        datetime: 北京时间
+    """
+    if dt is None:
+        return None
+    
+    # 确保时间是UTC时区
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=pytz.UTC)
+    
+    # 转换为北京时间
+    beijing_tz = pytz.timezone('Asia/Shanghai')
+    return dt.astimezone(beijing_tz)
+
+# 公告管理路由
+@admin_bp.route('/announcements')
+@admin_required
+def announcements():
+    try:
+        page = request.args.get('page', 1, type=int)
+        announcements = Announcement.query.order_by(Announcement.created_at.desc()).paginate(page=page, per_page=10)
+        
+        # 确保display_datetime函数在模板中可用
+        return render_template('admin/announcements.html', 
+                              announcements=announcements,
+                              display_datetime=display_datetime)
+    except Exception as e:
+        logger.error(f"Error in announcements page: {e}")
+        flash('加载公告列表时出错', 'danger')
+        return redirect(url_for('admin.dashboard'))
+
+@admin_bp.route('/announcement/create', methods=['GET', 'POST'])
+@admin_required
+def create_announcement():
+    try:
+        if request.method == 'POST':
+            title = request.form.get('title')
+            content = request.form.get('content')
+            status = request.form.get('status', 'published')
+            
+            if not title or not content:
+                flash('标题和内容不能为空', 'danger')
+                return redirect(url_for('admin.create_announcement'))
+            
+            # 创建公告
+            announcement = Announcement(
+                title=title,
+                content=content,
+                status=status,
+                created_by=current_user.id,
+                created_at=datetime.now(),
+                updated_at=datetime.now()
+            )
+            
+            db.session.add(announcement)
+            db.session.commit()
+            
+            log_action('create_announcement', f'创建公告: {title}')
+            flash('公告创建成功', 'success')
+            return redirect(url_for('admin.announcements'))
+        
+        return render_template('admin/announcement_form.html', title='创建公告')
+    except Exception as e:
+        logger.error(f"Error in create_announcement: {e}")
+        flash('创建公告时出错', 'danger')
+        return redirect(url_for('admin.announcements'))
+
+@admin_bp.route('/announcement/<int:id>/edit', methods=['GET', 'POST'])
+@admin_required
+def edit_announcement(id):
+    try:
+        announcement = db.get_or_404(Announcement, id)
+        
+        if request.method == 'POST':
+            title = request.form.get('title')
+            content = request.form.get('content')
+            status = request.form.get('status', 'published')
+            
+            if not title or not content:
+                flash('标题和内容不能为空', 'danger')
+                return redirect(url_for('admin.edit_announcement', id=id))
+            
+            # 更新公告
+            announcement.title = title
+            announcement.content = content
+            announcement.status = status
+            announcement.updated_at = datetime.now()
+            
+            db.session.commit()
+            
+            log_action('edit_announcement', f'编辑公告: {title}')
+            flash('公告更新成功', 'success')
+            return redirect(url_for('admin.announcements'))
+        
+        return render_template('admin/announcement_form.html', 
+                              announcement=announcement,
+                              title='编辑公告')
+    except Exception as e:
+        logger.error(f"Error in edit_announcement: {e}")
+        flash('编辑公告时出错', 'danger')
+        return redirect(url_for('admin.announcements'))
+
+@admin_bp.route('/announcement/<int:id>/delete', methods=['POST'])
+@admin_required
+def delete_announcement(id):
+    try:
+        announcement = db.get_or_404(Announcement, id)
+        
+        # 删除公告
+        db.session.delete(announcement)
+        db.session.commit()
+        
+        log_action('delete_announcement', f'删除公告: {announcement.title}')
+        flash('公告已删除', 'success')
+        return redirect(url_for('admin.announcements'))
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error in delete_announcement: {e}")
+        flash('删除公告时出错', 'danger')
+        return redirect(url_for('admin.announcements'))

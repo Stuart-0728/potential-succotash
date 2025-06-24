@@ -9,7 +9,7 @@ import json
 import random
 import string
 from datetime import datetime, timedelta
-from src.models import db, Activity, Tag, StudentInfo, SystemLog, Registration, AIChatHistory, AIChatSession, activity_tags, PointsHistory, User, Role
+from src.models import db, Activity, Tag, StudentInfo, SystemLog, Registration, AIChatHistory, AIChatSession, activity_tags, PointsHistory, User, Role, Message
 from src.utils.time_helpers import get_beijing_time, ensure_timezone_aware
 
 utils_bp = Blueprint('utils', __name__)
@@ -21,50 +21,33 @@ def admin_required(f):
     @login_required
     def decorated_function(*args, **kwargs):
         try:
-            # 1. 验证用户认证状态
+            # 验证用户是否为管理员
             if not current_user.is_authenticated:
-                logger.warning(f"Unauthenticated access attempt to {request.path}")
+                logger.warning(f"未认证的访问尝试: {request.path}")
                 flash('请先登录', 'danger')
                 return redirect(url_for('auth.login'))
             
-            # 2. 验证用户对象完整性
-            if not current_user or not hasattr(current_user, 'role_id'):
-                logger.error(f"User object integrity error - user: {current_user}, path: {request.path}")
-                flash('用户信息不完整', 'danger')
+            # 检查用户角色
+            if not hasattr(current_user, 'role') or not current_user.role:
+                logger.error(f"用户没有角色: {current_user.username}")
+                flash('您没有被分配角色', 'danger')
                 return redirect(url_for('main.index'))
-
-            # 3. 验证角色信息
-            if not current_user.role_id:
-                logger.error(f"User has no role_id - user: {current_user.username}, path: {request.path}")
-                flash('未分配用户角色', 'danger')
-                return redirect(url_for('main.index'))
-
-            # 4. 验证角色对象
-            if not current_user.role:
-                logger.error(f"Role object not found - user: {current_user.username}, role_id: {current_user.role_id}, path: {request.path}")
-                flash('角色信息不存在', 'danger')
-                return redirect(url_for('main.index'))
-
-            # 5. 验证角色名称
-            role_name = getattr(current_user.role, 'name', '')
-            if not role_name:
-                logger.error(f"Role has no name - user: {current_user.username}, role: {current_user.role}, path: {request.path}")
-                flash('角色名称未定义', 'danger')
-                return redirect(url_for('main.index'))
-
-            # 6. 验证管理员权限
-            if role_name.lower() != 'admin':
-                logger.warning(f"Non-admin access attempt - user: {current_user.username}, role: {role_name}, path: {request.path}")
+            
+            # 检查角色名称
+            if not hasattr(current_user.role, 'name') or current_user.role.name.lower() != 'admin':
+                # 特殊情况：允许所有用户访问/activities路由
+                if request.path == '/activities' or request.path.startswith('/activities/'):
+                    return f(*args, **kwargs)
+                
+                logger.warning(f"非管理员访问尝试: {current_user.username}, 路径: {request.path}")
                 flash('您没有管理员权限', 'danger')
                 return redirect(url_for('main.index'))
-
+            
             # 权限验证通过
-            logger.info(f"Admin access granted - user: {current_user.username}, path: {request.path}")
             return f(*args, **kwargs)
-
+            
         except Exception as e:
-            logger.error(f"Error in admin_required - user: {getattr(current_user, 'username', 'Unknown')}, "
-                        f"path: {request.path}, error: {str(e)}")
+            logger.error(f"admin_required装饰器错误: {str(e)}")
             flash('权限验证时出错', 'danger')
             return redirect(url_for('main.index'))
     return decorated_function
@@ -140,7 +123,7 @@ def api_response(success, message, data=None, status_code=200):
 def check_in(activity_id, registration_id):
     from src.models import Registration, db
     try:
-        registration = Registration.query.get_or_404(registration_id)
+        registration = db.get_or_404(Registration, registration_id)
         
         # 确认是否为指定活动的报名
         if registration.activity_id != activity_id:
@@ -165,7 +148,7 @@ def check_in(activity_id, registration_id):
 def cancel_registration(activity_id, registration_id):
     from src.models import Registration, db
     try:
-        registration = Registration.query.get_or_404(registration_id)
+        registration = db.get_or_404(Registration, registration_id)
         
         # 确认是否为指定活动的报名
         if registration.activity_id != activity_id:
@@ -185,12 +168,23 @@ def cancel_registration(activity_id, registration_id):
         return api_response(False, f'取消报名失败: {str(e)}', status_code=500)
 
 def get_interest_activities(user_id, limit=10):
-    student_info = StudentInfo.query.filter_by(user_id=user_id).first()
+    student_info = db.session.execute(db.select(StudentInfo).filter_by(user_id=user_id)).scalar_one_or_none()
     if not student_info or not student_info.tags:
         # 没有兴趣标签则返回最新活动
-        return Activity.query.order_by(Activity.created_at.desc()).limit(limit).all()
+        return db.session.execute(db.select(Activity).order_by(Activity.created_at.desc()).limit(limit)).scalars().all()
+    
     tag_ids = [tag.id for tag in student_info.tags]
-    activities = Activity.query.join(Activity.tags).filter(Tag.id.in_(tag_ids)).order_by(Activity.created_at.desc()).distinct().limit(limit).all()
+    
+    # 使用SQLAlchemy 2.0风格查询
+    activities_stmt = db.select(Activity).join(
+        activity_tags, Activity.id == activity_tags.c.activity_id
+    ).join(
+        Tag, Tag.id == activity_tags.c.tag_id
+    ).filter(
+        Tag.id.in_(tag_ids)
+    ).order_by(Activity.created_at.desc()).distinct().limit(limit)
+    
+    activities = db.session.execute(activities_stmt).scalars().all()
     return activities
 
 def build_activity_context(activities):
@@ -266,12 +260,12 @@ def ai_chat():
 """
     else:  # 管理员用户
         # 获取统计数据
-        total_activities = Activity.query.count()
-        active_activities = Activity.query.filter_by(status='active').count()
-        completed_activities = Activity.query.filter_by(status='completed').count()
-        total_students = StudentInfo.query.count()
-        total_registrations = Registration.query.count()
-        attended_registrations = Registration.query.filter_by(status='checked_in').count()
+        total_activities = db.session.execute(db.select(func.count()).select_from(Activity)).scalar()
+        active_activities = db.session.execute(db.select(func.count()).select_from(Activity).filter_by(status='active')).scalar()
+        completed_activities = db.session.execute(db.select(func.count()).select_from(Activity).filter_by(status='completed')).scalar()
+        total_students = db.session.execute(db.select(func.count()).select_from(StudentInfo)).scalar()
+        total_registrations = db.session.execute(db.select(func.count()).select_from(Registration)).scalar()
+        attended_registrations = db.session.execute(db.select(func.count()).select_from(Registration).filter_by(status='checked_in')).scalar()
         
         # 获取活动参与度
         if total_registrations > 0:
@@ -306,7 +300,7 @@ def ai_chat():
     if session_id:
         try:
             # 检查会话是否存在，如果不存在则创建
-            session = AIChatSession.query.get(session_id)
+            session = db.session.get(AIChatSession, session_id)
             if not session:
                 session = AIChatSession(id=session_id, user_id=current_user.id)
                 db.session.add(session)
@@ -416,7 +410,7 @@ def ai_chat():
                     # 创建一个新的请求上下文
                     with app.app_context():
                         # 检查会话是否存在
-                        session = AIChatSession.query.filter_by(id=current_session_id).first()
+                        session = db.session.execute(db.select(AIChatSession).filter_by(id=current_session_id)).scalar_one_or_none()
                         if not session:
                             # 如果会话不存在，创建新会话
                             session = AIChatSession(id=current_session_id, user_id=current_user_id)
@@ -517,10 +511,10 @@ def ai_chat_clear_history():
     
     try:
         # 查询该会话是否属于当前用户
-        session = AIChatSession.query.filter_by(
+        session = db.session.execute(db.select(AIChatSession).filter_by(
             id=session_id,
             user_id=current_user.id
-        ).first()
+        )).scalar_one_or_none()
         
         if not session:
             return jsonify({
@@ -561,9 +555,9 @@ def ai_chat_clear_all_history():
     """清除用户所有AI聊天历史记录"""
     try:
         # 查询用户的所有会话
-        sessions = AIChatSession.query.filter_by(
+        sessions = db.session.execute(db.select(AIChatSession).filter_by(
             user_id=current_user.id
-        ).all()
+        )).scalars().all()
         
         # 记录会话数量用于日志
         session_count = len(sessions)
@@ -613,7 +607,7 @@ def add_points(user_id, points, reason, activity_id=None):
         from src.models import StudentInfo, PointsHistory
         
         # 查找学生信息
-        student_info = StudentInfo.query.filter_by(user_id=user_id).first()
+        student_info = db.session.execute(db.select(StudentInfo).filter_by(user_id=user_id)).scalar_one_or_none()
         if not student_info:
             logger.error(f"添加积分失败: 找不到用户ID为 {user_id} 的学生信息")
             return False

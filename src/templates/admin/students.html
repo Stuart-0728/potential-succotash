@@ -49,6 +49,8 @@
                             <th>年级</th>
                             <th>学院</th>
                             <th>专业</th>
+                            <th>QQ</th>
+                            <th>标签状态</th>
                             <th>积分</th>
                             <th>操作</th>
                         </tr>
@@ -62,6 +64,14 @@
                             <td>{{ student.grade }}</td>
                             <td>{{ student.college }}</td>
                             <td>{{ student.major }}</td>
+                            <td>{{ student.qq or '-' }}</td>
+                            <td>
+                                {% if student.has_selected_tags %}
+                                <span class="badge bg-success">已选择</span>
+                                {% else %}
+                                <span class="badge bg-warning">未选择</span>
+                                {% endif %}
+                            </td>
                             <td>
                                 <span class="badge bg-primary rounded-pill">{{ student.points or 0 }}</span>
                             </td>

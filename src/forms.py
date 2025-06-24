@@ -5,7 +5,8 @@ from flask_wtf.file import FileField, FileAllowed
 from .models import Tag  # Import the Tag model
 import pytz
 from datetime import datetime
-from .utils.time_helpers import get_beijing_time, localize_time, ensure_timezone_aware, is_render_environment
+from .utils.time_helpers import get_beijing_time, localize_time, ensure_timezone_aware, is_render_environment, normalize_datetime_for_db
+import logging
 
 class LocalizedDateTimeField(DateTimeField):
     """本地化的日期时间字段，自动处理时区转换"""
@@ -17,50 +18,63 @@ class LocalizedDateTimeField(DateTimeField):
         """处理表单数据，将输入的时间视为北京时间"""
         super(LocalizedDateTimeField, self).process_formdata(valuelist)
         if self.data:
-            # 将时间视为北京时间，添加时区信息
-            beijing_tz = pytz.timezone('Asia/Shanghai')
-            # 确保添加正确的时区信息
-            if self.data.tzinfo is None:
-                self.data = beijing_tz.localize(self.data)
-            else:
-                # 如果已有时区信息，确保是北京时间
-                self.data = self.data.astimezone(beijing_tz)
+            try:
+                # 将时间视为北京时间，添加时区信息
+                beijing_tz = pytz.timezone('Asia/Shanghai')
+                # 确保添加正确的时区信息
+                if self.data.tzinfo is None:
+                    self.data = beijing_tz.localize(self.data)
+                    logging.info(f"LocalizedDateTimeField添加了北京时区: {self.data}")
+            except Exception as e:
+                logging.error(f"处理表单日期时间出错: {e}, data={self.data}")
     
     def _value(self):
-        """格式化时间为表单显示格式"""
+        """返回表单字段显示值，如果有UTC时间则转换为北京时间"""
         if self.data:
-            # 确保时间是北京时间
-            beijing_tz = pytz.timezone('Asia/Shanghai')
-            if self.data.tzinfo is None:
-                localized_data = beijing_tz.localize(self.data)
-            else:
-                localized_data = self.data.astimezone(beijing_tz)
-            
-            # 使用字符串格式而不是列表
-            format_str = self.format
-            if isinstance(format_str, list):
-                format_str = format_str[0]
-            
-            return localized_data.strftime(format_str)
+            try:
+                # 获取格式化字符串
+                format_str = self.format
+                if isinstance(format_str, list):
+                    format_str = format_str[0]
+                
+                # 如果已有时区信息，转换为北京时间
+                if self.data.tzinfo is not None:
+                    beijing_tz = pytz.timezone('Asia/Shanghai')
+                    beijing_time = self.data.astimezone(beijing_tz)
+                    return beijing_time.strftime(format_str)
+                else:
+                    # 如果没有时区信息，假设是UTC时间，先添加UTC时区再转换为北京时间
+                    utc_tz = pytz.UTC
+                    utc_time = utc_tz.localize(self.data)
+                    beijing_tz = pytz.timezone('Asia/Shanghai')
+                    beijing_time = utc_time.astimezone(beijing_tz)
+                    return beijing_time.strftime(format_str)
+            except Exception as e:
+                logging.error(f"获取表单字段显示值出错: {e}, data={self.data}")
+                return ""
+        
+        # 如果没有数据，返回空字符串
         return ''
     
     def populate_obj(self, obj, name):
-        """确保向对象填充时区感知的日期时间"""
-        if self.data is not None:
-            # 确保数据有时区信息
-            data = ensure_timezone_aware(self.data)
-            
-            # 关键修复：无论在什么环境下，都保持北京时间，不做UTC转换
-            # 这样可以避免在Render环境中减去8小时的问题
-            if data is not None:  # 确保data不是None
-                beijing_tz = pytz.timezone('Asia/Shanghai')
-                if data.tzinfo is None:
-                    data = beijing_tz.localize(data)
-                else:
-                    data = data.astimezone(beijing_tz)
+        """将表单数据保存到对象属性时，保存为UTC时间"""
+        if self.data:
+            try:
+                # 确保有时区信息
+                if self.data.tzinfo is None:
+                    beijing_tz = pytz.timezone('Asia/Shanghai')
+                    self.data = beijing_tz.localize(self.data)
+                    logging.info(f"populate_obj时添加了北京时区: {self.data}")
                 
-            # 设置属性值，保留时区信息
-            setattr(obj, name, data)
+                # 转换为UTC时间后去除时区信息
+                utc_time = self.data.astimezone(pytz.UTC).replace(tzinfo=None)
+                logging.info(f"将表单时间保存为UTC时间: 原时间={self.data}, UTC时间={utc_time}")
+                setattr(obj, name, utc_time)
+            except Exception as e:
+                logging.error(f"保存表单时间到对象出错: {e}, data={self.data}")
+                setattr(obj, name, None)
+        else:
+            setattr(obj, name, None)
 
 class ActivityForm(FlaskForm):
     title = StringField('活动标题', validators=[DataRequired(message='活动标题不能为空')])

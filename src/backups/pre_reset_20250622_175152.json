@@ -1,0 +1,82 @@
+{
+  "data": {
+    "users": [
+      {
+        "username": "stuart",
+        "email": "admin@cqnu.edu.cn",
+        "role_id": 1,
+        "active": true
+      },
+      {
+        "username": "connor",
+        "email": "1078184866@qq.com",
+        "role_id": 2,
+        "active": true
+      }
+    ],
+    "student_info": [
+      {
+        "user_id": 2,
+        "student_id": "2022058890789",
+        "real_name": "罗一鑫",
+        "gender": null,
+        "grade": "2023级",
+        "college": "外国语学院",
+        "major": "英语",
+        "phone": "16623054613",
+        "qq": "1409820779",
+        "points": 0,
+        "has_selected_tags": true
+      }
+    ],
+    "activities": [
+      {
+        "title": "日常活动",
+        "description": "测试",
+        "location": "待定",
+        "start_time": "2025-06-23T12:00:00",
+        "end_time": "2025-06-23T13:00:00",
+        "registration_deadline": "2025-06-23T12:00:00",
+        "max_participants": 1,
+        "status": "active",
+        "type": "其他",
+        "is_featured": true,
+        "points": 20,
+        "created_by": 1
+      }
+    ],
+    "registrations": [],
+    "tags": [
+      {
+        "name": "讲座",
+        "description": "各类学术讲座",
+        "color": "primary"
+      },
+      {
+        "name": "实践",
+        "description": "实践活动",
+        "color": "success"
+      },
+      {
+        "name": "竞赛",
+        "description": "各类比赛",
+        "color": "danger"
+      },
+      {
+        "name": "文艺",
+        "description": "文艺活动",
+        "color": "info"
+      },
+      {
+        "name": "体育",
+        "description": "体育活动",
+        "color": "warning"
+      },
+      {
+        "name": "志愿",
+        "description": "志愿服务",
+        "color": "secondary"
+      }
+    ]
+  }
+}

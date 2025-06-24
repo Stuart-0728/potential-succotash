@@ -3,273 +3,417 @@
 {% block title %}活动详情 - {{ activity.title|default('未知活动') }} - 重庆师范大学师能素质协会{% endblock %}
 
 {% block content %}
-<div class="container mt-4">
-    <nav aria-label="breadcrumb">
-        <ol class="breadcrumb">
-            <li class="breadcrumb-item"><a href="{{ url_for('admin.dashboard') }}">管理面板</a></li>
-            <li class="breadcrumb-item"><a href="{{ url_for('admin.activities') }}">活动管理</a></li>
-            <li class="breadcrumb-item active" aria-current="page">活动详情</li>
-        </ol>
-    </nav>
+<div class="container-fluid py-4">
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-body p-4">
+                    <div class="d-flex justify-content-between align-items-center mb-4">
+                        <h3 class="card-title mb-0">
+                            {{ activity.title }}
+                            {% if activity.is_featured %}
+                            <span class="badge bg-warning ms-2" title="重点活动"><i class="fas fa-star"></i> 重点活动</span>
+                            {% endif %}
+                        </h3>
+                        <div>
+                            <a href="{{ url_for('admin.edit_activity', id=activity.id) }}" class="btn btn-outline-primary me-2">
+                                <i class="fas fa-edit me-1"></i> 编辑
+                            </a>
+                            <button class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteModal">
+                                <i class="fas fa-trash-alt me-1"></i> 删除
+                            </button>
+                        </div>
+                    </div>
 
-    <div class="card shadow-sm mb-4">
-        <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-            <h4 class="mb-0">{{ activity.title|default('未知活动') }}</h4>
-            <div>
-                <span class="badge {% if activity.status == 'active' %}bg-success{% elif activity.status == 'completed' %}bg-secondary{% else %}bg-danger{% endif %}">
-                    {% if activity.status == 'active' %}进行中{% elif activity.status == 'completed' %}已结束{% else %}已取消{% endif %}
-                </span>
+                    <div class="mb-4">
+                        {% if activity.poster %}
+                        <img src="{{ activity.poster }}" class="img-fluid rounded" style="max-height: 350px; width: auto; margin: 0 auto; display: block;">
+                        {% else %}
+                        <div class="alert alert-secondary text-center">未上传海报</div>
+                        {% endif %}
+                    </div>
+
+                    <div class="mb-4">
+                        <h5 class="mb-3 text-dark fw-bold"><i class="fas fa-info-circle me-2 text-primary"></i>活动详情</h5>
+                        <div class="p-3 bg-light rounded">
+                            <p class="mb-0">{{ activity.description|safe }}</p>
+                        </div>
+                    </div>
+
+                    <div class="mb-4">
+                        <h5 class="mb-3 text-dark fw-bold"><i class="fas fa-clipboard-list me-2 text-primary"></i>报名情况</h5>
+                        <div class="row g-4">
+                            <div class="col-md-3 col-sm-6">
+                                <div class="card border-0 bg-light h-100">
+                                    <div class="card-body text-center">
+                                        <h3 class="text-primary">{{ activity.max_participants }}</h3>
+                                        <p class="text-muted mb-0">最大人数</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3 col-sm-6">
+                                <div class="card border-0 bg-light h-100">
+                                    <div class="card-body text-center">
+                                        <h3 class="text-success">{{ registrations_count }}</h3>
+                                        <p class="text-muted mb-0">已报名</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3 col-sm-6">
+                                <div class="card border-0 bg-light h-100">
+                                    <div class="card-body text-center">
+                                        <h3 class="text-info">{{ checkins_count }}</h3>
+                                        <p class="text-muted mb-0">已签到</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3 col-sm-6">
+                                <div class="card border-0 bg-light h-100">
+                                    <div class="card-body text-center">
+                                        <h3 class="text-warning">{{ activity.points }}</h3>
+                                        <p class="text-muted mb-0">活动积分</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-4">
+                        <h5 class="mb-3 text-dark fw-bold"><i class="fas fa-user-graduate me-2 text-primary"></i>报名学生</h5>
+                        {% if registrations %}
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>学号</th>
+                                        <th>姓名</th>
+                                        <th>学院</th>
+                                        <th>专业</th>
+                                        <th>报名时间</th>
+                                        <th>签到状态</th>
+                                        <th>操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for reg in registrations %}
+                                    <tr>
+                                        <td>{{ reg.student.student_id }}</td>
+                                        <td>{{ reg.student.real_name }}</td>
+                                        <td>{{ reg.student.college }}</td>
+                                        <td>{{ reg.student.major }}</td>
+                                        <td>{{ display_datetime(reg.registration_time, 'Asia/Shanghai') }}</td>
+                                        <td>
+                                            {% if reg.check_in_time %}
+                                            <span class="badge bg-success">已签到 ({{ display_datetime(reg.check_in_time, 'Asia/Shanghai') }})</span>
+                                            {% else %}
+                                            <span class="badge bg-secondary">未签到</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if reg.check_in_time %}
+                                            <button class="btn btn-sm btn-outline-danger" onclick="cancelCheckin({{ reg.id }})">取消签到</button>
+                                            {% else %}
+                                            <button class="btn btn-sm btn-outline-success" onclick="manualCheckin({{ reg.id }})">签到</button>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        {% else %}
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle me-2"></i> 暂无学生报名
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <div class="d-flex justify-content-between">
+                        <a href="{{ url_for('admin.activities') }}" class="btn btn-secondary">
+                            <i class="fas fa-arrow-left me-2"></i>返回活动列表
+                        </a>
+                        {% if activity.status == 'active' %}
+                        <a href="{{ url_for('admin.checkin_modal', activity_id=activity.id) }}" class="btn btn-primary">
+                            <i class="fas fa-qrcode me-2"></i> 签到管理
+                        </a>
+                        {% endif %}
+                    </div>
+                </div>
             </div>
         </div>
-        <div class="card-body">
-            <div class="row mb-4">
-                <div class="col-md-6">
-                    <h5 class="border-bottom pb-2">基本信息</h5>
-                    <table class="table">
-                        <tr>
-                            <th style="width: 120px;">活动地点</th>
-                            <td>{{ activity.location }}</td>
-                        </tr>
-                        <tr>
-                            <th>开始时间</th>
-                            <td>{% if display_datetime is defined %}{{ display_datetime(activity.start_time) }}{% else %}{{ activity.start_time.strftime('%Y-%m-%d %H:%M') }}{% endif %}</td>
-                        </tr>
-                        <tr>
-                            <th>结束时间</th>
-                            <td>{% if display_datetime is defined %}{{ display_datetime(activity.end_time) }}{% else %}{{ activity.end_time.strftime('%Y-%m-%d %H:%M') }}{% endif %}</td>
-                        </tr>
-                        <tr>
-                            <th>报名截止</th>
-                            <td>{% if display_datetime is defined %}{{ display_datetime(activity.registration_deadline) }}{% else %}{{ activity.registration_deadline.strftime('%Y-%m-%d %H:%M') }}{% endif %}</td>
-                        </tr>
-                        <tr>
-                            <th>创建时间</th>
-                            <td>{% if display_datetime is defined %}{{ display_datetime(activity.created_at) }}{% else %}{{ activity.created_at.strftime('%Y-%m-%d %H:%M') }}{% endif %}</td>
-                        </tr>
-                    </table>
-                </div>
-                <div class="col-md-6">
-                    <h5 class="border-bottom pb-2">参与信息</h5>
-                    <table class="table">
-                        <tr>
-                            <th style="width: 120px;">最大人数</th>
-                            <td>{{ activity.max_participants if activity.max_participants > 0 else '不限' }}</td>
-                        </tr>
-                        <tr>
-                            <th>已报名</th>
-                            <td>{{ registered_count }}</td>
-                        </tr>
-                        <tr>
-                            <th>已签到</th>
-                            <td>{{ checked_in_count }}</td>
-                        </tr>
-                        <tr>
-                            <th>活动类型</th>
-                            <td>{{ activity.type or '未分类' }}</td>
-                        </tr>
-                        <tr>
-                            <th>活动积分</th>
-                            <td>{{ activity.points or '默认积分' }}</td>
-                        </tr>
-                    </table>
-                </div>
-            </div>
 
-            {% if activity.tags %}
-            <div class="mb-4">
-                <h5 class="border-bottom pb-2">活动标签</h5>
-                <div class="d-flex flex-wrap gap-2">
-                    {% for tag in activity.tags %}
-                        <span class="badge bg-info" style="{% if tag.color %}background-color: {{ tag.color }}!important;{% endif %}">
-                            {{ tag.name }}
-                        </span>
-                    {% endfor %}
-                </div>
-            </div>
-            {% endif %}
-
-            <div class="mb-4">
-                <h5 class="border-bottom pb-2">活动描述</h5>
-                <div class="activity-description">
-                    {% if activity.description %}
-                        {{ activity.description|safe }}
-                    {% else %}
-                        <p class="text-muted">暂无活动描述</p>
-                    {% endif %}
-                </div>
-            </div>
-
-            {% if activity.poster_url %}
-            <div class="mb-4">
-                <h5 class="border-bottom pb-2">活动海报</h5>
-                <div class="text-center">
-                    <img src="{{ activity.poster_url }}" alt="活动海报" class="img-fluid" style="max-height: 300px;">
-                </div>
-            </div>
-            {% endif %}
-
-            <div class="mb-4">
-                <h5 class="border-bottom pb-2">参与人员列表</h5>
-                {% if registrations %}
-                <div class="table-responsive">
-                    <table class="table table-hover">
-                        <thead>
-                            <tr>
-                                <th>姓名</th>
-                                <th>学号</th>
-                                <th>年级</th>
-                                <th>学院</th>
-                                <th>专业</th>
-                                <th>签到状态</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for registration in registrations %}
-                            <tr>
-                                <td>{{ registration.real_name|default('未知') }}</td>
-                                <td>{{ registration.student_id|default('未知') }}</td>
-                                <td>{{ registration.grade|default('未知') }}</td>
-                                <td>{{ registration.college|default('未知') }}</td>
-                                <td>{{ registration.major|default('未知') }}</td>
-                                <td>
-                                    {% if registration.check_in_time %}
-                                        <span class="badge bg-success">已签到 ({{ registration.check_in_time.strftime('%H:%M') }})</span>
-                                    {% else %}
-                                        <span class="badge bg-secondary">未签到</span>
+        <div class="col-md-4">
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-body p-4">
+                    <h5 class="card-title mb-4"><i class="fas fa-info-circle me-2 text-primary"></i>基本信息</h5>
+                    
+                    <div class="d-flex align-items-center mb-3 p-3 rounded bg-light">
+                        <div class="me-3 bg-primary rounded-circle p-2 text-white d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                            <i class="fas fa-map-marker-alt"></i>
+                        </div>
+                        <div>
+                            <p class="text-muted mb-0 small">活动地点</p>
+                            <p class="mb-0 fw-medium">{{ activity.location }}</p>
+                        </div>
+                    </div>
+                    
+                    <div class="d-flex align-items-center mb-3 p-3 rounded bg-light">
+                        <div class="me-3 bg-success rounded-circle p-2 text-white d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                            <i class="fas fa-calendar-alt"></i>
+                        </div>
+                        <div>
+                            <p class="text-muted mb-0 small">开始时间</p>
+                            <p class="mb-0 fw-medium">{{ display_datetime(activity.start_time, 'Asia/Shanghai') }}</p>
+                        </div>
+                    </div>
+                    
+                    <div class="d-flex align-items-center mb-3 p-3 rounded bg-light">
+                        <div class="me-3 bg-danger rounded-circle p-2 text-white d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                            <i class="fas fa-calendar-times"></i>
+                        </div>
+                        <div>
+                            <p class="text-muted mb-0 small">结束时间</p>
+                            <p class="mb-0 fw-medium">{{ display_datetime(activity.end_time, 'Asia/Shanghai') }}</p>
+                        </div>
+                    </div>
+                    
+                    <div class="d-flex align-items-center mb-3 p-3 rounded bg-light">
+                        <div class="me-3 bg-warning rounded-circle p-2 text-white d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                            <i class="fas fa-hourglass-end"></i>
+                        </div>
+                        <div>
+                            <p class="text-muted mb-0 small">报名截止</p>
+                            <p class="mb-0 fw-medium">{{ display_datetime(activity.registration_deadline, 'Asia/Shanghai') }}</p>
+                        </div>
+                    </div>
+                    
+                    <div class="d-flex align-items-center mb-3 p-3 rounded bg-light">
+                        <div class="me-3 bg-info rounded-circle p-2 text-white d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                            <i class="fas fa-calendar-plus"></i>
+                        </div>
+                        <div>
+                            <p class="text-muted mb-0 small">发布时间</p>
+                            <p class="mb-0 fw-medium">
+                                {% if activity.created_at %}
+                                    {{ display_datetime(activity.created_at, 'Asia/Shanghai') }}
+                                {% else %}
+                                    未知
+                                {% endif %}
+                            </p>
+                        </div>
+                    </div>
+                    
+                    <div class="d-flex align-items-center mb-3 p-3 rounded bg-light">
+                        <div class="me-3 bg-secondary rounded-circle p-2 text-white d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                            <i class="fas fa-tag"></i>
+                        </div>
+                        <div>
+                            <p class="text-muted mb-0 small">活动类型</p>
+                            <p class="mb-0 fw-medium">
+                                {% if activity.type %}
+                                    {{ activity.type }}
+                                {% else %}
+                                    其他
+                                {% endif %}
+                            </p>
+                        </div>
+                    </div>
+                    
+                    <div class="d-flex align-items-center mb-3 p-3 rounded bg-light">
+                        <div class="me-3 bg-primary rounded-circle p-2 text-white d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                            <i class="fas fa-check-circle"></i>
+                        </div>
+                        <div>
+                            <p class="text-muted mb-0 small">活动状态</p>
+                            <p class="mb-0">
+                                {% if activity.status == 'draft' %}
+                                <span class="badge bg-secondary">草稿</span>
+                                {% elif activity.status == 'pending' %}
+                                <span class="badge bg-warning">待审核</span>
+                                {% elif activity.status == 'approved' %}
+                                <span class="badge bg-success">已批准</span>
+                                {% elif activity.status == 'active' %}
+                                <span class="badge bg-primary">进行中</span>
+                                {% elif activity.status == 'completed' %}
+                                <span class="badge bg-info">已完成</span>
+                                {% elif activity.status == 'cancelled' %}
+                                <span class="badge bg-danger">已取消</span>
+                                {% else %}
+                                <span class="badge bg-secondary">{{ activity.status }}</span>
+                                {% endif %}
+                            </p>
+                        </div>
+                    </div>
+                    
+                    <div class="d-flex align-items-center mb-3 p-3 rounded bg-light">
+                        <div class="me-3 {% if activity.checkin_enabled %}bg-success{% else %}bg-secondary{% endif %} rounded-circle p-2 text-white d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                            <i class="fas fa-clipboard-check"></i>
+                        </div>
+                        <div>
+                            <p class="text-muted mb-0 small">签到状态</p>
+                            <p class="mb-0 fw-medium">
+                                {% if activity.checkin_enabled %}
+                                    <span class="text-success">已启用</span>
+                                    {% if activity.checkin_key %}
+                                    <small class="d-block text-muted">密钥: {{ activity.checkin_key }}</small>
                                     {% endif %}
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-                <div class="mt-2">
-                    <small class="text-muted">共 {{ registrations|length }} 人报名</small>
-                </div>
-                {% else %}
-                <p class="text-muted">暂无报名人员</p>
-                {% endif %}
-            </div>
-
-            <div class="d-flex justify-content-between align-items-center flex-wrap">
-                <div class="mb-2">
-                    <a href="{{ url_for('admin.edit_activity', id=activity.id) }}" class="btn btn-primary m-1">
-                        <i class="fas fa-edit me-1"></i>编辑活动
-                    </a>
-                    {% if activity.status == 'active' %}
-                    <a href="{{ url_for('admin.checkin_modal', id=activity.id) }}" class="btn btn-success m-1" target="_blank">
-                        <i class="fas fa-qrcode me-1"></i>签到二维码
-                    </a>
-                    <form action="{{ url_for('admin.toggle_checkin', id=activity.id) }}" method="post" class="d-inline">
-                        <button type="submit" class="btn {% if activity.checkin_enabled %}btn-warning{% else %}btn-outline-success{% endif %} m-1">
-                            <i class="fas {% if activity.checkin_enabled %}fa-toggle-on{% else %}fa-toggle-off{% endif %} me-1"></i>
-                            {% if activity.checkin_enabled %}停止签到{% else %}开始签到{% endif %}
-                        </button>
-                    </form>
+                                {% else %}
+                                    <span class="text-secondary">未启用</span>
+                                {% endif %}
+                            </p>
+                        </div>
+                    </div>
+                    
+                    {% if activity.tags %}
+                    <div class="d-flex align-items-center p-3 rounded bg-light">
+                        <div class="me-3 bg-dark rounded-circle p-2 text-white d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                            <i class="fas fa-tags"></i>
+                        </div>
+                        <div>
+                            <p class="text-muted mb-0 small">标签</p>
+                            <div>
+                                {% for tag in activity.tags %}
+                                <span class="badge bg-light text-dark border me-1 mb-1">{{ tag.name }}</span>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
                     {% endif %}
                 </div>
-                <form method="post" action="{{ url_for('admin.delete_activity', id=activity.id) }}" onsubmit="return confirm('确定要永久删除此活动吗？此操作不可撤销！')" class="mb-2">
-                    <button type="submit" class="btn btn-danger m-1">
-                        <i class="fas fa-trash-alt me-1"></i>永久删除活动
-                    </button>
+            </div>
+            
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-body p-4">
+                    <h5 class="card-title mb-3"><i class="fas fa-cog me-2 text-primary"></i>活动管理</h5>
+                    <div class="d-grid gap-2">
+                        {% if activity.status == 'draft' %}
+                        <button class="btn btn-success" onclick="changeStatus('approved')">
+                            <i class="fas fa-check me-2"></i>批准活动
+                        </button>
+                        {% endif %}
+                        
+                        {% if activity.status == 'approved' or activity.status == 'pending' %}
+                        <button class="btn btn-primary" onclick="changeStatus('active')">
+                            <i class="fas fa-play me-2"></i>开始活动
+                        </button>
+                        {% endif %}
+                        
+                        {% if activity.status == 'active' %}
+                        <button class="btn btn-info" onclick="changeStatus('completed')">
+                            <i class="fas fa-flag-checkered me-2"></i>完成活动
+                        </button>
+                        {% endif %}
+                        
+                        {% if activity.status != 'cancelled' and activity.status != 'completed' %}
+                        <button class="btn btn-danger" onclick="changeStatus('cancelled')">
+                            <i class="fas fa-ban me-2"></i>取消活动
+                        </button>
+                        {% endif %}
+                        
+                        {% if activity.status == 'active' %}
+                        <form action="{{ url_for('admin.toggle_checkin', id=activity.id) }}" method="post" class="mt-2">
+                            <button type="submit" class="btn btn-{% if activity.checkin_enabled %}danger{% else %}success{% endif %} w-100">
+                                <i class="fas fa-{% if activity.checkin_enabled %}times{% else %}check{% endif %} me-2"></i>
+                                {% if activity.checkin_enabled %}关闭{% else %}开启{% endif %}签到
+                            </button>
+                        </form>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 删除确认模态框 -->
+<div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="deleteModalLabel">确认删除</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>您确定要删除活动 <strong>{{ activity.title }}</strong> 吗？此操作无法撤销。</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <form action="{{ url_for('admin.delete_activity', id=activity.id) }}" method="post">
+                    <button type="submit" class="btn btn-danger">确认删除</button>
                 </form>
             </div>
         </div>
     </div>
 </div>
 
-<!-- 签到二维码模态框 -->
-<div class="modal fade" id="qrcodeModal" tabindex="-1" aria-labelledby="qrcodeModalLabel" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title" id="qrcodeModalLabel">签到二维码</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
-      </div>
-      <div class="modal-body text-center">
-        <div id="qrcode-container">
-            <div class="spinner-border text-primary" role="status">
-                <span class="visually-hidden">加载中...</span>
-            </div>
-        </div>
-        <p class="mt-2 text-muted">学生扫码即可签到</p>
-      </div>
-    </div>
-  </div>
-</div>
-
 <script>
-function confirmDelete() {
-    var message = "您确定要删除活动"{{ activity.title|default('未知活动')|e }}"吗？";
-    var regCount = {{ registration_count|default(0) }};
-    if (regCount > 0) {
-        message += "\n\n警告：该活动已有 " + regCount + " 人报名，删除后将标记为已取消而非彻底删除。";
-    } else {
-        message += "\n\n警告：此操作不可撤销，活动将被永久删除。";
+    function changeStatus(status) {
+        if (confirm('确定要将活动状态更改为: ' + status + '?')) {
+            fetch('{{ url_for('admin.change_activity_status', id=activity.id) }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                },
+                body: 'status=' + status
+            })
+            .then(response => {
+                if (response.ok) {
+                    window.location.reload();
+                } else {
+                    alert('操作失败，请重试');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('发生错误，请重试');
+            });
+        }
     }
-    if (window.confirm(message)) {
-        document.getElementById('deleteActivityForm').submit();
+    
+    function manualCheckin(registrationId) {
+        if (confirm('确定为该学生手动签到?')) {
+            fetch('{{ url_for('admin.manual_checkin', activity_id=activity.id) }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                },
+                body: 'registration_id=' + registrationId
+            })
+            .then(response => {
+                if (response.ok) {
+                    window.location.reload();
+                } else {
+                    alert('签到失败，请重试');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('发生错误，请重试');
+            });
+        }
     }
-}
-
-function generateQRCode(activityId) {
-    const modal = new bootstrap.Modal(document.getElementById('qrcodeModal'));
-    modal.show();
     
-    // 显示加载动画
-    const container = document.getElementById('qrcode-container');
-    container.innerHTML = `
-        <div class="spinner-border text-primary" role="status">
-            <span class="visually-hidden">加载中...</span>
-        </div>
-    `;
-    
-    // 添加错误处理和超时处理
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10秒超时
-    
-    fetch(`/api/qrcode/checkin/${activityId}`, {
-        signal: controller.signal
-    })
-        .then(response => {
-            clearTimeout(timeoutId);
-            if (!response.ok) {
-                throw new Error('生成二维码失败');
-            }
-            return response.blob();
-        })
-        .then(blob => {
-            const url = URL.createObjectURL(blob);
-            container.innerHTML = `
-                <img src="${url}" alt="签到二维码" style="max-width: 100%; height: auto;" />
-                <div class="mt-2">
-                    <button class="btn btn-sm btn-outline-primary" onclick="downloadQRCode('${url}', '活动签到二维码.png')">
-                        <i class="fas fa-download me-1"></i>下载二维码
-                    </button>
-                </div>
-            `;
-        })
-        .catch(error => {
-            clearTimeout(timeoutId);
-            console.error('生成二维码失败:', error);
-            container.innerHTML = `
-                <div class="alert alert-danger">
-                    生成二维码失败，请重试
-                </div>
-                <button class="btn btn-sm btn-primary mt-2" onclick="generateQRCode(${activityId})">
-                    <i class="fas fa-sync-alt me-1"></i>重新生成
-                </button>
-            `;
-        });
-}
-
-function downloadQRCode(url, filename) {
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-}
+    function cancelCheckin(registrationId) {
+        if (confirm('确定要取消该学生的签到状态?')) {
+            fetch('{{ url_for('admin.cancel_checkin', activity_id=activity.id) }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                },
+                body: 'registration_id=' + registrationId
+            })
+            .then(response => {
+                if (response.ok) {
+                    window.location.reload();
+                } else {
+                    alert('取消签到失败，请重试');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('发生错误，请重试');
+            });
+        }
+    }
 </script>
 {% endblock %}

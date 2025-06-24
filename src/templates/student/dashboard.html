@@ -16,16 +16,16 @@
                             <span class="badge bg-success rounded-pill">在线</span>
                         </div>
                     </div>
-                    <h4 class="card-title fw-bold mb-1">{{ student_info.real_name }}</h4>
-                    <p class="text-muted mb-3">{{ student_info.student_id }}</p>
+                    <h4 class="card-title fw-bold mb-1">{{ student.real_name }}</h4>
+                    <p class="text-muted mb-3">{{ student.student_id }}</p>
                     
                     <div class="d-flex justify-content-center mb-4">
                         <div class="px-3 border-end">
-                            <h5 class="fw-bold mb-1">{{ student_info.points or 0 }}</h5>
+                            <h5 class="fw-bold mb-1">{{ student.points or 0 }}</h5>
                             <small class="text-muted">积分</small>
                         </div>
                         <div class="px-3">
-                            <h5 class="fw-bold mb-1">{{ registered_activities|length }}</h5>
+                            <h5 class="fw-bold mb-1">{{ registered_activities|length if registered_activities else 0 }}</h5>
                             <small class="text-muted">活动</small>
                         </div>
                     </div>
@@ -33,15 +33,15 @@
                     <div class="mb-3">
                         <div class="d-flex align-items-center mb-2">
                             <i class="fas fa-university text-muted me-2"></i>
-                            <span>{{ student_info.college }}</span>
+                            <span>{{ student.college }}</span>
                         </div>
                         <div class="d-flex align-items-center mb-2">
                             <i class="fas fa-graduation-cap text-muted me-2"></i>
-                            <span>{{ student_info.major }}</span>
+                            <span>{{ student.major }}</span>
                         </div>
                         <div class="d-flex align-items-center">
                             <i class="fas fa-calendar-alt text-muted me-2"></i>
-                            <span>{{ student_info.grade }}</span>
+                            <span>{{ student.grade }}</span>
                         </div>
                     </div>
                     
@@ -78,16 +78,14 @@
                                 <a href="{{ notification.link }}" class="list-group-item list-group-item-action border-0 p-4">
                                     <div class="d-flex w-100 justify-content-between align-items-center mb-1">
                                         <div>
-                                            {% if notification.type == 'upcoming' %}
-                                                <span class="badge bg-warning text-dark me-2">即将开始</span>
-                                            {% elif notification.type == 'closing' %}
-                                                <span class="badge bg-danger text-white me-2">即将截止</span>
-                                            {% elif notification.type == 'new' %}
-                                                <span class="badge bg-success text-white me-2">新活动</span>
+                                            {% if notification.is_important %}
+                                                <span class="badge bg-danger text-white me-2">重要</span>
+                                            {% else %}
+                                                <span class="badge bg-success text-white me-2">新通知</span>
                                             {% endif %}
                                             <span class="fw-medium">{{ notification.message }}</span>
                                         </div>
-                                        <small class="text-muted">{{ notification.time.strftime('%Y-%m-%d %H:%M') }}</small>
+                                        <small class="text-muted">{{ display_datetime(notification.created_at, None, '%Y-%m-%d %H:%M') }}</small>
                                     </div>
                                 </a>
                             {% endfor %}
@@ -145,13 +143,13 @@
                                     <td>
                                         <div class="d-flex align-items-center">
                                             <i class="fas fa-clock text-muted me-2"></i>
-                                            <span>{{ activity.start_time.strftime('%Y-%m-%d %H:%M') }}</span>
+                                            <span>{{ display_datetime(activity.start_time, None, '%Y-%m-%d %H:%M') }}</span>
                                         </div>
                                     </td>
                                     <td>
-                                        {% if activity.start_time > now %}
+                                        {% if safe_greater_than(activity.start_time, now) %}
                                             <span class="badge bg-info rounded-pill">未开始</span>
-                                        {% elif activity.end_time > now %}
+                                        {% elif safe_greater_than(activity.end_time, now) %}
                                             <span class="badge bg-success rounded-pill">进行中</span>
                                         {% else %}
                                             <span class="badge bg-secondary rounded-pill">已结束</span>
@@ -202,9 +200,9 @@
                         {% for activity in upcoming_activities %}
                             <div class="col">
                                 <div class="card border-0 shadow-sm h-100 position-relative overflow-hidden">
-                                    {% if activity.registration_deadline < now %}
+                                    {% if safe_less_than(activity.registration_deadline, now) %}
                                         <div class="position-absolute top-0 end-0 bg-danger text-white px-3 py-1 m-2 rounded-pill fw-medium">已截止</div>
-                                    {% elif activity.start_time < now %}
+                                    {% elif safe_less_than(activity.start_time, now) %}
                                         <div class="position-absolute top-0 end-0 bg-warning text-dark px-3 py-1 m-2 rounded-pill fw-medium">进行中</div>
                                     {% else %}
                                         <div class="position-absolute top-0 end-0 bg-success text-white px-3 py-1 m-2 rounded-pill fw-medium">可报名</div>
@@ -221,7 +219,7 @@
                                         <div class="d-flex justify-content-between align-items-center">
                                             <div class="d-flex align-items-center text-muted">
                                                 <i class="fas fa-clock me-2"></i>
-                                                <small>{{ activity.start_time.strftime('%Y-%m-%d %H:%M') }}</small>
+                                                <small>{{ display_datetime(activity.start_time, None, '%Y-%m-%d %H:%M') }}</small>
                                             </div>
                                             <a href="{{ url_for('student.activity_detail', id=activity.id) }}" class="btn btn-sm btn-primary">查看详情</a>
                                         </div>

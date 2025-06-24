@@ -9,8 +9,8 @@
     <div class="row">
         <div class="col-12">
             <div class="card border-0 shadow-sm">
-                <div class="card-header bg-primary text-white">
-                    <h5 class="mb-0"><i class="fas fa-bullhorn me-2"></i>重要通知</h5>
+                <div class="card-header {% if public_notifications[0].is_important %}text-white{% else %}bg-success text-white{% endif %}" {% if public_notifications[0].is_important %}style="background: linear-gradient(135deg, #ff5252, #b33939);"{% endif %}>
+                    <h5 class="mb-0"><i class="fas fa-bullhorn me-2"></i>{% if public_notifications[0].is_important %}重要通知{% else %}通知公告{% endif %}</h5>
                 </div>
                 <div class="card-body p-0">
                     <div class="list-group list-group-flush">
@@ -38,6 +38,9 @@
             <button type="button" data-bs-target="#carouselExampleIndicators" data-bs-slide-to="0" class="active" aria-current="true" aria-label="Slide 1"></button>
             <button type="button" data-bs-target="#carouselExampleIndicators" data-bs-slide-to="1" aria-label="Slide 2"></button>
             <button type="button" data-bs-target="#carouselExampleIndicators" data-bs-slide-to="2" aria-label="Slide 3"></button>
+            <button type="button" data-bs-target="#carouselExampleIndicators" data-bs-slide-to="3" aria-label="Slide 4"></button>
+            <button type="button" data-bs-target="#carouselExampleIndicators" data-bs-slide-to="4" aria-label="Slide 5"></button>
+            <button type="button" data-bs-target="#carouselExampleIndicators" data-bs-slide-to="5" aria-label="Slide 6"></button>
         </div>
         <div class="carousel-inner">
             <div class="carousel-item active">
@@ -64,6 +67,30 @@
                     <a href="{{ url_for('main.about') }}" class="btn btn-primary btn-lg">了解更多</a>
                 </div>
             </div>
+            <div class="carousel-item">
+                <img src="{{ url_for('static', filename='img/banner4.jpg') }}" class="d-block w-100" alt="Banner 4" style="height: 500px; object-fit: cover;">
+                <div class="carousel-caption d-none d-md-block">
+                    <h2 class="display-4 fw-bold">探索教育新视野</h2>
+                    <p class="lead">创新教学方法，拓展专业技能</p>
+                    <a href="{{ url_for('student.activities') }}" class="btn btn-primary btn-lg">探索活动</a>
+                </div>
+            </div>
+            <div class="carousel-item">
+                <img src="{{ url_for('static', filename='img/banner5.jpg') }}" class="d-block w-100" alt="Banner 5" style="height: 500px; object-fit: cover;">
+                <div class="carousel-caption d-none d-md-block">
+                    <h2 class="display-4 fw-bold">共创精彩</h2>
+                    <p class="lead">结交朋友，共同成长</p>
+                    <a href="{{ url_for('main.about') }}" class="btn btn-primary btn-lg">了解协会</a>
+                </div>
+            </div>
+            <div class="carousel-item">
+                <img src="{{ url_for('static', filename='img/banner6.jpg') }}" class="d-block w-100" alt="Banner 6" style="height: 500px; object-fit: cover;">
+                <div class="carousel-caption d-none d-md-block">
+                    <h2 class="display-4 fw-bold">专业引领未来</h2>
+                    <p class="lead">培养教育行业的领军人才</p>
+                    <a href="{{ url_for('student.dashboard') }}" class="btn btn-primary btn-lg">个人中心</a>
+                </div>
+            </div>
         </div>
         <button class="carousel-control-prev" type="button" data-bs-target="#carouselExampleIndicators" data-bs-slide="prev">
             <span class="carousel-control-prev-icon" aria-hidden="true"></span>
@@ -77,6 +104,71 @@
 </div>
 
 <div class="container py-5">
+    <!-- 协会介绍和快速入口 -->
+    <div class="row mb-5">
+        <div class="col-md-8">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body p-4">
+                    <div class="d-flex align-items-center mb-3">
+                        <div class="bg-primary bg-opacity-10 rounded-circle p-3 me-3">
+                            <i class="fas fa-school text-primary fs-3"></i>
+                        </div>
+                        <h3 class="card-title fw-bold mb-0">关于师能素质协会</h3>
+                    </div>
+                    <p class="card-text">重庆师范大学师能素质协会是一个致力于提升师范生专业素养和教学能力的学生组织。我们通过组织各类教育教学相关活动，帮助师范生提高教学技能，增强教育实践能力，为未来成为优秀教师奠定基础。</p>
+                    <p class="card-text">协会定期举办教学技能培训、教育实践活动、学术讲座、教学比赛等多种形式的活动，为师范生提供展示自我、锻炼能力的平台。</p>
+                    <a href="{{ url_for('main.about') }}" class="btn btn-outline-primary mt-2">
+                        了解更多 <i class="fas fa-arrow-right ms-1"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body p-4">
+                    <div class="d-flex align-items-center mb-3">
+                        <div class="bg-success bg-opacity-10 rounded-circle p-3 me-3">
+                            <i class="fas fa-link text-success fs-3"></i>
+                        </div>
+                        <h3 class="card-title fw-bold mb-0">快速入口</h3>
+                    </div>
+                    <div class="d-grid gap-3">
+                        {% if current_user.is_authenticated %}
+                            {% if current_user.role.name == 'Admin' %}
+                                <a href="{{ url_for('admin.dashboard') }}" class="btn btn-primary d-flex align-items-center justify-content-center gap-2">
+                                    <i class="fas fa-tachometer-alt"></i>
+                                    <span>管理面板</span>
+                                </a>
+                                <a href="{{ url_for('admin.activities') }}" class="btn btn-outline-primary d-flex align-items-center justify-content-center gap-2">
+                                    <i class="fas fa-calendar-alt"></i>
+                                    <span>活动管理</span>
+                                </a>
+                            {% else %}
+                                <a href="{{ url_for('student.dashboard') }}" class="btn btn-primary d-flex align-items-center justify-content-center gap-2">
+                                    <i class="fas fa-tachometer-alt"></i>
+                                    <span>我的面板</span>
+                                </a>
+                                <a href="{{ url_for('student.activities') }}" class="btn btn-outline-primary d-flex align-items-center justify-content-center gap-2">
+                                    <i class="fas fa-calendar-alt"></i>
+                                    <span>浏览活动</span>
+                                </a>
+                            {% endif %}
+                        {% else %}
+                            <a href="{{ url_for('auth.login') }}" class="btn btn-primary d-flex align-items-center justify-content-center gap-2">
+                                <i class="fas fa-sign-in-alt"></i>
+                                <span>登录</span>
+                            </a>
+                            <a href="{{ url_for('auth.register') }}" class="btn btn-outline-primary d-flex align-items-center justify-content-center gap-2">
+                                <i class="fas fa-user-plus"></i>
+                                <span>注册</span>
+                            </a>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- 特色活动 -->
     <div class="row mb-5">
         <div class="col-12">
@@ -86,12 +178,15 @@
                     {% for activity in featured_activities %}
                         <div class="col-md-4 mb-4">
                             <div class="card h-100">
-                                {% if activity.poster_url %}
-                                    <img src="{{ activity.poster_url }}" class="card-img-top" alt="{{ activity.title }}" style="height: 200px; object-fit: cover;">
+                                {% if activity.poster_image %}
+                                <img src="{{ url_for('static', filename='uploads/posters/' + activity.poster_image) }}" 
+                                     class="card-img-top" 
+                                     alt="{{ activity.title }}" 
+                                     style="height: 200px; object-fit: cover;">
                                 {% else %}
-                                    <div class="bg-light text-center py-5">
-                                        <i class="fas fa-image fa-3x text-muted"></i>
-                                    </div>
+                                <div class="bg-light text-center py-5" style="height: 200px;">
+                                    <i class="fas fa-image fa-3x text-muted"></i>
+                                </div>
                                 {% endif %}
                                 <div class="card-body">
                                     <div class="d-flex justify-content-between align-items-center mb-2">
@@ -103,8 +198,8 @@
                                 </div>
                                 <div class="card-footer bg-white">
                                     <div class="d-flex justify-content-between align-items-center">
-                                        <small class="text-muted"><i class="fas fa-calendar-alt me-1"></i> {{ activity.start_time.strftime('%Y-%m-%d') }}</small>
-                                        <a href="{{ url_for('main.activity_detail', id=activity.id) }}" class="btn btn-sm btn-outline-primary">查看详情</a>
+                                        <small class="text-muted"><i class="fas fa-calendar-alt me-1"></i> {{ display_datetime(activity.start_time, 'Asia/Shanghai', '%Y-%m-%d') }}</small>
+                                        <a href="{{ url_for('main.activity_detail', activity_id=activity.id) }}" class="btn btn-sm btn-outline-primary">查看详情</a>
                                     </div>
                                 </div>
                             </div>
@@ -128,12 +223,15 @@
                     {% for activity in upcoming_activities %}
                         <div class="col-md-4 mb-4">
                             <div class="card h-100">
-                                {% if activity.poster_url %}
-                                    <img src="{{ activity.poster_url }}" class="card-img-top" alt="{{ activity.title }}" style="height: 200px; object-fit: cover;">
+                                {% if activity.poster_image %}
+                                <img src="{{ url_for('static', filename='uploads/posters/' + activity.poster_image) }}" 
+                                     class="card-img-top" 
+                                     alt="{{ activity.title }}" 
+                                     style="height: 200px; object-fit: cover;">
                                 {% else %}
-                                    <div class="bg-light text-center py-5">
-                                        <i class="fas fa-image fa-3x text-muted"></i>
-                                    </div>
+                                <div class="bg-light text-center py-5" style="height: 200px;">
+                                    <i class="fas fa-image fa-3x text-muted"></i>
+                                </div>
                                 {% endif %}
                                 <div class="card-body">
                                     <div class="d-flex justify-content-between align-items-center mb-2">
@@ -145,8 +243,8 @@
                                 </div>
                                 <div class="card-footer bg-white">
                                     <div class="d-flex justify-content-between align-items-center">
-                                        <small class="text-muted"><i class="fas fa-calendar-alt me-1"></i> {{ activity.start_time.strftime('%Y-%m-%d') }}</small>
-                                        <a href="{{ url_for('main.activity_detail', id=activity.id) }}" class="btn btn-sm btn-outline-primary">查看详情</a>
+                                        <small class="text-muted"><i class="fas fa-calendar-alt me-1"></i> {{ display_datetime(activity.start_time, 'Asia/Shanghai', '%Y-%m-%d') }}</small>
+                                        <a href="{{ url_for('main.activity_detail', activity_id=activity.id) }}" class="btn btn-sm btn-outline-primary">查看详情</a>
                                     </div>
                                 </div>
                             </div>
@@ -170,13 +268,9 @@
                     {% for activity in popular_activities %}
                         <div class="col-md-4 mb-4">
                             <div class="card h-100">
-                                {% if activity.poster_url %}
-                                    <img src="{{ activity.poster_url }}" class="card-img-top" alt="{{ activity.title }}" style="height: 200px; object-fit: cover;">
-                                {% else %}
-                                    <div class="bg-light text-center py-5">
-                                        <i class="fas fa-image fa-3x text-muted"></i>
-                                    </div>
-                                {% endif %}
+                                <div class="bg-light text-center py-5" style="height: 200px;">
+                                    <i class="fas fa-image fa-3x text-muted"></i>
+                                </div>
                                 <div class="card-body">
                                     <div class="d-flex justify-content-between align-items-center mb-2">
                                         <span class="badge bg-warning text-dark">热门活动</span>
@@ -187,8 +281,8 @@
                                 </div>
                                 <div class="card-footer bg-white">
                                     <div class="d-flex justify-content-between align-items-center">
-                                        <small class="text-muted"><i class="fas fa-calendar-alt me-1"></i> {{ activity.start_time.strftime('%Y-%m-%d') }}</small>
-                                        <a href="{{ url_for('main.activity_detail', id=activity.id) }}" class="btn btn-sm btn-outline-primary">查看详情</a>
+                                        <small class="text-muted"><i class="fas fa-calendar-alt me-1"></i> {{ display_datetime(activity.start_time, 'Asia/Shanghai', '%Y-%m-%d') }}</small>
+                                        <a href="{{ url_for('main.activity_detail', activity_id=activity.id) }}" class="btn btn-sm btn-outline-primary">查看详情</a>
                                     </div>
                                 </div>
                             </div>

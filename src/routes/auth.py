@@ -2,7 +2,7 @@ from flask import Blueprint, render_template, redirect, url_for, flash, request
 from flask_login import login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from src import db
-from src.models import User, Role, StudentInfo, Tag, StudentInterestTag, AIUserPreferences, SystemLog
+from src.models import User, Role, StudentInfo, Tag, AIUserPreferences, SystemLog
 from flask_wtf import FlaskForm
 from wtforms import StringField, PasswordField, SubmitField, SelectField, ValidationError
 from wtforms.validators import DataRequired, Email, EqualTo, Length, Regexp
@@ -52,15 +52,18 @@ class RegistrationForm(FlaskForm):
     submit = SubmitField('注册')
 
     def validate_username(self, field):
-        if User.query.filter_by(username=field.data).first():
+        stmt = db.select(User).filter_by(username=field.data)
+        if db.session.execute(stmt).scalar_one_or_none():
             raise ValidationError('该用户名已被注册')
 
     def validate_email(self, field):
-        if User.query.filter_by(email=field.data).first():
+        stmt = db.select(User).filter_by(email=field.data)
+        if db.session.execute(stmt).scalar_one_or_none():
             raise ValidationError('该邮箱已被注册')
             
     def validate_student_id(self, field):
-        if StudentInfo.query.filter_by(student_id=field.data).first():
+        stmt = db.select(StudentInfo).filter_by(student_id=field.data)
+        if db.session.execute(stmt).scalar_one_or_none():
             raise ValidationError('该学号已被注册')
 
 # 登录表单
@@ -91,11 +94,13 @@ class SetupAdminForm(FlaskForm):
     submit = SubmitField('创建管理员')
 
     def validate_username(self, field):
-        if User.query.filter_by(username=field.data).first():
+        stmt = db.select(User).filter_by(username=field.data)
+        if db.session.execute(stmt).scalar_one_or_none():
             raise ValidationError('该用户名已被注册')
 
     def validate_email(self, field):
-        if User.query.filter_by(email=field.data).first():
+        stmt = db.select(User).filter_by(email=field.data)
+        if db.session.execute(stmt).scalar_one_or_none():
             raise ValidationError('该邮箱已被注册')
 
 @auth_bp.route('/register', methods=['GET', 'POST'])
@@ -106,7 +111,8 @@ def register():
     form = RegistrationForm()
     if form.validate_on_submit():
         # 获取学生角色
-        student_role = Role.query.filter_by(name='Student').first()
+        stmt = db.select(Role).filter_by(name='Student')
+        student_role = db.session.execute(stmt).scalar_one_or_none()
         if not student_role:
             student_role = Role(name='Student')
             db.session.add(student_role)
@@ -131,7 +137,8 @@ def register():
             major=form.major.data,
             college=form.college.data,
             phone=form.phone.data,
-            qq=form.qq.data
+            qq=form.qq.data,
+            has_selected_tags=False
         )
         db.session.add(student_info)
         
@@ -170,9 +177,15 @@ def login():
         
         try:
             # 查询用户
-            user = User.query.filter_by(username=username).first()
+            stmt = db.select(User).filter_by(username=username)
+            user = db.session.execute(stmt).scalar_one_or_none()
             
-            if user and user.check_password(password):
+            if user and user.verify_password(password):
+                # 检查用户是否激活
+                if not user.active:
+                    flash('账号已被禁用，请联系管理员。', 'danger')
+                    return render_template('auth/login.html', form=form)
+                
                 # 登录成功
                 login_user(user)
                 
@@ -214,6 +227,10 @@ def login():
             logger.error(f"登录过程发生错误: {str(e)}", exc_info=True)
             flash('登录过程中发生错误，请稍后再试。', 'danger')
             return render_template('auth/login.html', form=form)
+    elif request.method == 'POST':
+        # 表单验证失败，可能是CSRF令牌无效
+        logger.warning("表单验证失败，可能是CSRF令牌无效或缺失")
+        flash('表单提交无效，请重试。', 'danger')
     
     # 表单验证失败
     return render_template('auth/login.html', form=form)
@@ -231,7 +248,7 @@ def logout():
 def profile():
     return render_template('auth/profile.html')
 
-@auth_bp.route('/change_password', methods=['GET', 'POST'])
+@auth_bp.route('/change-password', methods=['GET', 'POST'])
 @login_required
 def change_password():
     class ChangePasswordForm(FlaskForm):
@@ -248,29 +265,34 @@ def change_password():
     
     form = ChangePasswordForm()
     if form.validate_on_submit():
-        if check_password_hash(current_user.password_hash, form.old_password.data):
+        if current_user.verify_password(form.old_password.data):
             current_user.password_hash = generate_password_hash(form.new_password.data)
             db.session.commit()
             flash('密码修改成功！', 'success')
             return redirect(url_for('auth.profile'))
         else:
-            flash('当前密码不正确', 'danger')
+            flash('当前密码错误！', 'danger')
     
     return render_template('auth/change_password.html', form=form)
 
 @auth_bp.route('/setup-admin', methods=['GET', 'POST'])
 def setup_admin():
     # 检查是否已存在管理员账户
-    admin_role = Role.query.filter_by(name='Admin').first()
-    if admin_role and User.query.filter_by(role_id=admin_role.id).first():
-        flash('管理员账户已存在，无法重复创建', 'warning')
-        return redirect(url_for('main.index'))
+    admin_role_stmt = db.select(Role).filter_by(name='Admin')
+    admin_role = db.session.execute(admin_role_stmt).scalar_one_or_none()
+    
+    if admin_role:
+        admin_exists_stmt = db.select(User).filter_by(role_id=admin_role.id)
+        admin_exists = db.session.execute(admin_exists_stmt).scalar_one_or_none()
+        if admin_exists:
+            flash('管理员账户已存在，无需重复设置。', 'warning')
+            return redirect(url_for('auth.login'))
     
     form = SetupAdminForm()
     if form.validate_on_submit():
         # 创建管理员角色（如果不存在）
         if not admin_role:
-            admin_role = Role(name='Admin')
+            admin_role = Role(name='Admin', description='管理员')
             db.session.add(admin_role)
             db.session.commit()
         
@@ -279,22 +301,13 @@ def setup_admin():
             username=form.username.data,
             email=form.email.data,
             password_hash=generate_password_hash(form.password.data),
-            role=admin_role
+            role_id=admin_role.id,
+            active=True
         )
         db.session.add(admin)
-        db.session.flush()  # 获取用户ID
-        
-        # 创建AI用户偏好设置
-        ai_preferences = AIUserPreferences(
-            user_id=admin.id,
-            enable_history=True,
-            max_history_count=100  # 管理员可以存储更多历史记录
-        )
-        db.session.add(ai_preferences)
-        
         db.session.commit()
         
-        flash('管理员账户创建成功，请登录！', 'success')
+        flash('管理员账户创建成功！请登录。', 'success')
         return redirect(url_for('auth.login'))
     
     return render_template('auth/setup_admin.html', form=form)
@@ -303,50 +316,50 @@ def setup_admin():
 @login_required
 def select_tags():
     # 只有学生用户可以选择标签
-    if not current_user.role or current_user.role.name != 'Student':
+    if not current_user.is_student():
+        flash('只有学生用户可以选择标签', 'warning')
         return redirect(url_for('main.index'))
     
     # 获取学生信息
-    student_info = StudentInfo.query.filter_by(user_id=current_user.id).first()
+    stmt = db.select(StudentInfo).filter_by(user_id=current_user.id)
+    student_info = db.session.execute(stmt).scalar_one_or_none()
+    
     if not student_info:
-        flash('未找到学生信息', 'danger')
+        flash('找不到学生信息', 'danger')
         return redirect(url_for('main.index'))
     
-    # 获取所有标签
-    tags = Tag.query.all()
-    
-    # 获取已选标签ID
-    selected_tag_ids = []
-    for tag in student_info.tags:
-        selected_tag_ids.append(tag.id)
-    
     if request.method == 'POST':
-        # 获取提交的标签ID
-        tag_ids = request.form.getlist('tags')
+        # 获取选择的标签ID
+        selected_tags = request.form.getlist('tags')
         
-        if not tag_ids:
-            flash('请至少选择一个兴趣标签', 'warning')
-            return render_template('select_tags.html', tags=tags, selected_tag_ids=selected_tag_ids)
+        if not selected_tags:
+            flash('请至少选择一个标签', 'warning')
+            tags_stmt = db.select(Tag)
+            tags = db.session.execute(tags_stmt).scalars().all()
+            return render_template('select_tags.html', tags=tags)
         
-        try:
-            # 清除原有标签关联
-            student_info.tags = []
-            
-            # 添加新的标签关联
-            for tag_id in tag_ids:
-                tag = Tag.query.get(int(tag_id))
-                if tag:
-                    student_info.tags.append(tag)
-            
-            # 更新学生标签选择状态
-            student_info.has_selected_tags = True
-            db.session.commit()
-            
-            flash('兴趣标签保存成功！', 'success')
-            return redirect(url_for('student.dashboard'))
-        except Exception as e:
-            db.session.rollback()
-            logger.error(f"保存标签时出错: {e}")
-            flash('保存标签时出错，请稍后再试', 'danger')
+        # 清除现有标签
+        student_info.tags = []
+        
+        # 添加新标签
+        for tag_id in selected_tags:
+            tag_stmt = db.select(Tag).filter_by(id=int(tag_id))
+            tag = db.session.execute(tag_stmt).scalar_one_or_none()
+            if tag:
+                student_info.tags.append(tag)
+        
+        # 标记为已选择标签
+        student_info.has_selected_tags = True
+        db.session.commit()
+        
+        flash('标签设置成功！', 'success')
+        return redirect(url_for('student.dashboard'))
+    
+    # GET请求，显示标签选择页面
+    tags_stmt = db.select(Tag)
+    tags = db.session.execute(tags_stmt).scalars().all()
+    
+    # 获取已选择的标签
+    selected_tag_ids = [tag.id for tag in student_info.tags] if student_info.tags else []
     
     return render_template('select_tags.html', tags=tags, selected_tag_ids=selected_tag_ids)

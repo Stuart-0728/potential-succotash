@@ -26,10 +26,12 @@
                         {{ notification.title }}
                     </h3>
                     <div class="text-muted">
-                        <small>发布时间: {{ display_datetime(notification.created_at) }}</small>
-                        {% if notification.expiry_date %}
-                        <small class="ms-3">过期时间: {{ display_datetime(notification.expiry_date, '%Y-%m-%d') }}</small>
-                        {% endif %}
+                        <div class="mb-3">
+                            <small>发布时间: {{ display_datetime(notification.created_at) }}</small>
+                            {% if notification.expiry_date %}
+                            <small class="ms-3">过期时间: {{ display_datetime(notification.expiry_date, None, '%Y-%m-%d') }}</small>
+                            {% endif %}
+                        </div>
                     </div>
                 </div>
             </div>

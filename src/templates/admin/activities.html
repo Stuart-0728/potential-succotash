@@ -65,10 +65,15 @@
                     <tbody>
                         {% for activity in activities.items %}
                         <tr>
-                            <td class="fw-medium text-truncate" style="max-width: 200px;" title="{{ activity.title }}">{{ activity.title }}</td>
+                            <td class="fw-medium text-truncate" style="max-width: 200px;" title="{{ activity.title }}">
+                                {{ activity.title }}
+                                {% if activity.is_featured %}
+                                <span class="badge bg-warning ms-1" title="重点活动"><i class="fas fa-star"></i></span>
+                                {% endif %}
+                            </td>
                             <td class="text-truncate" style="max-width: 120px;" title="{{ activity.location }}">{{ activity.location }}</td>
-                            <td>{{ activity.start_time.strftime('%Y-%m-%d %H:%M') }}</td>
-                            <td>{{ activity.registration_deadline.strftime('%Y-%m-%d %H:%M') }}</td>
+                            <td>{{ display_datetime(activity.start_time) }}</td>
+                            <td>{{ display_datetime(activity.registration_deadline) }}</td>
                             <td>
                                 <span class="badge {% if activity.status == 'active' %}bg-success{% elif activity.status == 'completed' %}bg-secondary{% else %}bg-danger{% endif %} rounded-pill">
                                     {% if activity.status == 'active' %}进行中{% elif activity.status == 'completed' %}已结束{% else %}已取消{% endif %}

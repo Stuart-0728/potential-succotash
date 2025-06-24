@@ -18,6 +18,7 @@
         </div>
         <div class="card-body">
             <form method="post">
+                {{ form.hidden_tag() }}
                 <div class="mb-3">
                     <label for="receiver_id" class="form-label">收件人 <span class="text-danger">*</span></label>
                     <select class="form-select" id="receiver_id" name="receiver_id" required>

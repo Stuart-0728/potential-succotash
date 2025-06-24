@@ -44,7 +44,7 @@
                                         <h5 class="mb-0 fw-bold">{{ activity.title }}</h5>
                                         <div class="ms-3">
                                             {% if activity.status == 'active' %}
-                                                {% if activity.registration_deadline >= now %}
+                                                {% if not safe_less_than(activity.registration_deadline, now) or safe_compare(activity.registration_deadline, now) %}
                                                     <span class="badge bg-success rounded-pill">报名中</span>
                                                 {% else %}
                                                     <span class="badge bg-warning text-dark rounded-pill">报名已截止</span>
@@ -62,13 +62,13 @@
                                     </div>
                                     <div class="d-flex align-items-center text-muted mb-3">
                                         <i class="fas fa-clock me-2"></i>
-                                        <span>{{ activity.start_time.strftime('%Y-%m-%d %H:%M') }} 至 {{ activity.end_time.strftime('%Y-%m-%d %H:%M') }}</span>
+                                        <span>{{ display_datetime(activity.start_time, 'Asia/Shanghai', '%Y-%m-%d %H:%M') }} 至 {{ display_datetime(activity.end_time, 'Asia/Shanghai', '%Y-%m-%d %H:%M') }}</span>
                                     </div>
                                     <div class="d-flex align-items-center text-muted">
                                         <i class="fas fa-hourglass-end me-2"></i>
                                         <span>
-                                            {% if activity.registration_deadline >= now and activity.status == 'active' %}
-                                                报名截止: {{ activity.registration_deadline.strftime('%Y-%m-%d %H:%M') }}
+                                            {% if not safe_less_than(activity.registration_deadline, now) or safe_compare(activity.registration_deadline, now) and activity.status == 'active' %}
+                                                报名截止: {{ display_datetime(activity.registration_deadline, 'Asia/Shanghai', '%Y-%m-%d %H:%M') }}
                                             {% else %}
                                                 报名已截止
                                             {% endif %}
@@ -81,7 +81,7 @@
                                             <span class="badge bg-info rounded-pill px-3 py-2 mb-2">
                                                 <i class="fas fa-check-circle me-1"></i>已报名
                                             </span>
-                                        {% elif activity.status == 'active' and activity.registration_deadline >= now %}
+                                        {% elif activity.status == 'active' and (not safe_less_than(activity.registration_deadline, now) or safe_compare(activity.registration_deadline, now)) %}
                                             <form method="post" action="{{ url_for('student.register_activity', id=activity.id) }}" class="d-inline">
                                                 <button type="submit" class="btn btn-primary">
                                                     <i class="fas fa-user-plus me-1"></i>立即报名

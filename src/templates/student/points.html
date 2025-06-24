@@ -40,7 +40,7 @@
                                 <tbody>
                                     {% for history in points_history %}
                                     <tr>
-                                        <td>{{ history.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                                        <td>{{ display_datetime(history.created_at, None, '%Y-%m-%d %H:%M') }}</td>
                                         <td>
                                             {% if history.points > 0 %}
                                                 <span class="text-success">+{{ history.points }}</span>
