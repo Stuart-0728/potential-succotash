@@ -195,8 +195,12 @@
 </div>
 
 <!-- 删除确认表单 -->
-<form id="deleteActivityForm" method="post" style="display: none;"></form>
-<form id="forceDeleteActivityForm" method="post" style="display: none;"></form>
+<form id="deleteActivityForm" method="post" style="display: none;">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+</form>
+<form id="forceDeleteActivityForm" method="post" style="display: none;">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+</form>
 
 <script>
 function confirmDeleteActivity(activityId, activityTitle, registrationCount) {
@@ -209,6 +213,14 @@ function confirmDeleteActivity(activityId, activityTitle, registrationCount) {
     document.getElementById('confirmDelete').onclick = function() {
         const form = document.getElementById('deleteActivityForm');
         form.action = "{{ url_for('admin.delete_activity', id=0) }}".replace('0', activityId);
+        // 确保CSRF令牌存在
+        if (!form.querySelector('input[name="csrf_token"]')) {
+            const csrfInput = document.createElement('input');
+            csrfInput.type = 'hidden';
+            csrfInput.name = 'csrf_token';
+            csrfInput.value = "{{ csrf_token() }}";
+            form.appendChild(csrfInput);
+        }
         form.submit();
     };
     
@@ -216,6 +228,14 @@ function confirmDeleteActivity(activityId, activityTitle, registrationCount) {
     document.getElementById('confirmForceDelete').onclick = function() {
         const form = document.getElementById('forceDeleteActivityForm');
         form.action = "{{ url_for('admin.delete_activity', id=0) }}?force=true".replace('0', activityId);
+        // 确保CSRF令牌存在
+        if (!form.querySelector('input[name="csrf_token"]')) {
+            const csrfInput = document.createElement('input');
+            csrfInput.type = 'hidden';
+            csrfInput.name = 'csrf_token';
+            csrfInput.value = "{{ csrf_token() }}";
+            form.appendChild(csrfInput);
+        }
         form.submit();
     };
     
