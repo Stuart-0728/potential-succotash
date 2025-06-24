@@ -153,12 +153,13 @@ def normalize_datetime_for_db(dt):
         utc_dt = aware_dt.astimezone(pytz.utc).replace(tzinfo=None)
         return utc_dt
 
-def display_datetime(dt, fmt=None):
+def display_datetime(dt, timezone_or_fmt=None, fmt=None):
     """
-    将UTC时间转换为北京时间并格式化
+    将UTC时间转换为指定时区并格式化
     
     Args:
         dt: 日期时间对象，可能是naive或aware
+        timezone_or_fmt: 时区名称或格式化字符串，如果是格式化字符串，则忽略fmt参数
         fmt: 格式化字符串，如果不提供则使用默认格式
         
     Returns:
@@ -167,7 +168,25 @@ def display_datetime(dt, fmt=None):
     if dt is None:
         return "未设置"
     
-    beijing_tz = pytz.timezone('Asia/Shanghai')
+    # 判断第二个参数是时区名称还是格式化字符串
+    actual_fmt = '%Y-%m-%d %H:%M'  # 默认格式
+    timezone = 'Asia/Shanghai'  # 默认时区
+    
+    if timezone_or_fmt:
+        if '/' in timezone_or_fmt or timezone_or_fmt in pytz.all_timezones:
+            # 这是时区名称
+            timezone = timezone_or_fmt
+            if fmt:
+                actual_fmt = fmt
+        else:
+            # 这是格式化字符串
+            actual_fmt = timezone_or_fmt
+    
+    # 获取时区对象
+    try:
+        tz = pytz.timezone(timezone)
+    except:
+        tz = pytz.timezone('Asia/Shanghai')  # 如果时区名称无效，使用默认时区
     
     # 确保dt有时区信息
     if dt.tzinfo is None:
@@ -178,14 +197,11 @@ def display_datetime(dt, fmt=None):
             # 如果已经有时区但不是UTC，则转换为UTC
             dt = dt.replace(tzinfo=pytz.UTC)
     
-    # 转换为北京时间
-    beijing_time = dt.astimezone(beijing_tz)
+    # 转换为指定时区
+    local_time = dt.astimezone(tz)
     
     # 格式化
-    if fmt is None:
-        fmt = '%Y-%m-%d %H:%M'
-        
-    return beijing_time.strftime(fmt)
+    return local_time.strftime(actual_fmt)
 
 def safe_compare(dt1, dt2):
     """
