@@ -211,7 +211,13 @@ def login():
                     if hasattr(user, 'role') and user.role and user.role.name == 'Admin':
                         next_page = url_for('admin.dashboard')
                     else:
-                        next_page = url_for('student.dashboard')
+                        # 检查学生是否已选择标签
+                        student_info = db.session.execute(db.select(StudentInfo).filter_by(user_id=user.id)).scalar_one_or_none()
+                        if student_info and not student_info.has_selected_tags:
+                            # 学生尚未选择标签，跳转到标签选择页面
+                            next_page = url_for('auth.select_tags')
+                        else:
+                            next_page = url_for('student.dashboard')
                 
                 flash('登录成功！', 'success')
                 return redirect(next_page)
