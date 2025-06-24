@@ -49,12 +49,17 @@ def index():
         
         featured_activities = db.session.execute(featured_stmt).scalars().all()
         
-        # 获取系统公告 - 修复通知查询，使用is_important字段替代type字段
-        notifications_stmt = db.select(Notification).filter(
-            Notification.is_important == False
+        # 获取系统公告 - 修正查询逻辑，获取重要通知
+        public_notifications_stmt = db.select(Notification).filter(
+            Notification.is_important == True,
+            Notification.is_public == True,
+            or_(
+                Notification.expiry_date.is_(None),
+                Notification.expiry_date > now
+            )
         ).order_by(Notification.created_at.desc()).limit(3)
         
-        notifications = db.session.execute(notifications_stmt).scalars().all()
+        public_notifications = db.session.execute(public_notifications_stmt).scalars().all()
         
         end_time = datetime.now()
         logger.debug(f"首页加载耗时: {(end_time - start_time).total_seconds():.2f}秒")
@@ -63,7 +68,7 @@ def index():
                                upcoming_activities=upcoming_activities,
                                popular_activities=popular_activities,
                                featured_activities=featured_activities,
-                               notifications=notifications)
+                               public_notifications=public_notifications)
     except Exception as e:
         logger.error(f"Error in index: {e}", exc_info=True)
         flash("加载首页时发生错误，请稍后再试", "danger")
@@ -71,7 +76,7 @@ def index():
                                upcoming_activities=[],
                                popular_activities=[],
                                featured_activities=[],
-                               notifications=[])
+                               public_notifications=[])
 
 @main_bp.route('/activities')
 def activities():

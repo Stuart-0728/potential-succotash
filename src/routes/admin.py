@@ -189,93 +189,89 @@ def activities(status='all'):
 @admin_bp.route('/activity/create', methods=['GET', 'POST'])
 @admin_required
 def create_activity():
-    try:
-        form = ActivityForm()
-        
-        # 加载所有标签并设置选项
-        tags_stmt = db.select(Tag).order_by(Tag.name)
-        tags = db.session.execute(tags_stmt).scalars().all()
-        choices = [(tag.id, tag.name) for tag in tags]
-        form.tags.choices = choices
-        
-        # 确保form.tags.data初始化为空列表而不是None
-        if form.tags.data is None:
-            form.tags.data = []
-        
-        if form.validate_on_submit():
-            # 导入pytz用于时区处理
-            beijing_tz = pytz.timezone('Asia/Shanghai')
-            
-            # 处理时间字段，将无时区时间转换为带时区的UTC时间
+    """创建活动"""
+    form = ActivityForm()
+    
+    if form.validate_on_submit():
+        try:
+            # 获取表单数据
+            title = form.title.data
+            description = form.description.data
+            location = form.location.data
             start_time = form.start_time.data
-            if start_time:
-                start_time = beijing_tz.localize(start_time).astimezone(pytz.utc)
-            
             end_time = form.end_time.data
-            if end_time:
-                end_time = beijing_tz.localize(end_time).astimezone(pytz.utc)
-            
             registration_deadline = form.registration_deadline.data
-            if registration_deadline:
-                registration_deadline = beijing_tz.localize(registration_deadline).astimezone(pytz.utc)
+            max_participants = form.max_participants.data
+            organizer = form.organizer.data
+            contact = form.contact.data
+            requirements = form.requirements.data
+            activity_type = form.activity_type.data
+            points = form.points.data
             
-            # 当前时间也需要是UTC时区
-            now = datetime.now(pytz.utc)
+            # 检查提交的时间是否已经包含时区信息
+            # 如果已经包含时区信息，则不需要再添加
+            if start_time.tzinfo is not None:
+                logger.info(f"start_time已包含时区信息: {start_time}")
+            else:
+                # 添加北京时区
+                start_time = ensure_timezone_aware(start_time)
+                logger.info(f"LocalizedDateTimeField添加了北京时区: {start_time}")
             
-            # 创建新活动
+            if end_time.tzinfo is not None:
+                logger.info(f"end_time已包含时区信息: {end_time}")
+            else:
+                end_time = ensure_timezone_aware(end_time)
+                logger.info(f"LocalizedDateTimeField添加了北京时区: {end_time}")
+            
+            if registration_deadline.tzinfo is not None:
+                logger.info(f"registration_deadline已包含时区信息: {registration_deadline}")
+            else:
+                registration_deadline = ensure_timezone_aware(registration_deadline)
+                logger.info(f"LocalizedDateTimeField添加了北京时区: {registration_deadline}")
+            
+            # 创建活动
             activity = Activity(
-                title=form.title.data,
-                description=form.description.data,
-                location=form.location.data,
+                title=title,
+                description=description,
+                location=location,
                 start_time=start_time,
                 end_time=end_time,
                 registration_deadline=registration_deadline,
-                max_participants=form.max_participants.data,
-                type='其他',  # 默认活动类型
-                status=form.status.data,
-                is_featured=form.is_featured.data,
-                points=form.points.data or (20 if form.is_featured.data else 10),
-                created_by=current_user.id,
-                # 添加新字段的默认值
-                checkin_enabled=False,
-                checkin_key=None,
-                checkin_key_expires=None,
-                created_at=now,
-                updated_at=now
+                max_participants=max_participants,
+                organizer=organizer,
+                contact=contact,
+                requirements=requirements,
+                activity_type=activity_type,
+                points=points
             )
             
-            # 处理标签
-            tag_ids = request.form.getlist('tags')  # 直接从请求中获取多选框值
-            for tag_id in tag_ids:
-                tag_stmt = db.select(Tag).filter_by(id=int(tag_id))
-                tag = db.session.execute(tag_stmt).scalar_one_or_none()
-                if tag:
-                    activity.tags.append(tag)
+            # 处理海报图片上传
+            if form.poster_image.data:
+                filename = handle_poster_upload(form.poster_image.data, None)
+                if filename:
+                    activity.poster_image = filename
             
             # 保存到数据库
             db.session.add(activity)
             db.session.commit()
             
-            # 记录日志
-            log_action('create_activity', f'创建活动: {activity.title}')
+            # 记录操作
+            log_action(
+                user_id=current_user.id,
+                action="create_activity",
+                details=f"创建了活动 {activity.id}: {activity.title}"
+            )
             
-            # 处理上传的图片
-            if form.poster.data:
-                poster_filename = handle_poster_upload(form.poster.data, activity.id)
-                if poster_filename:
-                    activity.poster_image = poster_filename
-                    db.session.commit()
-                    logger.info(f"活动海报文件名已保存到数据库: {poster_filename}")
-            
-            flash('活动创建成功!', 'success')
+            flash('活动创建成功', 'success')
             return redirect(url_for('admin.activities'))
         
-        return render_template('admin/activity_form.html', form=form, title='创建活动')
-    except Exception as e:
-        db.session.rollback()
-        logger.error(f"Error in create_activity: {e}")
-        flash('创建活动时出错，请重试', 'danger')
-        return redirect(url_for('admin.activities'))
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"Error in create_activity: {str(e)}")
+            flash(f'创建活动失败: {str(e)}', 'danger')
+    
+    # GET请求或表单验证失败
+    return render_template('admin/activity_form.html', form=form, activity=None)
 
 @admin_bp.route('/activity/<int:id>/edit', methods=['GET', 'POST'])
 @admin_required
@@ -2485,13 +2481,16 @@ def delete_notification(id):
         notification = db.get_or_404(Notification, id)
         
         # 删除所有关联的已读记录
-        NotificationRead.query.filter_by(notification_id=id).delete()
+        db.session.execute(db.delete(NotificationRead).filter_by(notification_id=id))
         
         # 删除通知
         db.session.delete(notification)
         db.session.commit()
         
-        log_action('delete_notification', f'删除通知: {notification.title}')
+        log_action(
+            action='delete_notification', 
+            details=f'删除通知: {notification.title}'
+        )
         flash('通知已删除', 'success')
         return redirect(url_for('admin.notifications'))
     except Exception as e:
