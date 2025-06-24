@@ -57,9 +57,10 @@ def handle_poster_upload(file_data, activity_id):
         # 确保文件名安全
         filename = secure_filename(file_data.filename)
         
-        # 生成唯一文件名
+        # 生成唯一文件名 - 确保活动ID不为None
         _, file_extension = os.path.splitext(filename)
-        unique_filename = f"activity_{activity_id}_{datetime.now().strftime('%Y%m%d%H%M%S')}{file_extension}"
+        activity_id_str = str(activity_id) if activity_id is not None else "new"
+        unique_filename = f"activity_{activity_id_str}_{datetime.now().strftime('%Y%m%d%H%M%S')}{file_extension}"
         
         # 确保上传目录存在
         upload_dir = os.path.join(current_app.static_folder, 'uploads', 'posters')
@@ -482,6 +483,11 @@ def activity_view(id):
         
         # 导入display_datetime函数供模板使用
         from src.utils.time_helpers import display_datetime, safe_less_than, safe_greater_than
+        
+        # 记录日志，帮助调试
+        logger.info(f"活动ID={id}, 标题={activity.title}, 开始时间={activity.start_time}, 结束时间={activity.end_time}")
+        logger.info(f"display_datetime类型: {type(display_datetime)}")
+        logger.info(f"display_datetime示例: {display_datetime(datetime.now())}")
         
         # 生成CSRF令牌
         csrf_token = generate_csrf()
@@ -2712,8 +2718,16 @@ def delete_message(id):
 @admin_required
 def fix_timezone():
     try:
+        messages = []
+        
         if request.method == 'POST':
             if 'confirm' in request.form:
+                # 检查要修复的项目
+                fix_activities = 'fix_activities' in request.form
+                fix_posters = 'fix_posters' in request.form
+                fix_notifications = 'fix_notifications' in request.form
+                fix_other_dates = 'fix_other_dates' in request.form
+                
                 # 设置环境变量，标记为Render环境
                 os.environ['RENDER'] = 'true'
                 
@@ -2732,137 +2746,166 @@ def fix_timezone():
                         
                         # 设置数据库时区为UTC
                         cursor.execute("SET timezone TO 'UTC';")
+                        messages.append("数据库时区已设置为UTC")
                         
                         # 修复活动表中的时间字段
-                        logger.info("修复活动表中的时间字段...")
+                        if fix_activities:
+                            logger.info("修复活动表中的时间字段...")
+                            
+                            # 1. 修复活动开始时间
+                            cursor.execute("""
+                            UPDATE activities
+                            SET start_time = start_time AT TIME ZONE 'Asia/Shanghai' AT TIME ZONE 'UTC'
+                            WHERE start_time IS NOT NULL;
+                            """)
+                            
+                            # 2. 修复活动结束时间
+                            cursor.execute("""
+                            UPDATE activities
+                            SET end_time = end_time AT TIME ZONE 'Asia/Shanghai' AT TIME ZONE 'UTC'
+                            WHERE end_time IS NOT NULL;
+                            """)
+                            
+                            # 3. 修复活动报名截止时间
+                            cursor.execute("""
+                            UPDATE activities
+                            SET registration_deadline = registration_deadline AT TIME ZONE 'Asia/Shanghai' AT TIME ZONE 'UTC'
+                            WHERE registration_deadline IS NOT NULL;
+                            """)
+                            
+                            messages.append("活动时间字段已修复")
                         
-                        # 1. 修复活动开始时间
-                        cursor.execute("""
-                        UPDATE activities
-                        SET start_time = start_time AT TIME ZONE 'Asia/Shanghai' AT TIME ZONE 'UTC'
-                        WHERE start_time IS NOT NULL;
-                        """)
-                        
-                        # 2. 修复活动结束时间
-                        cursor.execute("""
-                        UPDATE activities
-                        SET end_time = end_time AT TIME ZONE 'Asia/Shanghai' AT TIME ZONE 'UTC'
-                        WHERE end_time IS NOT NULL;
-                        """)
-                        
-                        # 3. 修复活动报名截止时间
-                        cursor.execute("""
-                        UPDATE activities
-                        SET registration_deadline = registration_deadline AT TIME ZONE 'Asia/Shanghai' AT TIME ZONE 'UTC'
-                        WHERE registration_deadline IS NOT NULL;
-                        """)
-                        
-                        # 4. 修复活动创建时间
-                        cursor.execute("""
-                        UPDATE activities
-                        SET created_at = created_at AT TIME ZONE 'Asia/Shanghai' AT TIME ZONE 'UTC'
-                        WHERE created_at IS NOT NULL;
-                        """)
-                        
-                        # 5. 修复活动更新时间
-                        cursor.execute("""
-                        UPDATE activities
-                        SET updated_at = updated_at AT TIME ZONE 'Asia/Shanghai' AT TIME ZONE 'UTC'
-                        WHERE updated_at IS NOT NULL;
-                        """)
+                        # 修复海报路径问题
+                        if fix_posters:
+                            logger.info("修复活动海报路径问题...")
+                            
+                            # 获取所有活动的海报信息
+                            cursor.execute("""
+                            SELECT id, poster_image FROM activities
+                            WHERE poster_image IS NOT NULL;
+                            """)
+                            activities_with_posters = cursor.fetchall()
+                            
+                            fixed_posters = 0
+                            for activity_id, poster_path in activities_with_posters:
+                                # 检查海报文件是否存在
+                                if poster_path and 'None' in poster_path:
+                                    # 修正海报路径：替换None为activity_id
+                                    new_path = poster_path.replace('None', str(activity_id))
+                                    
+                                    # 更新数据库中的路径
+                                    cursor.execute("""
+                                    UPDATE activities
+                                    SET poster_image = %s
+                                    WHERE id = %s;
+                                    """, (new_path, activity_id))
+                                    
+                                    fixed_posters += 1
+                            
+                            if fixed_posters > 0:
+                                messages.append(f"已修复 {fixed_posters} 个活动海报路径")
+                            else:
+                                messages.append("未发现需要修复的海报路径")
                         
                         # 修复通知表中的时间字段
-                        logger.info("修复通知表中的时间字段...")
+                        if fix_notifications:
+                            logger.info("修复通知表中的时间字段...")
+                            
+                            # 1. 修复通知创建时间
+                            cursor.execute("""
+                            UPDATE notification
+                            SET created_at = created_at AT TIME ZONE 'Asia/Shanghai' AT TIME ZONE 'UTC'
+                            WHERE created_at IS NOT NULL;
+                            """)
+                            
+                            # 2. 修复通知过期时间
+                            cursor.execute("""
+                            UPDATE notification
+                            SET expiry_date = expiry_date AT TIME ZONE 'Asia/Shanghai' AT TIME ZONE 'UTC'
+                            WHERE expiry_date IS NOT NULL;
+                            """)
+                            
+                            # 修复通知已读表中的时间字段
+                            cursor.execute("""
+                            UPDATE notification_read
+                            SET read_at = read_at AT TIME ZONE 'Asia/Shanghai' AT TIME ZONE 'UTC'
+                            WHERE read_at IS NOT NULL;
+                            """)
+                            
+                            messages.append("通知时间字段已修复")
                         
-                        # 1. 修复通知创建时间
-                        cursor.execute("""
-                        UPDATE notification
-                        SET created_at = created_at AT TIME ZONE 'Asia/Shanghai' AT TIME ZONE 'UTC'
-                        WHERE created_at IS NOT NULL;
-                        """)
-                        
-                        # 2. 修复通知过期时间
-                        cursor.execute("""
-                        UPDATE notification
-                        SET expiry_date = expiry_date AT TIME ZONE 'Asia/Shanghai' AT TIME ZONE 'UTC'
-                        WHERE expiry_date IS NOT NULL;
-                        """)
-                        
-                        # 修复通知已读表中的时间字段
-                        cursor.execute("""
-                        UPDATE notification_read
-                        SET read_at = read_at AT TIME ZONE 'Asia/Shanghai' AT TIME ZONE 'UTC'
-                        WHERE read_at IS NOT NULL;
-                        """)
-                        
-                        # 修复站内信表中的时间字段
-                        cursor.execute("""
-                        UPDATE message
-                        SET created_at = created_at AT TIME ZONE 'Asia/Shanghai' AT TIME ZONE 'UTC'
-                        WHERE created_at IS NOT NULL;
-                        """)
-                        
-                        # 修复报名表中的时间字段
-                        logger.info("修复报名表中的时间字段...")
-                        
-                        # 1. 修复报名时间
-                        cursor.execute("""
-                        UPDATE registrations
-                        SET register_time = register_time AT TIME ZONE 'Asia/Shanghai' AT TIME ZONE 'UTC'
-                        WHERE register_time IS NOT NULL;
-                        """)
-                        
-                        # 2. 修复签到时间
-                        cursor.execute("""
-                        UPDATE registrations
-                        SET check_in_time = check_in_time AT TIME ZONE 'Asia/Shanghai' AT TIME ZONE 'UTC'
-                        WHERE check_in_time IS NOT NULL;
-                        """)
-                        
-                        # 修复系统日志表中的时间字段
-                        cursor.execute("""
-                        UPDATE system_logs
-                        SET created_at = created_at AT TIME ZONE 'Asia/Shanghai' AT TIME ZONE 'UTC'
-                        WHERE created_at IS NOT NULL;
-                        """)
-                        
-                        # 修复积分历史表中的时间字段
-                        cursor.execute("""
-                        UPDATE points_history
-                        SET created_at = created_at AT TIME ZONE 'Asia/Shanghai' AT TIME ZONE 'UTC'
-                        WHERE created_at IS NOT NULL;
-                        """)
-                        
-                        # 修复活动评价表中的时间字段
-                        cursor.execute("""
-                        UPDATE activity_reviews
-                        SET created_at = created_at AT TIME ZONE 'Asia/Shanghai' AT TIME ZONE 'UTC'
-                        WHERE created_at IS NOT NULL;
-                        """)
+                        # 修复其他日期时间字段
+                        if fix_other_dates:
+                            logger.info("修复其他日期时间字段...")
+                            
+                            # 修复站内信表中的时间字段
+                            cursor.execute("""
+                            UPDATE message
+                            SET created_at = created_at AT TIME ZONE 'Asia/Shanghai' AT TIME ZONE 'UTC'
+                            WHERE created_at IS NOT NULL;
+                            """)
+                            
+                            # 修复报名表中的时间字段
+                            logger.info("修复报名表中的时间字段...")
+                            
+                            # 1. 修复报名时间
+                            cursor.execute("""
+                            UPDATE registrations
+                            SET register_time = register_time AT TIME ZONE 'Asia/Shanghai' AT TIME ZONE 'UTC'
+                            WHERE register_time IS NOT NULL;
+                            """)
+                            
+                            # 2. 修复签到时间
+                            cursor.execute("""
+                            UPDATE registrations
+                            SET check_in_time = check_in_time AT TIME ZONE 'Asia/Shanghai' AT TIME ZONE 'UTC'
+                            WHERE check_in_time IS NOT NULL;
+                            """)
+                            
+                            # 修复系统日志表中的时间字段
+                            cursor.execute("""
+                            UPDATE system_logs
+                            SET created_at = created_at AT TIME ZONE 'Asia/Shanghai' AT TIME ZONE 'UTC'
+                            WHERE created_at IS NOT NULL;
+                            """)
+                            
+                            # 修复积分历史表中的时间字段
+                            cursor.execute("""
+                            UPDATE points_history
+                            SET created_at = created_at AT TIME ZONE 'Asia/Shanghai' AT TIME ZONE 'UTC'
+                            WHERE created_at IS NOT NULL;
+                            """)
+                            
+                            # 修复活动评价表中的时间字段
+                            cursor.execute("""
+                            UPDATE activity_reviews
+                            SET created_at = created_at AT TIME ZONE 'Asia/Shanghai' AT TIME ZONE 'UTC'
+                            WHERE created_at IS NOT NULL;
+                            """)
+                            
+                            messages.append("其他日期时间字段已修复")
                         
                         # 提交所有更改
                         conn.commit()
                         
                         # 记录日志
                         log_action('fix_timezone', '修复数据库时区问题')
-                        flash('时区修复成功！所有时间字段已调整为正确的UTC时间。', 'success')
+                        messages.append("所有修复操作已完成")
                     else:
-                        flash('当前数据库不是PostgreSQL，无需修复时区问题。', 'info')
+                        messages.append("当前数据库不是PostgreSQL，无需修复时区问题。")
                 
                 except Exception as e:
                     if conn:
                         conn.rollback()
                     logger.error(f"时区修复失败: {e}")
-                    flash(f'时区修复失败: {str(e)}', 'danger')
+                    messages.append(f"修复失败: {str(e)}")
                 finally:
                     if cursor:
                         cursor.close()
                     if conn:
                         conn.close()
-            
-            return redirect(url_for('admin.fix_timezone'))
         
-        return render_template('admin/fix_timezone.html')
+        return render_template('admin/fix_timezone.html', messages=messages)
     except Exception as e:
         logger.error(f"Error in fix_timezone: {e}")
         flash('访问时区修复页面时出错', 'danger')

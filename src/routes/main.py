@@ -75,10 +75,10 @@ def index():
         now = datetime.utcnow().replace(tzinfo=pytz.UTC)
         upcoming_activities = Activity.query.filter(
             Activity.status == 'active',
-            safe_greater_than(Activity.start_time, now),
+            Activity.start_time > now,  # 使用直接比较而不是safe_greater_than函数
             db.or_(
                 Activity.registration_deadline.is_(None),
-                safe_greater_than(Activity.registration_deadline, now)
+                Activity.registration_deadline > now  # 使用直接比较而不是safe_greater_than函数
             )
         ).order_by(Activity.start_time.asc()).limit(3).all()
         

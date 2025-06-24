@@ -350,6 +350,9 @@ def register_context_processors(app):
         """注入当前时间和辅助函数到模板上下文"""
         from src.utils.time_helpers import get_beijing_time, display_datetime, safe_less_than, safe_greater_than, safe_compare
         
+        # 记录日志，确保函数正确加载
+        app.logger.info(f"注入全局模板函数: display_datetime类型 = {type(display_datetime)}")
+        
         return {
             'now': get_beijing_time(),
             'display_datetime': display_datetime,
