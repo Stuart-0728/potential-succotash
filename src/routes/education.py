@@ -145,43 +145,34 @@ def gemini_api():
                     'content': '系统未配置API密钥，无法使用AI功能'
                 })
         
-        # 构建请求参数 - 使用火山引擎推荐的API格式
-        payload = {
-            "model": "deepseek-r1-distill-qwen-7b-250120",
-            "messages": [
-                {
-                    "role": "system",
-                    "content": "你是一名教育专家，精通物理学、数学等自然科学领域的知识。你正在为重庆师范大学师能素质协会的学生提供教育资源和答疑解惑。你的回答应该简洁、准确、有教育意义。"
-                },
-                {
-                    "role": "user",
-                    "content": prompt
-                }
-            ],
-            "temperature": 0.7,
-            "top_p": 0.9,
-            "max_tokens": 1024
-        }
-        
         # 发送请求 - 使用正确的火山引擎端点
-        url = "https://ark.cn-beijing.volces.com/api/v3/chat/completions"
+        url = current_app.config.get('VOLCANO_API_URL', "https://ark.cn-beijing.volces.com/api/v3/chat/completions")
         headers = {
             "Content-Type": "application/json",
-            "Authorization": f"Bearer {api_key}",
-            "X-Request-Id": str(uuid.uuid4())  # 添加请求ID，便于追踪
+            "Authorization": f"Bearer {api_key}"
+        }
+        
+        # 构建请求负载
+        payload = {
+            "model": "deepseek-v3-250324",  # 使用官方推荐模型
+            "messages": [
+                {"role": "system", "content": "你是一名教育专家，精通物理学、数学等自然科学领域的知识。你正在为重庆师范大学师能素质协会的学生提供教育资源和答疑解惑。你的回答应该简洁、准确、有教育意义。"},
+                {"role": "user", "content": prompt}
+            ],
+            "temperature": 0.7
         }
         
         # 记录请求开始
-        current_app.logger.info(f"正在向火山引擎API发送请求，提示词长度：{len(prompt)}")
+        current_app.logger.info(f"正在向AI API发送请求: {url}, 提示词长度：{len(prompt)}")
         
         # 添加超时参数，避免长时间等待
         response = requests.post(url, json=payload, headers=headers, timeout=30)
         
         # 记录响应状态
-        current_app.logger.info(f"火山引擎API响应状态码：{response.status_code}")
+        current_app.logger.info(f"AI API响应状态码：{response.status_code}")
         
         if response.status_code != 200:
-            current_app.logger.error(f"火山引擎API调用失败，状态码：{response.status_code}，响应：{response.text}")
+            current_app.logger.error(f"AI API调用失败，状态码：{response.status_code}，响应：{response.text}")
             return jsonify({
                 'success': False,
                 'content': f"AI服务暂时不可用，请稍后再试。错误码：{response.status_code}"
@@ -189,7 +180,7 @@ def gemini_api():
         
         response_data = response.json()
         
-        # 使用火山引擎标准响应格式
+        # 使用AI标准响应格式
         if 'choices' in response_data and len(response_data['choices']) > 0:
             ai_response = response_data['choices'][0]['message']['content']
             
@@ -208,14 +199,14 @@ def gemini_api():
             })
     
     except requests.Timeout:
-        current_app.logger.error("火山引擎API请求超时")
+        current_app.logger.error("AI API请求超时")
         return jsonify({
             'success': False,
             'content': "AI服务响应超时，请稍后再试"
         })
     
     except requests.ConnectionError:
-        current_app.logger.error("连接火山引擎API失败")
+        current_app.logger.error("连接AI服务失败")
         return jsonify({
             'success': False,
             'content': "无法连接到AI服务，请检查网络连接"

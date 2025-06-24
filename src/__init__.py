@@ -59,6 +59,23 @@ def create_app(config_name=None):
     # 必须显式调用init_app方法以确保权限设置等自定义初始化
     config[config_name].init_app(app)
     
+    # 配置DNS解析 - 为网络请求添加备用DNS服务器
+    try:
+        import socket
+        import dns.resolver
+        
+        # 设置备用DNS服务器
+        dns_servers = ['8.8.8.8', '8.8.4.4', '114.114.114.114']
+        resolver = dns.resolver.Resolver()
+        resolver.nameservers = dns_servers
+        
+        # 测试域名解析
+        app.logger.info("测试DNS解析配置...")
+        volcano_ip = socket.gethostbyname('api.volcengine.com')
+        app.logger.info(f"成功解析api.volcengine.com: {volcano_ip}")
+    except Exception as e:
+        app.logger.warning(f"配置DNS解析时出错，将使用系统默认DNS: {str(e)}")
+    
     # 配置日志
     setup_logging(app)
     
@@ -224,6 +241,15 @@ def register_blueprints(app):
     from .routes.checkin import checkin_bp
     from .routes.education import education_bp
     
+    # 创建API蓝图 - 用于处理/api请求
+    from flask import Blueprint
+    from .routes.utils import ai_chat
+    
+    api_bp = Blueprint('api', __name__, url_prefix='/api')
+    
+    # 将AI聊天路由添加到API蓝图
+    api_bp.route('/ai_chat', methods=['GET'])(ai_chat)
+    
     # 注册蓝图
     app.register_blueprint(main_bp)
     app.register_blueprint(auth_bp, url_prefix='/auth')
@@ -233,6 +259,7 @@ def register_blueprints(app):
     app.register_blueprint(tag_bp, url_prefix='/tag')
     app.register_blueprint(checkin_bp, url_prefix='/checkin')
     app.register_blueprint(education_bp, url_prefix='/education')
+    app.register_blueprint(api_bp)  # 注册API蓝图
     
     # 注册错误处理蓝图
     from .routes.errors import errors_bp
@@ -317,12 +344,16 @@ def register_template_functions(app):
 
 def register_context_processors(app):
     """注册全局上下文处理器"""
+    
     @app.context_processor
     def inject_now_and_helpers():
-        """注入当前时间和帮助函数到所有模板"""
-        # 导入时间处理函数
-        from src.utils.time_helpers import display_datetime
+        """注入当前时间和辅助函数到模板上下文"""
+        from src.utils.time_helpers import get_beijing_time, display_datetime, safe_less_than, safe_greater_than, safe_compare
+        
         return {
-            'now': datetime.now(),
-            'display_datetime': display_datetime
+            'now': get_beijing_time(),
+            'display_datetime': display_datetime,
+            'safe_less_than': safe_less_than,
+            'safe_greater_than': safe_greater_than,
+            'safe_compare': safe_compare
         } 

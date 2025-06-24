@@ -221,23 +221,15 @@ def ai_chat():
                 'error': 'AI 服务配置错误：API 密钥未设置'
             }), 500
 
-    # API端点
-    url = "https://ark.cn-beijing.volces.com/api/v3/chat/completions"
-    
-    # 如果API密钥是火山引擎API密钥格式，则使用火山引擎API端点
-    if api_key and api_key.startswith("ccde") or 'VOLCANO_API_KEY' in os.environ:
-        url = "https://render-api.volcengine.com/api/v1/chat/completions"
-        logger.info("使用火山引擎API端点")
+    # 获取API端点URL - 使用火山引擎官方提供的URL
+    url = current_app.config.get('VOLCANO_API_URL', "https://ark.cn-beijing.volces.com/api/v3/chat/completions")
+    logger.info(f"使用AI聊天API端点: {url}")
     
     headers = {
         "Content-Type": "application/json",
         "Authorization": f"Bearer {api_key}"
     }
     
-    # 如果是火山引擎API，需要添加请求ID
-    if url.startswith("https://ark.cn-beijing.volces.com"):
-        headers["X-Request-Id"] = str(uuid.uuid4())
-
     # 获取用户信息
     student_info = None
     if hasattr(current_user, 'student_info'):
@@ -383,7 +375,7 @@ def ai_chat():
 
     # 构建API请求
     payload = {
-        "model": "deepseek-r1-distill-qwen-7b-250120",
+        "model": "deepseek-v3-250324",  # 使用官方指定的模型
         "messages": messages,
         "temperature": 0.7,
         "stream": True

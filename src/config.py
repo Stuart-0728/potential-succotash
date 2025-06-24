@@ -138,7 +138,8 @@ class Config:
     ACTIVITY_TYPES = ['cultural', 'sports', 'academic', 'volunteer', 'competition', 'other']
     
     # AI API配置
-    VOLCANO_API_KEY = os.environ.get('VOLCANO_API_KEY', '')
+    VOLCANO_API_KEY = os.environ.get('VOLCANO_API_KEY', os.environ.get('ARK_API_KEY', ''))
+    VOLCANO_API_URL = os.environ.get('VOLCANO_API_URL', 'https://ark.cn-beijing.volces.com/api/v3/chat/completions')
     
     @classmethod
     def init_app(cls, app):

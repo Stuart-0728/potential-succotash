@@ -152,11 +152,12 @@ def normalize_datetime_for_db(dt):
         utc_dt = aware_dt.astimezone(pytz.utc).replace(tzinfo=None)
         return utc_dt
 
-def display_datetime(dt, format_str='%Y-%m-%d %H:%M'):
+def display_datetime(dt, format_str='%Y-%m-%d %H:%M', timezone_name=None):
     """
     将数据库中的时间转换为显示时间（北京时间）
     :param dt: 数据库中的datetime对象
     :param format_str: 格式化字符串
+    :param timezone_name: 要转换到的时区名称，默认为None表示使用Asia/Shanghai
     :return: 格式化后的字符串
     """
     if dt is None:
@@ -178,12 +179,12 @@ def display_datetime(dt, format_str='%Y-%m-%d %H:%M'):
         else:
             dt_with_tz = dt
         
-        # 转换为北京时间
-        beijing_tz = pytz.timezone('Asia/Shanghai')
-        beijing_dt = dt_with_tz.astimezone(beijing_tz)
+        # 转换为指定时区，默认为北京时间
+        target_tz = pytz.timezone(timezone_name if timezone_name else 'Asia/Shanghai')
+        target_dt = dt_with_tz.astimezone(target_tz)
         
         # 格式化并返回
-        return beijing_dt.strftime(format_str)
+        return target_dt.strftime(format_str)
     except Exception as e:
         # 如果出现任何错误，尝试直接格式化
         try:
