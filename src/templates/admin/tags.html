@@ -19,6 +19,7 @@
                 </div>
                 <div class="card-body">
                     <form method="POST" action="{{ url_for('admin.create_tag') }}" class="needs-validation" novalidate>
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <div class="mb-3">
                             <label for="tagName" class="form-label">标签名称</label>
                             <input type="text" class="form-control" id="tagName" name="name" required>
@@ -116,6 +117,7 @@
             <form method="POST" id="editTagForm" class="needs-validation" novalidate>
                 <div class="modal-body">
                     <input type="hidden" id="editTagId" name="tag_id">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <div class="mb-3">
                         <label for="editTagName" class="form-label">标签名称</label>
                         <input type="text" class="form-control" id="editTagName" name="name" required>
@@ -159,7 +161,8 @@ function deleteTag(id, name) {
         fetch(`/admin/tags/${id}/delete`, {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
             }
         }).then(response => {
             if (response.ok) {

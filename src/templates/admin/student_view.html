@@ -79,6 +79,7 @@
                 </div>
                 <div class="card-body">
                     <form method="post" action="{{ url_for('admin.update_student_tags', id=student.id) }}">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <div class="mb-3">
                             <label class="form-label">选择标签</label>
                             <div class="d-flex flex-wrap gap-2">
@@ -101,6 +102,7 @@
                 </div>
                 <div class="card-body">
                     <form method="post" action="{{ url_for('admin.adjust_student_points', id=student.id) }}">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <div class="mb-3">
                             <label for="points" class="form-label">积分值</label>
                             <input type="number" class="form-control" id="points" name="points" required>

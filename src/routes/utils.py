@@ -603,7 +603,39 @@ def ai_chat_clear_history():
 @login_required
 def utils_ai_chat_clear_history():
     """清除用户所有AI聊天历史记录 - 带utils前缀的版本"""
-    return ai_chat_clear_history()
+    try:
+        # 获取请求数据
+        data = request.get_json(silent=True) or {}
+        session_id = data.get('session_id')
+
+        # 删除用户的所有聊天记录
+        sessions = db.session.execute(db.select(AIChatSession).filter_by(
+            user_id=current_user.id
+        )).scalars().all()
+        
+        for session in sessions:
+            db.session.execute(db.delete(AIChatHistory).filter_by(
+                session_id=session.id
+            ))
+        
+        # 也可以选择删除会话本身
+        db.session.execute(db.delete(AIChatSession).filter_by(
+            user_id=current_user.id
+        ))
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': '成功清除所有历史记录'
+        })
+    except Exception as e:
+        logger.error(f"清除所有AI聊天历史记录失败: {str(e)}")
+        db.session.rollback()
+        return jsonify({
+            'success': False,
+            'message': f'清除所有历史记录失败: {str(e)}'
+        }), 500
 
 # 添加缺失的add_points函数
 def add_points(user_id, points, reason, activity_id=None):
@@ -667,19 +699,8 @@ def random_string(length=6):
 
 @utils_bp.route('/check_login_status')
 def check_login_status():
-    """检查用户登录状态"""
-    is_logged_in = current_user.is_authenticated
-    response_data = {
-        'is_logged_in': is_logged_in,
-        'user_id': current_user.id if is_logged_in else None,
-        'username': current_user.username if is_logged_in else None
-    }
-    
-    # 添加更多详细信息，帮助客户端处理
-    if is_logged_in:
-        response_data['role'] = current_user.role.name if hasattr(current_user, 'role') and current_user.role else None
-        response_data['login_url'] = None
-    else:
-        response_data['login_url'] = url_for('auth.login')
-    
-    return jsonify(response_data)
+    """返回用户登录状态的API端点"""
+    return jsonify({
+        'is_logged_in': current_user.is_authenticated,
+        'user_id': current_user.id if current_user.is_authenticated else None
+    })

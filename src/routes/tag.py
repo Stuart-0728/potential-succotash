@@ -52,7 +52,7 @@ def assign_tag():
     activity.tags = []
     # 添加新标签
     if tag_ids:
-        tags = Tag.query.filter(Tag.id.in_(tag_ids)).all()
+        tags = db.session.execute(db.select(Tag).filter(Tag.id.in_(tag_ids))).scalars().all()
         activity.tags = tags
     db.session.commit()
     return jsonify({'success': True})
