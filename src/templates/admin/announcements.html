@@ -54,6 +54,7 @@
                                         <i class="fas fa-edit"></i> 编辑
                                     </a>
                                     <form method="post" action="{{ url_for('admin.delete_announcement', id=announcement.id) }}" onsubmit="return confirm('确定要删除此公告吗？');" class="d-inline">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                         <button type="submit" class="btn btn-sm btn-outline-danger">
                                             <i class="fas fa-trash-alt"></i> 删除
                                         </button>

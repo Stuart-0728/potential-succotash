@@ -38,43 +38,54 @@ def index():
         # 添加调试信息，检查活动和海报信息
         for i, activity in enumerate(featured_activities):
             logger.info(f"特色活动 {i+1}: ID={activity.id}, 标题={activity.title}, 海报={activity.poster_image}")
-            if activity.poster_image:
-                # 检查并修复可能包含"None"的海报路径
-                if "None" in activity.poster_image:
-                    # 从文件名中提取时间戳部分
-                    try:
-                        parts = activity.poster_image.split('_')
-                        if len(parts) >= 3:
-                            # 替换None为实际活动ID
-                            fixed_name = f"activity_{activity.id}_{parts[2]}"
-                            activity.poster_image = fixed_name
-                            logger.info(f"  修复海报文件名: {activity.poster_image}")
-                    except Exception as e:
-                        logger.error(f"  修复海报文件名出错: {e}")
+            
+            # 检查是否有海报
+            if activity.poster_image is None or str(activity.poster_image).strip() == '':
+                # 如果没有设置海报，使用备用风景图
+                activity.poster_image = "landscape.jpg"
+                logger.info(f"  未设置海报，使用备用风景图: landscape.jpg")
+                continue
+            
+            # 检查并修复可能包含"None"的海报路径
+            if "None" in str(activity.poster_image):
+                # 从文件名中提取时间戳部分
+                try:
+                    parts = activity.poster_image.split('_')
+                    if len(parts) >= 3:
+                        # 替换None为实际活动ID
+                        fixed_name = f"activity_{activity.id}_{parts[2]}"
+                        activity.poster_image = fixed_name
+                        logger.info(f"  修复海报文件名: {activity.poster_image}")
+                except Exception as e:
+                    logger.error(f"  修复海报文件名出错: {e}")
+            
+            # 检查文件是否存在
+            if static_folder:
+                # 首先尝试查找以活动ID开头的任何海报文件
+                poster_dir = os.path.join(static_folder, 'uploads', 'posters')
+                if os.path.exists(poster_dir):
+                    matching_files = [f for f in os.listdir(poster_dir) if f.startswith(f"activity_{activity.id}_")]
+                    if matching_files:
+                        # 使用最新的匹配文件
+                        matching_files.sort(reverse=True)  # 按文件名降序排序，通常最新的时间戳在最前面
+                        new_poster = matching_files[0]
+                        activity.poster_image = new_poster
+                        logger.info(f"  找到匹配的海报文件: {new_poster}")
+                        # 检查文件是否确实存在
+                        poster_path = os.path.join(poster_dir, new_poster)
+                        if os.path.exists(poster_path):
+                            logger.info(f"  海报文件存在: {poster_path}")
+                            continue  # 跳过备用海报设置
                 
-                # 检查文件是否存在
-                if static_folder:
-                    poster_path = os.path.join(static_folder, 'uploads', 'posters', activity.poster_image)
-                    if os.path.exists(poster_path):
-                        logger.info(f"  海报文件存在: {poster_path}")
-                    else:
-                        logger.warning(f"  海报文件不存在: {poster_path}")
-                        # 添加备用文件检查
-                        alt_paths = [
-                            os.path.join(static_folder, 'img', 'banner1.jpg'),
-                            os.path.join(static_folder, 'img', 'banner2.jpg'),
-                            os.path.join(static_folder, 'img', 'banner3.jpg'),
-                        ]
-                        
-                        # 找到第一个存在的备用文件并设置为海报图片
-                        for i, alt_path in enumerate(alt_paths):
-                            if os.path.exists(alt_path):
-                                backup_filename = f"banner{i+1}.jpg"
-                                activity.poster_image = backup_filename
-                                logger.info(f"  设置备用海报文件: {backup_filename}")
-                                break
-                        else:
-                            logger.warning("  所有备用文件也不存在")
+                # 如果没有找到匹配的文件，检查指定的海报是否存在
+                poster_path = os.path.join(static_folder, 'uploads', 'posters', activity.poster_image)
+                if os.path.exists(poster_path):
+                    logger.info(f"  海报文件存在: {poster_path}")
+                else:
+                    logger.warning(f"  海报文件不存在: {poster_path}")
+                    # 使用备用风景图
+                    setattr(activity, 'poster_image', "landscape.jpg")
+                    logger.info(f"设置活动详情页备用风景图: landscape.jpg")
         
         # 获取即将开始的活动（未开始且报名截止日期在未来）
         now = datetime.utcnow().replace(tzinfo=pytz.UTC)
@@ -247,21 +258,9 @@ def activity_detail(activity_id):
                             else:
                                 # 如果没有找到匹配的文件，使用备用海报
                                 logger.warning(f"海报文件不存在: {poster_path}")
-                                alt_paths = [
-                                    os.path.join(static_folder, 'img', 'banner1.jpg'),
-                                    os.path.join(static_folder, 'img', 'banner2.jpg'),
-                                    os.path.join(static_folder, 'img', 'banner3.jpg'),
-                                ]
-                                
-                                # 找到第一个存在的备用文件并设置为海报图片
-                                for i, alt_path in enumerate(alt_paths):
-                                    if os.path.exists(alt_path):
-                                        backup_filename = f"banner{i+1}.jpg"
-                                        setattr(activity, 'poster_image', backup_filename)
-                                        logger.info(f"设置活动详情页备用海报: {backup_filename}")
-                                        break
-                                else:
-                                    logger.warning("所有备用文件也不存在")
+                                # 使用备用风景图
+                                setattr(activity, 'poster_image', "landscape.jpg")
+                                logger.info(f"设置活动详情页备用风景图: landscape.jpg")
                         else:
                             logger.warning(f"海报目录不存在: {poster_dir}")
         except Exception as e:

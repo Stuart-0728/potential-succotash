@@ -312,6 +312,7 @@
                         
                         {% if activity.status == 'active' %}
                         <form action="{{ url_for('admin.toggle_checkin', id=activity.id) }}" method="post" class="mt-2">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                             <button type="submit" class="btn btn-{% if activity.checkin_enabled %}danger{% else %}success{% endif %} w-100">
                                 <i class="fas fa-{% if activity.checkin_enabled %}times{% else %}check{% endif %} me-2"></i>
                                 {% if activity.checkin_enabled %}关闭{% else %}开启{% endif %}签到
@@ -352,9 +353,10 @@
             fetch('{{ url_for('admin.change_activity_status', id=activity.id) }}', {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded'
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'X-CSRFToken': '{{ csrf_token() }}'
                 },
-                body: 'status=' + status
+                body: 'status=' + status + '&csrf_token={{ csrf_token() }}'
             })
             .then(response => {
                 if (response.ok) {
@@ -375,9 +377,10 @@
             fetch('{{ url_for('admin.manual_checkin', activity_id=activity.id) }}', {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded'
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'X-CSRFToken': '{{ csrf_token() }}'
                 },
-                body: 'registration_id=' + registrationId
+                body: 'registration_id=' + registrationId + '&csrf_token={{ csrf_token() }}'
             })
             .then(response => {
                 if (response.ok) {
@@ -398,9 +401,10 @@
             fetch('{{ url_for('admin.cancel_checkin', activity_id=activity.id) }}', {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded'
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'X-CSRFToken': '{{ csrf_token() }}'
                 },
-                body: 'registration_id=' + registrationId
+                body: 'registration_id=' + registrationId + '&csrf_token={{ csrf_token() }}'
             })
             .then(response => {
                 if (response.ok) {
