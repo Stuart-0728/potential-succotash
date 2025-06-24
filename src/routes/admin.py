@@ -66,21 +66,22 @@ def handle_poster_upload(file_data, activity_id):
             unique_filename = f"activity_temp_{timestamp}{file_extension}"
             logger.info(f"活动ID为空，使用临时ID: {unique_filename}")
         else:
-            # 检查activity_id类型，确保正确处理
+            # 处理活动ID - 如果是对象，获取id属性；如果是基本类型，直接使用
             try:
-                # 如果是ORM对象，尝试获取id属性
+                # 尝试访问id属性，适用于ORM对象
                 if hasattr(activity_id, 'id'):
                     str_activity_id = str(activity_id.id)
-                    logger.info(f"从ORM对象获取活动ID: {str_activity_id}")
+                    logger.info(f"从对象中提取活动ID: {str_activity_id}")
                 else:
-                    # 否则直接转换为字符串
+                    # 如果不是对象或没有id属性，直接使用
                     str_activity_id = str(activity_id)
                     logger.info(f"直接使用活动ID: {str_activity_id}")
-                
-                unique_filename = f"activity_{str_activity_id}_{timestamp}{file_extension}"
             except Exception as e:
-                logger.error(f"处理活动ID时出错: {e}, 使用临时ID")
-                unique_filename = f"activity_temp_{timestamp}{file_extension}"
+                # 如果出错，直接尝试转换为字符串
+                str_activity_id = str(activity_id)
+                logger.warning(f"处理活动ID时出错，使用直接转换: {str_activity_id}, 错误: {e}")
+            
+            unique_filename = f"activity_{str_activity_id}_{timestamp}{file_extension}"
         
         # 确保上传目录存在
         upload_dir = os.path.join(current_app.static_folder or 'src/static', 'uploads', 'posters')
@@ -484,7 +485,7 @@ def edit_activity(id):
                 try:
                     logger.info(f"编辑活动: 准备上传海报，活动ID={activity.id}, 文件名={form.poster.data.filename}")
                     
-                    # 使用handle_poster_upload函数处理文件上传
+                    # 使用handle_poster_upload函数处理文件上传，传递活动ID而不是整个活动对象
                     poster_filename = handle_poster_upload(form.poster.data, activity.id)
                     
                     if poster_filename:
@@ -518,149 +519,30 @@ def edit_activity(id):
             if activity.status == 'completed' and not activity.completed_at:
                 activity.completed_at = datetime.now(pytz.utc)
             
-            db.session.commit()
+            # 提交前记录详细信息，帮助诊断问题
+            logger.info(f"准备提交活动更新 - ID: {activity.id}, 标题: {activity.title}, 海报: {activity.poster_image}")
+            logger.info(f"标签数量: {len(activity.tags)}")
             
-            # 记录日志
-            log_action('edit_activity', f'编辑活动: {activity.title}')
-            
-            flash('活动更新成功!', 'success')
-            return redirect(url_for('admin.activities'))
+            try:
+                db.session.commit()
+                logger.info("活动更新成功提交到数据库")
+                
+                # 记录日志
+                log_action('edit_activity', f'编辑活动: {activity.title}')
+                
+                flash('活动更新成功!', 'success')
+                return redirect(url_for('admin.activities'))
+            except Exception as e:
+                db.session.rollback()
+                logger.error(f"提交活动更新时出错: {e}", exc_info=True)
+                flash(f'保存活动时出错: {str(e)}', 'danger')
+                return render_template('admin/activity_form.html', form=form, title='编辑活动', activity=activity)
         
         return render_template('admin/activity_form.html', form=form, title='编辑活动', activity=activity)
     except Exception as e:
         db.session.rollback()
         logger.error(f"Error in edit_activity: {e}")
         flash('编辑活动时出错，请重试', 'danger')
-        return redirect(url_for('admin.activities'))
-
-@admin_bp.route('/activity/<int:id>/view')
-@admin_required
-def activity_view(id):
-    try:
-        from flask_wtf.csrf import generate_csrf
-        
-        activity = db.get_or_404(Activity, id)
-        
-        # 获取创建者信息
-        creator = db.session.get(User, activity.created_by) if activity.created_by else None
-        
-        # 获取报名人数 - 修复逻辑，同时统计registered和attended状态
-        registration_stmt = db.select(func.count()).select_from(Registration).filter(
-            Registration.activity_id == id,
-            db.or_(
-                Registration.status == 'registered',
-                Registration.status == 'attended'
-            )
-        )
-        registration_count = db.session.execute(registration_stmt).scalar()
-        
-        # 获取签到人数 - 检查是否有check_in_time
-        checkin_stmt = db.select(func.count()).select_from(Registration).filter(
-            Registration.activity_id == id,
-            Registration.check_in_time.isnot(None)
-        )
-        checkin_count = db.session.execute(checkin_stmt).scalar()
-        
-        # 获取参与者信息
-        registrations_stmt = db.select(Registration).join(
-            User, Registration.user_id == User.id
-        ).join(
-            StudentInfo, User.id == StudentInfo.user_id
-        ).filter(
-            Registration.activity_id == id
-        )
-        registrations = db.session.execute(registrations_stmt).scalars().all()
-        
-        # 导入display_datetime函数供模板使用
-        from src.utils.time_helpers import display_datetime, safe_less_than, safe_greater_than
-        
-        # 记录日志，帮助调试
-        logger.info(f"活动ID={id}, 标题={activity.title}, 开始时间={activity.start_time}, 结束时间={activity.end_time}")
-        logger.info(f"display_datetime类型: {type(display_datetime)}")
-        logger.info(f"display_datetime示例: {display_datetime(datetime.now())}")
-        
-        # 生成CSRF令牌
-        csrf_token = generate_csrf()
-        
-        return render_template('admin/activity_view.html', 
-                             activity=activity,
-                             creator=creator,
-                             registrations_count=registration_count,
-                             checkins_count=checkin_count,
-                             registrations=registrations,
-                             display_datetime=display_datetime,
-                             safe_less_than=safe_less_than,
-                             safe_greater_than=safe_greater_than,
-                             csrf_token=csrf_token)
-    except Exception as e:
-        logger.error(f"查看活动详情出错: {e}")
-        flash('查看活动详情时出错', 'danger')
-        return redirect(url_for('admin.activities'))
-
-@admin_bp.route('/activity/<int:id>/delete', methods=['POST'])
-@admin_required
-def delete_activity(id):
-    try:
-        activity = db.get_or_404(Activity, id)
-        force_delete = request.args.get('force', 'false').lower() == 'true'
-        
-        # 使用事务
-        with db.session.begin_nested():
-            if force_delete:
-                # 强制删除活动及相关数据
-                
-                # 1. 删除积分历史记录
-                db.session.execute(db.delete(PointsHistory).filter_by(activity_id=activity.id))
-                
-                # 2. 删除报名记录
-                db.session.execute(db.delete(Registration).filter_by(activity_id=activity.id))
-                
-                # 3. 删除活动评价
-                db.session.execute(db.delete(ActivityReview).filter_by(activity_id=activity.id))
-                
-                # 4. 删除签到记录
-                db.session.execute(db.delete(ActivityCheckin).filter_by(activity_id=activity.id))
-                
-                # 5. 删除活动与标签的关联
-                activity.tags = []
-                
-                # 6. 删除活动
-                db.session.delete(activity)
-                log_action('delete_activity', f'永久删除活动: {activity.title}')
-                flash('活动已永久删除', 'success')
-            elif db.session.execute(db.select(func.count()).select_from(Registration).filter_by(activity_id=activity.id)).scalar() == 0:
-                # 如果没有报名记录，直接删除活动
-                
-                # 1. 删除积分历史记录
-                db.session.execute(db.delete(PointsHistory).filter_by(activity_id=activity.id))
-                
-                # 2. 删除活动评价
-                db.session.execute(db.delete(ActivityReview).filter_by(activity_id=activity.id))
-                
-                # 3. 删除签到记录
-                db.session.execute(db.delete(ActivityCheckin).filter_by(activity_id=activity.id))
-                
-                # 4. 删除活动与标签的关联
-                activity.tags = []
-                
-                # 5. 删除活动
-                db.session.delete(activity)
-                log_action('delete_activity', f'删除活动: {activity.title}')
-                flash('活动已删除', 'success')
-            else:
-                # 如果有报名记录且不是强制删除，则标记为已取消
-                activity.status = 'cancelled'
-                log_action('cancel_activity', f'取消活动: {activity.title}')
-                flash('活动已标记为已取消', 'success')
-        
-        db.session.commit()
-        
-        return redirect(url_for('admin.activities'))
-        
-    except Exception as e:
-        db.session.rollback()
-        logger.error(f"Error deleting activity: {e}")
-        flash('删除活动时出错', 'danger')
         return redirect(url_for('admin.activities'))
 
 @admin_bp.route('/students')
