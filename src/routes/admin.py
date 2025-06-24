@@ -208,26 +208,29 @@ def create_activity():
             activity_type = form.activity_type.data
             points = form.points.data
             
-            # 检查提交的时间是否已经包含时区信息
-            # 如果已经包含时区信息，则不需要再添加
-            if start_time.tzinfo is not None:
-                logger.info(f"start_time已包含时区信息: {start_time}")
-            else:
-                # 添加北京时区
-                start_time = ensure_timezone_aware(start_time)
-                logger.info(f"LocalizedDateTimeField添加了北京时区: {start_time}")
+            # 改进的时区处理逻辑
+            # 先检查时间对象是否为None
+            if start_time:
+                # 确保时间具有时区信息，但避免重复添加
+                if start_time.tzinfo is None:
+                    start_time = ensure_timezone_aware(start_time)
+                    logger.info(f"为start_time添加了北京时区: {start_time}")
+                else:
+                    logger.info(f"start_time已有时区信息，无需添加: {start_time}")
             
-            if end_time.tzinfo is not None:
-                logger.info(f"end_time已包含时区信息: {end_time}")
-            else:
-                end_time = ensure_timezone_aware(end_time)
-                logger.info(f"LocalizedDateTimeField添加了北京时区: {end_time}")
+            if end_time:
+                if end_time.tzinfo is None:
+                    end_time = ensure_timezone_aware(end_time)
+                    logger.info(f"为end_time添加了北京时区: {end_time}")
+                else:
+                    logger.info(f"end_time已有时区信息，无需添加: {end_time}")
             
-            if registration_deadline.tzinfo is not None:
-                logger.info(f"registration_deadline已包含时区信息: {registration_deadline}")
-            else:
-                registration_deadline = ensure_timezone_aware(registration_deadline)
-                logger.info(f"LocalizedDateTimeField添加了北京时区: {registration_deadline}")
+            if registration_deadline:
+                if registration_deadline.tzinfo is None:
+                    registration_deadline = ensure_timezone_aware(registration_deadline)
+                    logger.info(f"为registration_deadline添加了北京时区: {registration_deadline}")
+                else:
+                    logger.info(f"registration_deadline已有时区信息，无需添加: {registration_deadline}")
             
             # 创建活动
             activity = Activity(

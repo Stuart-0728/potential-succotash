@@ -123,7 +123,7 @@ class AIChatSession {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'X-CSRF-Token': this.getCsrfToken()
+                'X-CSRFToken': this.getCsrfToken()
             }
         })
         .catch(error => console.error('清除历史记录失败:', error));
@@ -131,14 +131,21 @@ class AIChatSession {
     
     // 清除用户所有会话历史记录
     clearAllHistory() {
-        this.messages = [];
-        // 调用后端API清除所有历史记录
-        fetch('/utils/ai_chat/clear_history', {
+        if (!this.sessionId) {
+            return Promise.reject('No session ID');
+        }
+
+        // 发送清除历史的请求
+        return fetch(`/utils/ai_chat/clear_history`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'X-CSRF-Token': this.getCsrfToken()
-            }
+                'Accept': 'application/json',
+                'X-CSRFToken': this.getCsrfToken()
+            },
+            body: JSON.stringify({
+                session_id: this.sessionId
+            })
         })
         .then(response => response.json())
         .then(data => {
@@ -160,33 +167,38 @@ class AIChatSession {
     
     // 从后端加载消息历史
     loadMessagesFromServer() {
-        // 先尝试从Cookie加载，作为备用方案
-        const cookieMessages = this.loadMessagesFromCookie();
-        if (cookieMessages) {
-            this.messages = cookieMessages;
+        // 如果没有会话ID，无法加载
+        if (!this.sessionId) {
+            return Promise.reject('No session ID');
         }
-        
-        // 从后端API加载历史记录
-        fetch(`/utils/ai_chat/history?session_id=${this.sessionId}`)
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error('加载历史记录失败');
+
+        // 从服务器加载历史消息
+        return fetch(`/utils/ai_chat/history?session_id=${this.sessionId}`, {
+            method: 'GET',
+            headers: {
+                'Accept': 'application/json',
+                'X-CSRFToken': this.getCsrfToken()
+            }
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('加载历史记录失败');
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.success && data.data && data.data.length > 0) {
+                this.messages = data.data;
+                // 如果有UI实例，刷新UI
+                if (window.aiChat && window.aiChat.ui) {
+                    window.aiChat.ui.refreshMessages();
                 }
-                return response.json();
-            })
-            .then(data => {
-                if (data.success && data.data && data.data.length > 0) {
-                    this.messages = data.data;
-                    // 如果有UI实例，刷新UI
-                    if (window.aiChat && window.aiChat.ui) {
-                        window.aiChat.ui.refreshMessages();
-                    }
-                }
-            })
-            .catch(error => {
-                console.error('从服务器加载历史记录失败:', error);
-                // 如果从服务器加载失败，就使用Cookie中的数据（如果有）
-            });
+            }
+        })
+        .catch(error => {
+            console.error('从服务器加载历史记录失败:', error);
+            // 如果从服务器加载失败，就使用Cookie中的数据（如果有）
+        });
     }
     
     // 从Cookie加载消息（作为备用方案）
@@ -430,7 +442,7 @@ class AIChatUI {
         
         // 创建 EventSource 连接
         const role = 'student'; // 默认角色，可扩展
-        const eventSource = new EventSource(`/api/ai_chat?message=${encodeURIComponent(userMessage)}&role=${role}&session_id=${this.session.sessionId}`);
+        const eventSource = new EventSource(`/utils/api/ai_chat?message=${encodeURIComponent(userMessage)}&role=${role}&session_id=${this.session.sessionId}`);
         
         // 完整的AI响应文本
         let fullResponse = '';

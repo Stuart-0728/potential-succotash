@@ -192,6 +192,13 @@ def build_activity_context(activities):
         return "当前暂无可推荐的活动。"
     return "\n".join([f"{a.title}：{a.description[:40]}..." for a in activities])
 
+# 独立的AI聊天API路由 - 添加到utils_bp蓝图
+@utils_bp.route('/utils/ai_chat/api', methods=['GET'])
+def utils_ai_chat_api():
+    """提供AI聊天API，转发到ai_chat函数"""
+    return ai_chat()
+
+# 现有的AI聊天路由
 @utils_bp.route('/api/ai_chat', methods=['GET'])
 def ai_chat():
     if not current_user.is_authenticated:
@@ -466,6 +473,16 @@ def ai_chat():
             yield f"data: {json.dumps({'error': '处理 AI 响应时出错'})}\n\n"
 
     return Response(generate(), mimetype='text/event-stream')
+
+# 添加与前端对应的新路由
+@utils_bp.route('/api/ai_chat', methods=['GET'], endpoint='api_ai_chat')
+def api_ai_chat():
+    return ai_chat()
+
+# 添加utils前缀的API路由
+@utils_bp.route('/api/ai_chat', methods=['GET'], endpoint='utils_api_ai_chat')
+def utils_api_ai_chat():
+    return ai_chat()
 
 @utils_bp.route('/ai_chat/history', methods=['GET'])
 @login_required

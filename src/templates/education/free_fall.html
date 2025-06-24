@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>自由落体运动：一个交互式探索</title>
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -344,7 +345,13 @@
         
         // 获取CSRF令牌
         function getCsrfToken() {
-            // 从cookie中获取CSRF令牌
+            // 优先从meta标签获取CSRF令牌
+            const metaToken = document.querySelector('meta[name="csrf-token"]');
+            if (metaToken && metaToken.getAttribute('content')) {
+                return metaToken.getAttribute('content');
+            }
+            
+            // 如果meta标签没有，则尝试从cookie获取
             const cookies = document.cookie.split(';');
             for (let cookie of cookies) {
                 const [name, value] = cookie.trim().split('=');
@@ -352,12 +359,8 @@
                     return decodeURIComponent(value);
                 }
             }
-            // 如果没有找到，则尝试从meta标签获取
-            const metaToken = document.querySelector('meta[name="csrf-token"]');
-            if (metaToken) {
-                return metaToken.getAttribute('content');
-            }
-            // 如果仍然没有找到，返回空字符串
+            
+            console.warn('无法获取CSRF令牌，API请求可能会失败');
             return '';
         }
         
@@ -375,12 +378,19 @@
                     return "请先登录后再使用AI功能。您可以点击页面顶部的\"<a href='/auth/login' class='text-blue-500 hover:underline'>登录</a>\"按钮进行登录。";
                 }
                 
+                // 获取CSRF令牌
+                const csrfToken = getCsrfToken();
+                if (!csrfToken) {
+                    hideModal();
+                    return "系统错误：无法获取安全令牌。请刷新页面后重试。";
+                }
+                
                 // 调用后端API，由后端处理火山API请求
                 const response = await fetch('/education/api/gemini', {
                     method: 'POST',
                     headers: { 
                         'Content-Type': 'application/json',
-                        'X-CSRF-Token': getCsrfToken()
+                        'X-CSRFToken': csrfToken
                     },
                     body: JSON.stringify({ prompt: prompt })
                 });

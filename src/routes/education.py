@@ -7,6 +7,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from flask import Blueprint, render_template, redirect, url_for, flash, request, current_app, jsonify
 from flask_login import current_user, login_required
+from flask_wtf.csrf import CSRFProtect, generate_csrf
 from src.models import db, User, Role
 from src.routes.utils import log_action
 from src.utils.time_helpers import get_localized_now
@@ -91,34 +92,45 @@ def resources():
         }
     ]
     
+    # 生成CSRF令牌供模板使用
+    csrf_token = generate_csrf()
+    
     return render_template('education/resources.html', 
                           online_resources=online_resources,
-                          local_resources=local_resources)
+                          local_resources=local_resources,
+                          csrf_token=csrf_token)
 
 @education_bp.route('/resource/free-fall')
 def free_fall():
     """自由落体运动探究页面"""
-    return render_template('education/free_fall.html')
+    # 生成CSRF令牌供模板使用
+    csrf_token = generate_csrf()
+    return render_template('education/free_fall.html', csrf_token=csrf_token)
 
 @education_bp.route('/api/gemini', methods=['POST'])
 @login_required
 def gemini_api():
-    """处理Gemini API请求"""
+    """处理AI API请求"""
     try:
-        data = request.json
+        # 获取请求数据
+        data = request.get_json()
+        current_app.logger.info(f"接收到API请求，用户ID: {current_user.id}")
+        
         if not data or 'prompt' not in data:
+            current_app.logger.warning(f"API请求格式错误，缺少prompt字段")
             return jsonify({
                 'success': False,
                 'error': '请求格式错误，缺少prompt字段'
             })
         
         prompt = data['prompt']
+        current_app.logger.info(f"提示词长度: {len(prompt)}")
         
         # 记录API调用
         log_action(
-            user_id=current_user.id,
-            action="教育资源API调用",
-            details=f"调用教育资源API，提示词长度：{len(prompt)}"
+            action="education_ai_api",
+            details=f"调用教育资源AI API，提示词长度：{len(prompt)}",
+            user_id=current_user.id
         )
         
         # 获取API密钥
@@ -133,17 +145,9 @@ def gemini_api():
                     'content': '系统未配置API密钥，无法使用AI功能'
                 })
         
-        # 构建请求火山引擎的参数
+        # 构建请求参数 - 使用火山引擎推荐的API格式
         payload = {
-            "model": {
-                "name": "deepseek-chat"
-            },
-            "parameters": {
-                "max_tokens": 1024,
-                "temperature": 0.7,
-                "top_p": 0.9,
-                "do_sample": True
-            },
+            "model": "deepseek-r1-distill-qwen-7b-250120",
             "messages": [
                 {
                     "role": "system",
@@ -153,20 +157,25 @@ def gemini_api():
                     "role": "user",
                     "content": prompt
                 }
-            ]
+            ],
+            "temperature": 0.7,
+            "top_p": 0.9,
+            "max_tokens": 1024
         }
         
-        # 发送请求
-        url = "https://maas.volces.com/v1/services/aigc-api/requests/generate"
+        # 发送请求 - 使用正确的火山引擎端点
+        url = "https://ark.cn-beijing.volces.com/api/v3/chat/completions"
         headers = {
             "Content-Type": "application/json",
-            "Authorization": f"Bearer {api_key}"
+            "Authorization": f"Bearer {api_key}",
+            "X-Request-Id": str(uuid.uuid4())  # 添加请求ID，便于追踪
         }
         
         # 记录请求开始
         current_app.logger.info(f"正在向火山引擎API发送请求，提示词长度：{len(prompt)}")
         
-        response = requests.post(url, json=payload, headers=headers)
+        # 添加超时参数，避免长时间等待
+        response = requests.post(url, json=payload, headers=headers, timeout=30)
         
         # 记录响应状态
         current_app.logger.info(f"火山引擎API响应状态码：{response.status_code}")
@@ -180,8 +189,9 @@ def gemini_api():
         
         response_data = response.json()
         
-        if 'data' in response_data and 'messages' in response_data['data'] and len(response_data['data']['messages']) > 0:
-            ai_response = response_data['data']['messages'][0]['content']
+        # 使用火山引擎标准响应格式
+        if 'choices' in response_data and len(response_data['choices']) > 0:
+            ai_response = response_data['choices'][0]['message']['content']
             
             # 记录成功响应
             current_app.logger.info(f"成功获取AI响应，长度：{len(ai_response)}")
@@ -197,9 +207,23 @@ def gemini_api():
                 'content': "AI响应格式错误，请稍后再试"
             })
     
-    except Exception as e:
-        current_app.logger.error(f"Gemini API处理异常：{str(e)}")
+    except requests.Timeout:
+        current_app.logger.error("火山引擎API请求超时")
         return jsonify({
             'success': False,
-            'content': f"处理请求时发生错误：{str(e)}"
+            'content': "AI服务响应超时，请稍后再试"
+        })
+    
+    except requests.ConnectionError:
+        current_app.logger.error("连接火山引擎API失败")
+        return jsonify({
+            'success': False,
+            'content': "无法连接到AI服务，请检查网络连接"
+        })
+    
+    except Exception as e:
+        current_app.logger.error(f"AI API调用发生未知错误: {str(e)}")
+        return jsonify({
+            'success': False,
+            'content': "处理请求时发生错误，请稍后再试"
         }) 
