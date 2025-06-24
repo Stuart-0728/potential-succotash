@@ -664,8 +664,18 @@ def random_string(length=6):
 @utils_bp.route('/check_login_status')
 def check_login_status():
     """检查用户登录状态"""
-    return jsonify({
-        'is_logged_in': current_user.is_authenticated,
-        'user_id': current_user.id if current_user.is_authenticated else None,
-        'username': current_user.username if current_user.is_authenticated else None
-    })
+    is_logged_in = current_user.is_authenticated
+    response_data = {
+        'is_logged_in': is_logged_in,
+        'user_id': current_user.id if is_logged_in else None,
+        'username': current_user.username if is_logged_in else None
+    }
+    
+    # 添加更多详细信息，帮助客户端处理
+    if is_logged_in:
+        response_data['role'] = current_user.role.name if hasattr(current_user, 'role') and current_user.role else None
+        response_data['login_url'] = None
+    else:
+        response_data['login_url'] = url_for('auth.login')
+    
+    return jsonify(response_data)

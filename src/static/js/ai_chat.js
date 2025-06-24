@@ -14,7 +14,7 @@ const AI_CHAT_CONFIG = {
     maxStoredMessages: 50,  // 最大存储消息数
     cookieExpireDays: 7,    // Cookie保存天数
     initialBotMessage: '您好，欢迎来到重庆师范大学师能素质协会平台，我是基于DeepSeek大语言模型的智能助手，有什么可以帮助您的吗？',
-    notLoggedInMessage: '您好！AI助手功能需要登录后使用。请先<a href="/login" class="ai-chat-link">登录</a>或<a href="/register" class="ai-chat-link">注册</a>。'
+    notLoggedInMessage: '您好！AI助手功能需要登录后使用。请先<a href="/auth/login" class="ai-chat-link">登录</a>或<a href="/auth/register" class="ai-chat-link">注册</a>。'
 };
 
 // 智能助手信息

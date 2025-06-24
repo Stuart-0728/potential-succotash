@@ -72,6 +72,43 @@
         margin-bottom: 2rem;
         border-radius: 0 0 2rem 2rem;
     }
+    
+    .resource-nav {
+        display: flex;
+        justify-content: center;
+        margin-bottom: 2rem;
+    }
+    
+    .resource-nav-item {
+        padding: 0.75rem 1.5rem;
+        border-radius: 0.5rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        margin: 0 0.5rem;
+    }
+    
+    .resource-nav-item.active {
+        background-color: var(--primary-color);
+        color: white;
+    }
+    
+    .resource-nav-item:not(.active) {
+        background-color: #f1f5f9;
+        color: #64748b;
+    }
+    
+    .resource-nav-item:not(.active):hover {
+        background-color: #e2e8f0;
+    }
+    
+    .resource-container {
+        display: none;
+    }
+    
+    .resource-container.active {
+        display: block;
+    }
 </style>
 {% endblock %}
 
@@ -81,51 +118,78 @@
     <p class="lead">为师范生提供丰富的教育资源和学习工具</p>
 </div>
 
-<div class="resource-section">
-    <h2 class="section-title">网络教育资源</h2>
-    <p class="mb-4">精选优质的教育网站和教学平台，帮助您拓展教育视野，提升教学能力。</p>
+<div class="container">
+    <div class="resource-nav">
+        <div class="resource-nav-item active" data-target="online-resources">网络教育资源</div>
+        <div class="resource-nav-item" data-target="local-resources">本地教学资源</div>
+    </div>
     
-    <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
-        {% for resource in online_resources %}
-        <div class="col">
-            <div class="card resource-card h-100">
-                <div class="card-body text-center">
-                    <div class="resource-icon online-icon">
-                        <i class="fas {{ resource.icon }}"></i>
+    <div id="online-resources" class="resource-container active">
+        <h2 class="section-title">网络教育资源</h2>
+        <p class="mb-4">精选优质的教育网站和教学平台，帮助您拓展教育视野，提升教学能力。</p>
+        
+        <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
+            {% for resource in online_resources %}
+            <div class="col">
+                <div class="card resource-card h-100">
+                    <div class="card-body text-center">
+                        <div class="resource-icon online-icon">
+                            <i class="fas {{ resource.icon }}"></i>
+                        </div>
+                        <h5 class="card-title">{{ resource.name }}</h5>
+                        <p class="card-text">{{ resource.description }}</p>
                     </div>
-                    <h5 class="card-title">{{ resource.name }}</h5>
-                    <p class="card-text">{{ resource.description }}</p>
-                </div>
-                <div class="card-footer bg-transparent border-0 text-center">
-                    <a href="{{ resource.url }}" target="_blank" class="btn btn-primary">访问网站</a>
+                    <div class="card-footer bg-transparent border-0 text-center">
+                        <a href="{{ resource.url }}" target="_blank" class="btn btn-primary">访问网站</a>
+                    </div>
                 </div>
             </div>
+            {% endfor %}
         </div>
-        {% endfor %}
+    </div>
+    
+    <div id="local-resources" class="resource-container">
+        <h2 class="section-title">本地教学资源</h2>
+        <p class="mb-4">由师能素质协会开发的教学资源，提供互动式学习体验和教学素材。</p>
+        
+        <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
+            {% for resource in local_resources %}
+            <div class="col">
+                <div class="card resource-card h-100">
+                    <div class="card-body text-center">
+                        <div class="resource-icon local-icon">
+                            <i class="fas {{ resource.icon }}"></i>
+                        </div>
+                        <h5 class="card-title">{{ resource.name }}</h5>
+                        <p class="card-text">{{ resource.description }}</p>
+                    </div>
+                    <div class="card-footer bg-transparent border-0 text-center">
+                        <a href="{{ resource.url }}" class="btn btn-secondary">查看资源</a>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
     </div>
 </div>
 
-<div class="resource-section mt-5">
-    <h2 class="section-title">本地教育资源</h2>
-    <p class="mb-4">由师能素质协会开发的教学资源，提供互动式学习体验和教学素材。</p>
-    
-    <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
-        {% for resource in local_resources %}
-        <div class="col">
-            <div class="card resource-card h-100">
-                <div class="card-body text-center">
-                    <div class="resource-icon local-icon">
-                        <i class="fas {{ resource.icon }}"></i>
-                    </div>
-                    <h5 class="card-title">{{ resource.name }}</h5>
-                    <p class="card-text">{{ resource.description }}</p>
-                </div>
-                <div class="card-footer bg-transparent border-0 text-center">
-                    <a href="{{ resource.url }}" class="btn btn-secondary">查看资源</a>
-                </div>
-            </div>
-        </div>
-        {% endfor %}
-    </div>
-</div>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const navItems = document.querySelectorAll('.resource-nav-item');
+        const resourceContainers = document.querySelectorAll('.resource-container');
+        
+        navItems.forEach(item => {
+            item.addEventListener('click', function() {
+                // 移除所有激活状态
+                navItems.forEach(nav => nav.classList.remove('active'));
+                resourceContainers.forEach(container => container.classList.remove('active'));
+                
+                // 添加当前项的激活状态
+                this.classList.add('active');
+                const targetId = this.getAttribute('data-target');
+                document.getElementById(targetId).classList.add('active');
+            });
+        });
+    });
+</script>
 {% endblock %} 

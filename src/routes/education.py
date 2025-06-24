@@ -129,14 +129,15 @@ def gemini_api():
             current_app.logger.error("未找到API密钥，既没有ARK_API_KEY环境变量，也没有VOLCANO_API_KEY配置")
             return jsonify({
                 'success': False,
+                'content': '抱歉，AI服务暂时不可用：未配置API密钥',
                 'error': 'AI 服务配置错误：API 密钥未设置'
-            }), 500
+            }), 200  # 返回200而不是500，这样前端可以显示错误消息
     
     # API端点
     url = "https://ark.cn-beijing.volces.com/api/v3/chat/completions"
     
     # 如果API密钥是火山引擎API密钥格式，则使用火山引擎API端点
-    if api_key and api_key.startswith("ccde") or 'VOLCANO_API_KEY' in os.environ:
+    if api_key and (api_key.startswith("ccde") or 'VOLCANO_API_KEY' in os.environ):
         url = "https://render-api.volcengine.com/api/v1/chat/completions"
         current_app.logger.info("使用火山引擎API端点")
     
@@ -181,21 +182,27 @@ def gemini_api():
                     'content': content
                 })
             else:
-                current_app.logger.error(f"API响应格式异常: {result}")
+                error_msg = f"API响应格式异常: {result}"
+                current_app.logger.error(error_msg)
                 return jsonify({
                     'success': False,
-                    'error': 'API响应格式异常'
-                }), 500
+                    'content': '抱歉，AI服务响应格式异常，请稍后再试',
+                    'error': error_msg
+                }), 200
         else:
-            current_app.logger.error(f"API请求失败，状态码: {response.status_code}，响应内容: {response.text}")
+            error_msg = f"API请求失败，状态码: {response.status_code}，响应内容: {response.text}"
+            current_app.logger.error(error_msg)
             return jsonify({
                 'success': False,
-                'error': f'API请求失败，状态码: {response.status_code}'
-            }), response.status_code
+                'content': '抱歉，AI服务暂时不可用，请稍后再试',
+                'error': error_msg
+            }), 200
     
     except Exception as e:
-        current_app.logger.error(f"API请求异常: {str(e)}")
+        error_msg = f"API请求异常: {str(e)}"
+        current_app.logger.error(error_msg)
         return jsonify({
             'success': False,
-            'error': f'API请求异常: {str(e)}'
-        }), 500 
+            'content': '抱歉，连接AI服务时遇到问题，请稍后再试',
+            'error': error_msg
+        }), 200 
