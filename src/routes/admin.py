@@ -3149,3 +3149,56 @@ def delete_announcement(id):
         logger.error(f"Error in delete_announcement: {e}")
         flash('删除公告时出错', 'danger')
         return redirect(url_for('admin.announcements'))
+
+@admin_bp.route('/activity/<int:id>/view')
+@admin_required
+def activity_view(id):
+    try:
+        # 获取活动详情
+        activity = db.get_or_404(Activity, id)
+        
+        # 获取报名统计
+        registrations_count = db.session.execute(
+            db.select(func.count()).select_from(Registration).filter_by(activity_id=id)
+        ).scalar()
+        
+        # 获取签到统计
+        checkins_count = db.session.execute(
+            db.select(func.count()).select_from(Registration).filter_by(
+                activity_id=id, 
+                status='attended'
+            )
+        ).scalar()
+        
+        # 获取报名学生列表
+        registrations = Registration.query.filter_by(
+            activity_id=id
+        ).join(
+            User, Registration.user_id == User.id
+        ).join(
+            StudentInfo, User.id == StudentInfo.user_id
+        ).add_columns(
+            Registration.id.label('id'),
+            Registration.register_time.label('registration_time'),
+            Registration.check_in_time,
+            StudentInfo.label('student')
+        ).all()
+        
+        # 导入display_datetime函数供模板使用
+        from src.utils.time_helpers import display_datetime
+        
+        # 创建CSRF表单对象
+        from flask_wtf import FlaskForm
+        form = FlaskForm()
+        
+        return render_template('admin/activity_view.html',
+                              activity=activity,
+                              registrations_count=registrations_count,
+                              checkins_count=checkins_count,
+                              registrations=registrations,
+                              display_datetime=display_datetime,
+                              form=form)
+    except Exception as e:
+        logger.error(f"Error in activity_view: {e}")
+        flash('查看活动详情时出错', 'danger')
+        return redirect(url_for('admin.activities'))
