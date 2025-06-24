@@ -2,8 +2,11 @@ from flask import Blueprint, render_template, redirect, url_for, flash, request,
 from flask_login import login_required, current_user
 from datetime import datetime, timedelta
 import logging
-from sqlalchemy import func, desc, text, and_, or_
+from sqlalchemy import func, desc, text, and_, or_, case
 from sqlalchemy.orm import joinedload
+from src import db
+from src.models import Activity, Registration, User, Tag, Notification, Announcement
+from src.utils.time_helpers import get_beijing_time, ensure_timezone_aware, get_localized_now, safe_less_than, safe_greater_than, display_datetime
 import time
 import traceback
 import pytz
@@ -16,39 +19,21 @@ main_bp = Blueprint('main', __name__)
 
 @main_bp.route('/')
 def index():
-    """首页"""
+    """渲染首页"""
     try:
-        start_time = datetime.now()
-        
-        # 延迟导入，避免循环导入问题
-        from src import db
-        from src.models import Activity, Registration, User, Tag, Notification
-        from src.utils.time_helpers import get_beijing_time, ensure_timezone_aware, get_localized_now, safe_less_than, safe_greater_than, safe_compare
-        
-        # 获取当前时间（北京时间）
-        now = get_beijing_time()
-        logger.info(f"当前北京时间: {now}")
-        
-        # 获取未来一周的活动
-        one_week_later = now + timedelta(days=7)
-        upcoming_stmt = db.select(Activity).filter(
-            Activity.start_time > now,
-            Activity.start_time <= one_week_later,
-            Activity.status == 'active'
-        ).order_by(Activity.start_time)
-        
-        upcoming_activities = db.session.execute(upcoming_stmt).scalars().all()
-        
-        # 获取热门活动（报名人数最多的5个活动）
-        popular_activities = []
+        # 获取当前北京时间
+        beijing_time = get_beijing_time()
+        logger.info(f"当前北京时间: {beijing_time}")
         
         # 获取特色活动
-        featured_stmt = db.select(Activity).filter(
-            Activity.status == 'active',
-            Activity.start_time > now
-        ).order_by(func.random()).limit(3)
+        featured_activities = Activity.query.filter_by(
+            is_featured=True, 
+            status='active'
+        ).order_by(Activity.created_at.desc()).limit(3).all()
         
-        featured_activities = db.session.execute(featured_stmt).scalars().all()
+        # 调试：检查static_folder路径
+        static_folder = current_app.static_folder
+        logger.info(f"静态文件目录: {static_folder}")
         
         # 添加调试信息，检查活动和海报信息
         for i, activity in enumerate(featured_activities):
@@ -66,38 +51,68 @@ def index():
                             logger.info(f"  修复海报文件名: {activity.poster_image}")
                     except Exception as e:
                         logger.error(f"  修复海报文件名出错: {e}")
-                        activity.poster_image = None
                 
                 # 检查文件是否存在
-                if activity.poster_image and current_app.static_folder:
-                    poster_path = os.path.join(current_app.static_folder, 'uploads', 'posters', activity.poster_image)
+                if static_folder:
+                    poster_path = os.path.join(static_folder, 'uploads', 'posters', activity.poster_image)
                     if os.path.exists(poster_path):
                         logger.info(f"  海报文件存在: {poster_path}")
                     else:
                         logger.warning(f"  海报文件不存在: {poster_path}")
-                        # 如果海报文件不存在，将海报字段设为None，避免前端显示错误
-                        activity.poster_image = None
+                        # 添加备用文件检查
+                        alt_paths = [
+                            os.path.join(static_folder, 'img', 'banner1.jpg'),
+                            os.path.join(static_folder, 'img', 'banner2.jpg')
+                        ]
+                        for alt_path in alt_paths:
+                            if os.path.exists(alt_path):
+                                logger.info(f"  但备用文件存在: {alt_path}")
+                                break
+                        else:
+                            logger.warning("  所有备用文件也不存在")
         
-        # 获取系统公告 - 修正查询逻辑，获取重要通知
-        public_notifications_stmt = db.select(Notification).filter(
-            Notification.is_important == True,
-            Notification.is_public == True,
-            or_(
-                Notification.expiry_date.is_(None),
-                Notification.expiry_date > now
+        # 获取即将开始的活动（未开始且报名截止日期在未来）
+        now = datetime.utcnow().replace(tzinfo=pytz.UTC)
+        upcoming_activities = Activity.query.filter(
+            Activity.status == 'active',
+            safe_greater_than(Activity.start_time, now),
+            db.or_(
+                Activity.registration_deadline.is_(None),
+                safe_greater_than(Activity.registration_deadline, now)
             )
-        ).order_by(Notification.created_at.desc()).limit(3)
+        ).order_by(Activity.start_time.asc()).limit(3).all()
         
-        public_notifications = db.session.execute(public_notifications_stmt).scalars().all()
+        # 获取热门活动（根据报名人数）
+        popular_activities_subquery = db.session.query(
+            Registration.activity_id,
+            db.func.count(Registration.id).label('registration_count')
+        ).filter(
+            Registration.status.in_(['registered', 'attended'])
+        ).group_by(Registration.activity_id).subquery()
         
-        end_time = datetime.now()
-        logger.debug(f"首页加载耗时: {(end_time - start_time).total_seconds():.2f}秒")
+        popular_activities = Activity.query.join(
+            popular_activities_subquery,
+            Activity.id == popular_activities_subquery.c.activity_id
+        ).filter(
+            Activity.status.in_(['active', 'completed'])
+        ).order_by(
+            popular_activities_subquery.c.registration_count.desc()
+        ).limit(3).all()
         
-        return render_template('main/index.html', 
-                               upcoming_activities=upcoming_activities,
-                               popular_activities=popular_activities,
-                               featured_activities=featured_activities,
-                               public_notifications=public_notifications)
+        # 获取公告
+        announcements = Announcement.query.filter_by(
+            status='published'
+        ).order_by(Announcement.created_at.desc()).limit(3).all()
+        
+        # 确保模板可以使用时间处理函数
+        from src.utils.time_helpers import display_datetime
+        
+        return render_template('main/index.html',
+                            featured_activities=featured_activities,
+                            upcoming_activities=upcoming_activities,
+                            popular_activities=popular_activities,
+                            announcements=announcements,
+                            display_datetime=display_datetime)
     except Exception as e:
         logger.error(f"Error in index: {e}", exc_info=True)
         flash("加载首页时发生错误，请稍后再试", "danger")
@@ -105,7 +120,7 @@ def index():
                                upcoming_activities=[],
                                popular_activities=[],
                                featured_activities=[],
-                               public_notifications=[])
+                               announcements=[])
 
 @main_bp.route('/activities')
 def activities():

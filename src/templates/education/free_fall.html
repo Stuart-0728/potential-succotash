@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>自由落体运动：一个交互式探索</title>
-    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <meta name="csrf-token" content="{{ csrf_token }}">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -369,7 +369,7 @@
             showModal('正在思考中，请稍候...');
             
             try {
-                // 简化登录检查逻辑，不依赖外部API
+                // 获取CSRF令牌
                 const csrfToken = getCsrfToken();
                 if (!csrfToken) {
                     hideModal();
@@ -392,7 +392,7 @@
                 
                 if (!data.success) {
                     console.error('API错误:', data.error || data.content);
-                    return `AI助手暂时无法回答您的问题。${data.error || data.content || '请先登录后再使用AI功能，或稍后再试。'}`;
+                    return `AI助手暂时无法回答您的问题。${data.error || data.content || '请稍后再试。'}`;
                 }
                 
                 return data.content;

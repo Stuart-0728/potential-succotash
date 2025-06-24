@@ -103,8 +103,9 @@ def resources():
 @education_bp.route('/resource/free-fall')
 def free_fall():
     """自由落体运动探究页面"""
-    # 不需要直接生成CSRF令牌，模板中会自动调用csrf_token()函数
-    return render_template('education/free_fall.html')
+    # 生成CSRF令牌供模板使用
+    csrf_token = generate_csrf()
+    return render_template('education/free_fall.html', csrf_token=csrf_token)
 
 @education_bp.route('/api/gemini', methods=['POST'])
 def gemini_api():
