@@ -222,6 +222,7 @@ def register_blueprints(app):
     from .routes.utils import utils_bp
     from .routes.tag import tag_bp
     from .routes.checkin import checkin_bp
+    from .routes.education import education_bp
     
     # 注册蓝图
     app.register_blueprint(main_bp)
@@ -231,6 +232,7 @@ def register_blueprints(app):
     app.register_blueprint(utils_bp, url_prefix='/utils')
     app.register_blueprint(tag_bp, url_prefix='/tag')
     app.register_blueprint(checkin_bp, url_prefix='/checkin')
+    app.register_blueprint(education_bp, url_prefix='/education')
     
     # 注册错误处理蓝图
     from .routes.errors import errors_bp

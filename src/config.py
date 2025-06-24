@@ -137,6 +137,9 @@ class Config:
     # 活动类型
     ACTIVITY_TYPES = ['cultural', 'sports', 'academic', 'volunteer', 'competition', 'other']
     
+    # AI API配置
+    VOLCANO_API_KEY = os.environ.get('VOLCANO_API_KEY', '')
+    
     @classmethod
     def init_app(cls, app):
         """初始化应用配置"""

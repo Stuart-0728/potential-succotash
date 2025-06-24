@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>自由落体运动：一个交互式探索</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
+    <!-- Chosen Palette: Calm Harmony Neutrals -->
+    <!-- Application Structure Plan: The application is designed as a single-page, scrolling narrative that mirrors the scientific inquiry process of the teaching plan. It begins with Aristotle's initial misconception, challenges it with Galileo's logic, uses interactive experiments to isolate the variable of air resistance, demonstrates the ideal principle in a vacuum, and finally provides a quantitative understanding with definitions and an interactive calculator. This story-driven, step-by-step structure is chosen to maximize learning and engagement by guiding the user through the process of discovery, making the final concepts more intuitive and memorable. It now includes Gemini-powered sections for real-world examples and a Q&A assistant to deepen understanding. -->
+    <!-- Visualization & Content Choices: 
+        1. Aristotle's View -> Goal: Compare -> Viz: Side-by-side animated divs -> Interaction: Click a button to drop objects -> Justification: Visually establish the initial, intuitive misconception.
+        2. Galileo's Logic -> Goal: Inform -> Viz: Static text and diagram -> Interaction: None -> Justification: Clearly present the logical argument that refutes the initial misconception.
+        3. Air Resistance -> Goal: Isolate Variable -> Viz: Side-by-side animated divs (paper vs. ball) -> Interaction: Click a button to drop -> Justification: Interactively demonstrate that shape and air resistance, not just mass, affect falling speed in reality.
+        4. Vacuum Experiment -> Goal: Demonstrate Ideal Case -> Viz: Animated icons in a "vacuum chamber" -> Interaction: Click a button to drop -> Justification: Provide the "aha" moment by showing that without air resistance, all objects fall equally. This is the core experimental evidence.
+        5. Free Fall Formulas -> Goal: Quantify & Relate -> Viz: Interactive sliders, numerical displays, and a dynamic Chart.js line chart -> Interaction: User adjusts time/height, the chart updates instantly to show velocity and position changes. -> Justification: Makes the abstract formulas tangible and allows for exploration of the mathematical relationships. Library: Chart.js (Canvas).
+        6. Real-World Examples (Gemini) -> Goal: Apply -> Viz: Text input and a response box -> Interaction: User types a scenario, clicks a button to call Gemini API -> Justification: Connects abstract physics to concrete, user-relevant examples.
+        7. AI Teaching Assistant (Gemini) -> Goal: Clarify & Extend -> Viz: Text input and a response box -> Interaction: User asks a question, clicks a button to call Gemini API -> Justification: Offers personalized, on-demand explanations, catering to individual curiosity.
+    -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body {
+            font-family: 'Noto Sans SC', sans-serif;
+            background-color: #f4f3f2; /* Warm Neutral Background */
+            color: #3f3f46;
+            scroll-behavior: smooth;
+        }
+        .section-title {
+            font-size: 2.25rem;
+            font-weight: 700;
+            color: #1e293b; /* Dark Slate */
+            border-bottom: 3px solid #f59e0b; /* Amber Accent */
+            padding-bottom: 0.5rem;
+            margin-bottom: 1.5rem;
+        }
+        .interactive-box {
+            background-color: #ffffff;
+            border-radius: 0.75rem;
+            padding: 2rem;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+            transition: all 0.3s ease;
+            min-height: 350px;
+        }
+        .object {
+            position: absolute;
+            bottom: calc(100% - 40px);
+            left: 50%;
+            transform: translateX(-50%);
+            transition: bottom 2s ease-in;
+            font-size: 2rem;
+        }
+        .paper { width: 60px; height: 40px; background-color: #e2e8f0; border: 1px solid #94a3b8;}
+        .ball { width: 40px; height: 40px; background-color: #64748b; border-radius: 50%;}
+        .feather { font-size: 2.5rem; }
+        .button {
+            background-color: #1e293b;
+            color: white;
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.5rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+        .button:hover {
+            background-color: #334155;
+        }
+        .button:disabled {
+            background-color: #94a3b8;
+            cursor: not-allowed;
+        }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 300px;
+            max-height: 400px;
+        }
+        @media (min-width: 768px) {
+            .chart-container {
+                height: 350px;
+            }
+        }
+        .nav-link {
+            transition: color 0.3s ease, border-color 0.3s ease;
+            border-bottom: 2px solid transparent;
+            padding-bottom: 4px;
+        }
+        .nav-link:hover {
+            color: #f59e0b;
+            border-bottom-color: #f59e0b;
+        }
+        .active-link {
+            color: #f59e0b;
+            font-weight: 700;
+            border-bottom-color: #f59e0b;
+        }
+        .gemini-response {
+            background-color: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 0.5rem;
+            padding: 1rem;
+            margin-top: 1rem;
+            min-height: 100px;
+            white-space: pre-wrap;
+            line-height: 1.75;
+        }
+        /* Modal styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.4);
+        }
+        .modal-content {
+            background-color: #fefefe;
+            margin: 15% auto;
+            padding: 20px;
+            border: 1px solid #888;
+            width: 80%;
+            max-width: 500px;
+            border-radius: 0.5rem;
+            text-align: center;
+        }
+    </style>
+</head>
+<body class="antialiased">
+
+    <header class="bg-white/80 backdrop-blur-md sticky top-0 z-50 shadow-sm">
+        <nav class="container mx-auto px-6 py-3">
+            <div class="flex justify-between items-center">
+                <h1 class="text-xl font-bold text-slate-800">自由落体运动探究</h1>
+                <div class="hidden md:flex space-x-8 text-sm">
+                    <a href="#section1" class="nav-link">古老观念</a>
+                    <a href="#section2" class="nav-link">逻辑挑战</a>
+                    <a href="#section3" class="nav-link">空气阻力</a>
+                    <a href="#section4" class="nav-link">理想实验</a>
+                    <a href="#section5" class="nav-link">物理模型</a>
+                    <a href="#section6" class="nav-link">运动规律</a>
+                    <a href="#section7" class="nav-link font-bold">✨AI助教</a>
+                </div>
+            </div>
+        </nav>
+    </header>
+
+    <main class="container mx-auto px-6 py-12">
+        
+        <section id="section1" class="my-16 scroll-mt-20">
+            <h2 class="section-title">1. 古老的观念：亚里士多德的看法</h2>
+            <div class="grid md:grid-cols-2 gap-8 items-center">
+                <div class="text-lg leading-relaxed">
+                    <p class="mb-4">近两千年来，古希腊哲学家亚里士多德的观点一直深入人心：<strong class="text-amber-600">重的物体比轻的物体下落得快</strong>。</p>
+                    <p class="mb-4">这非常符合我们的生活直觉。比如，一片羽毛和一块石头同时从高处落下，我们总会看到石头先落地。现在，让我们通过一个简单的虚拟实验来观察这个现象。</p>
+                    <p>点击下方的“开始下落”按钮，看看会发生什么。</p>
+                </div>
+                <div class="interactive-box flex flex-col justify-between">
+                    <div class="relative w-full h-64 bg-slate-100 rounded-md overflow-hidden border">
+                        <div id="aristotle-rock" class="object ball" style="left: 30%;"></div>
+                        <div id="aristotle-feather" class="object feather" style="left: 70%;">🕊️</div>
+                        <div class="absolute bottom-0 w-full h-2 bg-green-700"></div>
+                    </div>
+                    <button id="aristotle-btn" class="button mt-4 mx-auto">开始下落</button>
+                </div>
+            </div>
+        </section>
+        
+        <section id="section2" class="my-16 scroll-mt-20">
+            <h2 class="section-title">2. 逻辑的挑战：伽利略的思考</h2>
+            <div class="bg-white p-8 rounded-lg shadow-md">
+                <p class="text-lg leading-relaxed mb-4">然而，16世纪的意大利科学家伽利略对亚里士多德的理论提出了一个著名的逻辑挑战，这个挑战不需要任何实验，仅凭思考就能动摇这个千年观念。</p>
+                <div class="bg-amber-50 border-l-4 border-amber-500 text-amber-800 p-6 rounded-md">
+                    <h3 class="font-bold text-xl mb-2">伽利略悖论</h3>
+                    <ul class="list-disc list-inside space-y-2">
+                        <li>假设亚里士多德是对的，一块大石头（重）比一块小石头（轻）下落得快。</li>
+                        <li>现在，我们把这两块石头用一根短绳绑在一起。会发生什么？</li>
+                        <li>一方面，小石头会拖慢大石头的下落，所以整体速度应该比<strong class="font-semibold">大石头单独下落要慢</strong>。</li>
+                        <li>但另一方面，绑在一起的物体总重量比大石头还要重，所以它的下落速度应该比<strong class="font-semibold">大石头单独下落要快</strong>。</li>
+                    </ul>
+                    <p class="mt-4 font-semibold text-center text-xl">同一个物体，下落速度既要变快又要变慢，这显然是自相矛盾的！</p>
+                </div>
+                 <p class="text-lg leading-relaxed mt-6">这个逻辑矛盾有力地表明，物体下落的快慢，可能与我们直觉想象的原因——“轻重”——没有直接关系。那么，真正影响下落快慢的因素是什么呢？</p>
+            </div>
+        </section>
+
+        <section id="section3" class="my-16 scroll-mt-20">
+            <h2 class="section-title">3. 寻找真凶：空气阻力的影响</h2>
+            <div class="grid md:grid-cols-2 gap-8 items-center">
+                <div class="text-lg leading-relaxed">
+                    <p class="mb-4">伽利略意识到，我们生活中观察到的现象，其实受到了一个看不见的因素的干扰——<strong class="text-amber-600">空气阻力</strong>。</p>
+                    <p class="mb-4">物体的形状和表面积会极大地影响它受到的空气阻力。让我们用两张质量完全相同的纸来做实验：一张保持平展，另一张揉成纸团。纸团的表面积小得多，受到的空气阻力也小得多。</p>
+                    <p>点击按钮，观察它们的下落情况。</p>
+                </div>
+                <div class="interactive-box flex flex-col justify-between">
+                    <div class="relative w-full h-64 bg-slate-100 rounded-md overflow-hidden border">
+                         <div id="resistance-ball" class="object ball" style="left: 30%;"></div>
+                         <div id="resistance-paper" class="object paper" style="left: 70%;"></div>
+                        <div class="absolute bottom-0 w-full h-2 bg-green-700"></div>
+                    </div>
+                    <button id="resistance-btn" class="button mt-4 mx-auto">开始下落</button>
+                </div>
+            </div>
+        </section>
+
+        <section id="section4" class="my-16 scroll-mt-20">
+            <h2 class="section-title">4. 理想实验：排除一切干扰</h2>
+            <div class="grid md:grid-cols-2 gap-8 items-center">
+                 <div class="text-lg leading-relaxed">
+                    <p class="mb-4">既然空气阻力是“真凶”，那么如果我们能创造一个完全没有空气的环境（真空），情况又会如何呢？在真空中，任何物体，无论轻重、形状如何，都将不受空气阻力的影响。</p>
+                    <p class="mb-4">现代科技让我们能轻易实现这个思想实验。下面是一个模拟真空室，我们将同时释放一片羽毛和一个保龄球。</p>
+                    <p>根据你的推断，它们会如何下落？点击按钮来验证你的想法。</p>
+                </div>
+                <div class="interactive-box flex flex-col justify-between">
+                    <div class="relative w-full h-64 bg-slate-100 rounded-md overflow-hidden border">
+                        <div class="absolute inset-0 flex items-center justify-center">
+                            <span class="text-6xl font-bold text-slate-200 select-none">真空室</span>
+                        </div>
+                        <div id="vacuum-ball" class="object ball" style="left: 30%;"></div>
+                        <div id="vacuum-feather" class="object feather" style="left: 70%;">🕊️</div>
+                        <div class="absolute bottom-0 w-full h-2 bg-green-700"></div>
+                    </div>
+                    <button id="vacuum-btn" class="button mt-4 mx-auto">在真空中下落</button>
+                </div>
+            </div>
+        </section>
+        
+        <section id="section5" class="my-16 scroll-mt-20">
+            <h2 class="section-title">5. 物理模型：自由落体运动</h2>
+            <div class="bg-white p-8 rounded-lg shadow-md text-lg leading-relaxed">
+                <p class="mb-4">通过上面的探索，我们终于可以揭示物理学家是如何描述这种理想状态下的下落运动了。</p>
+                <div class="bg-blue-50 border-l-4 border-blue-500 text-blue-800 p-6 rounded-md">
+                    <h3 class="font-bold text-xl mb-2">自由落体运动 (Free Fall)</h3>
+                    <p class="mb-2">定义：物体<strong class="font-semibold">只在重力作用下</strong>，从<strong class="font-semibold">静止开始</strong>的下落运动。</p>
+                    <ul class="list-disc list-inside space-y-1">
+                        <li>这是一个<strong class="font-semibold">理想化的物理模型</strong>，忽略了空气阻力等次要因素。</li>
+                        <li>在地球上，它是一种<strong class="font-semibold">初速度为0的匀加速直线运动</strong>。</li>
+                    </ul>
+                </div>
+                 <div class="bg-green-50 border-l-4 border-green-500 text-green-800 p-6 rounded-md mt-6">
+                    <h3 class="font-bold text-xl mb-2">重力加速度 (Gravitational Acceleration)</h3>
+                    <p class="mb-2">定义：自由落体运动的加速度，用符号 <strong class="font-semibold">g</strong> 表示。</p>
+                     <ul class="list-disc list-inside space-y-1">
+                        <li>它的方向始终<strong class="font-semibold">竖直向下</strong>。</li>
+                        <li>在地球表面的同一地点，<strong class="font-semibold">g 的值是一个常数</strong>，与物体的质量、形状无关。</li>
+                        <li>通常计算中取 <strong class="font-semibold">g ≈ 9.8 m/s²</strong>。这意味着每过1秒，下落速度增加约9.8米/秒。</li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+
+        <section id="section6" class="my-16 scroll-mt-20">
+            <h2 class="section-title">6. 运动的规律：公式与可视化</h2>
+             <p class="text-lg leading-relaxed mb-8 text-center max-w-3xl mx-auto">自由落体运动作为一种匀加速直线运动，遵循简洁的数学规律。你可以通过下方的滑块来调整下落时间，直观地感受速度和位移的变化，并观察它们在图表上的关系。</p>
+            <div class="bg-white p-8 rounded-lg shadow-lg">
+                <div class="grid md:grid-cols-3 gap-6 mb-8 text-center">
+                    <div class="bg-slate-100 p-4 rounded-lg">
+                        <label for="time-slider" class="block text-sm font-medium text-slate-600">下落时间 (t)</label>
+                        <span id="time-display" class="text-3xl font-bold text-slate-800">0.0 s</span>
+                        <input id="time-slider" type="range" min="0" max="5" step="0.1" value="0" class="w-full mt-2">
+                    </div>
+                     <div class="bg-blue-100 p-4 rounded-lg">
+                        <p class="text-sm font-medium text-blue-600">瞬时速度 (v = gt)</p>
+                        <p id="velocity-display" class="text-3xl font-bold text-blue-800">0.0 m/s</p>
+                    </div>
+                     <div class="bg-green-100 p-4 rounded-lg">
+                        <p class="text-sm font-medium text-green-600">下落高度 (h = ½gt²)</p>
+                        <p id="height-display" class="text-3xl font-bold text-green-800">0.0 m</p>
+                    </div>
+                </div>
+                <div class="chart-container">
+                    <canvas id="fallChart"></canvas>
+                </div>
+                
+                <div class="mt-12 border-t pt-8">
+                    <h3 class="text-xl font-bold text-center text-slate-700 mb-4">✨ 拓展应用：生活中的自由落体</h3>
+                    <p class="text-center text-slate-600 mb-4">输入一个生活中的场景，让AI为你解释其中的自由落体现象。</p>
+                    <div class="max-w-xl mx-auto">
+                        <div class="flex gap-2">
+                            <input id="real-life-input" type="text" class="flex-grow p-2 border rounded-md" placeholder="例如：过山车、跳水、苹果落地...">
+                            <button id="real-life-btn" class="button">生成实例</button>
+                        </div>
+                        <div id="real-life-response" class="gemini-response mt-4">AI的解释将出现在这里...</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="section7" class="my-16 scroll-mt-20">
+            <h2 class="section-title">7. ✨ AI助教：你的专属物理老师</h2>
+            <div class="bg-white p-8 rounded-lg shadow-lg">
+                <p class="text-lg text-center mb-4">对自由落体还有疑问吗？或者想了解更多关于伽利略的故事？在这里随时向AI助教提问吧！</p>
+                <div class="max-w-2xl mx-auto">
+                     <textarea id="qa-input" class="w-full p-2 border rounded-md" rows="3" placeholder="在这里输入你的问题..."></textarea>
+                     <button id="qa-btn" class="button w-full mt-2">向AI提问</button>
+                     <div id="qa-response" class="gemini-response mt-4">AI的回答将出现在这里...</div>
+                </div>
+            </div>
+        </section>
+        
+    </main>
+
+    <footer class="bg-slate-800 text-slate-300 py-6 mt-16">
+        <div class="container mx-auto px-6 text-center">
+            <p>交互式教学应用 &copy; 2025</p>
+            <p class="text-sm text-slate-400 mt-1">基于“自由落体运动”教学设计创建，由Gemini AI提供技术增强</p>
+        </div>
+    </footer>
+    
+    <div id="loading-modal" class="modal">
+        <div class="modal-content">
+            <p id="modal-text">正在思考中...</p>
+        </div>
+    </div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const g = 9.8;
+
+        // Modal Controls
+        const modal = document.getElementById('loading-modal');
+        const modalText = document.getElementById('modal-text');
+        
+        function showModal(text = '正在思考中...') {
+            modalText.textContent = text;
+            modal.style.display = 'block';
+        }
+
+        function hideModal() {
+            modal.style.display = 'none';
+        }
+        
+        // 使用火山API替代Gemini API
+        async function callGemini(prompt) {
+            showModal();
+            
+            try {
+                // 调用后端API，由后端处理火山API请求
+                const response = await fetch('/education/api/gemini', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ prompt: prompt })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`API 请求失败，状态码: ${response.status}`);
+                }
+
+                const result = await response.json();
+                hideModal();
+
+                if (result.content) {
+                    return result.content;
+                } else if (result.error) {
+                    return `错误: ${result.error}`;
+                } else {
+                    return "抱歉，无法获取有效的回答。请稍后再试。";
+                }
+            } catch (error) {
+                console.error('API Error:', error);
+                hideModal();
+                return `发生错误：${error.message}`;
+            }
+        }
+
+
+        // Section 1: Aristotle's View
+        const aristotleBtn = document.getElementById('aristotle-btn');
+        const aristotleRock = document.getElementById('aristotle-rock');
+        const aristotleFeather = document.getElementById('aristotle-feather');
+        aristotleBtn.addEventListener('click', () => {
+            aristotleBtn.disabled = true;
+            aristotleRock.style.transition = 'bottom 1s ease-in';
+            aristotleFeather.style.transition = 'bottom 4s ease-out';
+            aristotleRock.style.bottom = '0px';
+            aristotleFeather.style.bottom = '0px';
+            setTimeout(() => {
+                aristotleRock.style.transition = 'none';
+                aristotleFeather.style.transition = 'none';
+                aristotleRock.style.bottom = 'calc(100% - 40px)';
+                aristotleFeather.style.bottom = 'calc(100% - 40px)';
+                aristotleBtn.disabled = false;
+            }, 4100);
+        });
+
+        // Section 3: Air Resistance
+        const resistanceBtn = document.getElementById('resistance-btn');
+        const resistanceBall = document.getElementById('resistance-ball');
+        const resistancePaper = document.getElementById('resistance-paper');
+        resistanceBtn.addEventListener('click', () => {
+            resistanceBtn.disabled = true;
+            resistanceBall.style.transition = 'bottom 1.5s ease-in';
+            resistancePaper.style.transition = 'bottom 3s ease-out';
+            resistanceBall.style.bottom = '0px';
+            resistancePaper.style.bottom = '0px';
+            setTimeout(() => {
+                resistanceBall.style.transition = 'none';
+                resistancePaper.style.transition = 'none';
+                resistanceBall.style.bottom = 'calc(100% - 40px)';
+                resistancePaper.style.bottom = 'calc(100% - 40px)';
+                resistanceBtn.disabled = false;
+            }, 3100);
+        });
+
+        // Section 4: Vacuum
+        const vacuumBtn = document.getElementById('vacuum-btn');
+        const vacuumBall = document.getElementById('vacuum-ball');
+        const vacuumFeather = document.getElementById('vacuum-feather');
+        vacuumBtn.addEventListener('click', () => {
+            vacuumBtn.disabled = true;
+            vacuumBall.style.transition = 'bottom 2s ease-in-out';
+            vacuumFeather.style.transition = 'bottom 2s ease-in-out';
+            vacuumBall.style.bottom = '0px';
+            vacuumFeather.style.bottom = '0px';
+            setTimeout(() => {
+                vacuumBall.style.transition = 'none';
+                vacuumFeather.style.transition = 'none';
+                vacuumBall.style.bottom = 'calc(100% - 40px)';
+                vacuumFeather.style.bottom = 'calc(100% - 40px)';
+                vacuumBtn.disabled = false;
+            }, 2100);
+        });
+
+        // Section 6: Chart and Calculator
+        const timeSlider = document.getElementById('time-slider');
+        const timeDisplay = document.getElementById('time-display');
+        const velocityDisplay = document.getElementById('velocity-display');
+        const heightDisplay = document.getElementById('height-display');
+        
+        const ctx = document.getElementById('fallChart').getContext('2d');
+        const fallChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: '速度 (m/s)',
+                    data: [],
+                    borderColor: '#3b82f6',
+                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                    yAxisID: 'yVelocity',
+                    fill: true,
+                    tension: 0.1
+                }, {
+                    label: '高度 (m)',
+                    data: [],
+                    borderColor: '#16a34a',
+                    backgroundColor: 'rgba(22, 163, 74, 0.1)',
+                    yAxisID: 'yHeight',
+                    fill: true,
+                    tension: 0.1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: {
+                    mode: 'index',
+                    intersect: false,
+                },
+                scales: {
+                    x: {
+                        title: { display: true, text: '时间 (s)' }
+                    },
+                    yVelocity: {
+                        type: 'linear',
+                        display: true,
+                        position: 'left',
+                        title: { display: true, text: '速度 (m/s)', color: '#3b82f6' }
+                    },
+                    yHeight: {
+                        type: 'linear',
+                        display: true,
+                        position: 'right',
+                        title: { display: true, text: '高度 (m)', color: '#16a34a' },
+                        grid: {
+                            drawOnChartArea: false, 
+                        },
+                    }
+                }
+            }
+        });
+
+        function updateCalculatorAndChart() {
+            const t = parseFloat(timeSlider.value);
+            const v = g * t;
+            const h = 0.5 * g * t * t;
+
+            timeDisplay.textContent = `${t.toFixed(1)} s`;
+            velocityDisplay.textContent = `${v.toFixed(1)} m/s`;
+            heightDisplay.textContent = `${h.toFixed(1)} m`;
+
+            const labels = [];
+            const velocityData = [];
+            const heightData = [];
+            const maxTime = 5;
+            const steps = 50;
+
+            for (let i = 0; i <= steps; i++) {
+                const timePoint = (i / steps) * maxTime;
+                labels.push(timePoint.toFixed(1));
+                velocityData.push(g * timePoint);
+                heightData.push(0.5 * g * timePoint * timePoint);
+            }
+            
+            fallChart.data.labels = labels;
+            fallChart.data.datasets[0].data = velocityData;
+            fallChart.data.datasets[1].data = heightData;
+            
+            fallChart.update();
+        }
+
+        timeSlider.addEventListener('input', updateCalculatorAndChart);
+        updateCalculatorAndChart();
+
+        // Gemini Feature: Real Life Examples
+        const realLifeInput = document.getElementById('real-life-input');
+        const realLifeBtn = document.getElementById('real-life-btn');
+        const realLifeResponse = document.getElementById('real-life-response');
+
+        realLifeBtn.addEventListener('click', async () => {
+            const scenario = realLifeInput.value.trim();
+            if (!scenario) {
+                realLifeResponse.textContent = '请输入一个场景。';
+                return;
+            }
+            realLifeResponse.textContent = '正在生成解释...';
+            const prompt = `你是一位有趣的高中物理老师。请用通俗易懂、生动的语言，解释“自由落体”或“近似自由落体”的物理概念是如何在以下真实场景中体现的： "${scenario}"。解释要简短，重点突出，适合对物理刚产生兴趣的学生。`;
+            const responseText = await callGemini(prompt);
+            realLifeResponse.textContent = responseText;
+        });
+        
+        // Gemini Feature: Q&A Assistant
+        const qaInput = document.getElementById('qa-input');
+        const qaBtn = document.getElementById('qa-btn');
+        const qaResponse = document.getElementById('qa-response');
+        
+        qaBtn.addEventListener('click', async () => {
+             const question = qaInput.value.trim();
+            if (!question) {
+                qaResponse.textContent = '请输入你的问题。';
+                return;
+            }
+            qaResponse.textContent = 'AI助教正在思考中...';
+            const prompt = `你是一位耐心且知识渊博的物理助教。请用清晰、简洁、鼓励性的语言回答以下关于物理（特别是自由落体相关）的问题。如果问题超出了物理范畴，请委婉地说明。问题是：“${question}”`;
+            const responseText = await callGemini(prompt);
+            qaResponse.textContent = responseText;
+        });
+        
+        // Navigation Scroll highlighting
+        const sections = document.querySelectorAll('section');
+        const navLinks = document.querySelectorAll('.nav-link');
+
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    navLinks.forEach(link => {
+                        link.classList.remove('active-link');
+                        if (link.getAttribute('href').slice(1) === entry.target.id) {
+                            link.classList.add('active-link');
+                        }
+                    });
+                }
+            });
+        }, { rootMargin: '-30% 0px -70% 0px'});
+
+        sections.forEach(section => {
+            observer.observe(section);
+        });
+    });
+</script>
+</body>
+</html>
