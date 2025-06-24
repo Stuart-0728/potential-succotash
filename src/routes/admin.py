@@ -545,28 +545,31 @@ def activity_view(id):
         creator = db.session.get(User, activity.created_by) if activity.created_by else None
         
         # 获取报名人数 - 修复逻辑，同时统计registered和attended状态
-        registration_count = Registration.query.filter(
+        registration_stmt = db.select(func.count()).select_from(Registration).filter(
             Registration.activity_id == id,
             db.or_(
                 Registration.status == 'registered',
                 Registration.status == 'attended'
             )
-        ).count()
+        )
+        registration_count = db.session.execute(registration_stmt).scalar()
         
         # 获取签到人数 - 检查是否有check_in_time
-        checkin_count = Registration.query.filter(
+        checkin_stmt = db.select(func.count()).select_from(Registration).filter(
             Registration.activity_id == id,
             Registration.check_in_time.isnot(None)
-        ).count()
+        )
+        checkin_count = db.session.execute(checkin_stmt).scalar()
         
         # 获取参与者信息
-        registrations = db.session.query(Registration).join(
+        registrations_stmt = db.select(Registration).join(
             User, Registration.user_id == User.id
         ).join(
             StudentInfo, User.id == StudentInfo.user_id
         ).filter(
             Registration.activity_id == id
-        ).all()
+        )
+        registrations = db.session.execute(registrations_stmt).scalars().all()
         
         # 导入display_datetime函数供模板使用
         from src.utils.time_helpers import display_datetime, safe_less_than, safe_greater_than
@@ -607,16 +610,16 @@ def delete_activity(id):
                 # 强制删除活动及相关数据
                 
                 # 1. 删除积分历史记录
-                PointsHistory.query.filter_by(activity_id=activity.id).delete()
+                db.session.execute(db.delete(PointsHistory).filter_by(activity_id=activity.id))
                 
                 # 2. 删除报名记录
-                Registration.query.filter_by(activity_id=activity.id).delete()
+                db.session.execute(db.delete(Registration).filter_by(activity_id=activity.id))
                 
                 # 3. 删除活动评价
-                ActivityReview.query.filter_by(activity_id=activity.id).delete()
+                db.session.execute(db.delete(ActivityReview).filter_by(activity_id=activity.id))
                 
                 # 4. 删除签到记录
-                ActivityCheckin.query.filter_by(activity_id=activity.id).delete()
+                db.session.execute(db.delete(ActivityCheckin).filter_by(activity_id=activity.id))
                 
                 # 5. 删除活动与标签的关联
                 activity.tags = []
@@ -629,13 +632,13 @@ def delete_activity(id):
                 # 如果没有报名记录，直接删除活动
                 
                 # 1. 删除积分历史记录
-                PointsHistory.query.filter_by(activity_id=activity.id).delete()
+                db.session.execute(db.delete(PointsHistory).filter_by(activity_id=activity.id))
                 
                 # 2. 删除活动评价
-                ActivityReview.query.filter_by(activity_id=activity.id).delete()
+                db.session.execute(db.delete(ActivityReview).filter_by(activity_id=activity.id))
                 
                 # 3. 删除签到记录
-                ActivityCheckin.query.filter_by(activity_id=activity.id).delete()
+                db.session.execute(db.delete(ActivityCheckin).filter_by(activity_id=activity.id))
                 
                 # 4. 删除活动与标签的关联
                 activity.tags = []
