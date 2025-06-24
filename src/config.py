@@ -104,15 +104,25 @@ class Config:
     SQLALCHEMY_ENGINE_OPTIONS = {
         'pool_pre_ping': True,
         'connect_args': {'check_same_thread': False} if 'sqlite:' in str(SQLALCHEMY_DATABASE_URI) else {},
+        # 连接池配置
+        'pool_size': int(os.environ.get('DB_POOL_SIZE', 10)),  # 连接池大小
+        'max_overflow': int(os.environ.get('DB_MAX_OVERFLOW', 20)),  # 最大溢出连接数
+        'pool_timeout': int(os.environ.get('DB_POOL_TIMEOUT', 30)),  # 连接获取超时时间(秒)
+        'pool_recycle': int(os.environ.get('DB_POOL_RECYCLE', 1800)),  # 连接自动回收时间(秒)
     }
     
     # 时区配置
     TIMEZONE_NAME = os.environ.get('TIMEZONE_NAME', 'Asia/Shanghai')
     
-    # 如果使用PostgreSQL，设置时区
+    # 如果使用PostgreSQL，设置时区和连接参数
     if 'postgresql:' in str(SQLALCHEMY_DATABASE_URI):
         SQLALCHEMY_ENGINE_OPTIONS['connect_args'] = {
-            'options': f'-c timezone=UTC'  # 强制PostgreSQL连接使用UTC时区
+            'options': f'-c timezone=UTC',  # 强制PostgreSQL连接使用UTC时区
+            'connect_timeout': int(os.environ.get('DB_CONNECT_TIMEOUT', 10)),  # 连接超时时间(秒)
+            'keepalives': 1,  # 启用TCP keepalive
+            'keepalives_idle': 30,  # 空闲多少秒后发送keepalive包(秒)
+            'keepalives_interval': 10,  # keepalive包之间的间隔(秒)
+            'keepalives_count': 5,  # 重试次数
         }
     
     # Flask-Session配置
