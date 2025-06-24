@@ -472,43 +472,29 @@ def edit_activity(id):
                 try:
                     logger.info(f"编辑活动: 准备上传海报，活动ID={activity.id}, 文件名={form.poster.data.filename}")
                     
-                    # 确保活动ID是整数
-                    activity_id_int = int(activity.id)
+                    # 使用handle_poster_upload函数处理文件上传
+                    poster_filename = handle_poster_upload(form.poster.data, activity.id)
                     
-                    # 直接处理文件上传，不使用handle_poster_upload函数
-                    filename = secure_filename(form.poster.data.filename)
-                    _, file_extension = os.path.splitext(filename)
-                    timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
-                    
-                    # 生成唯一文件名
-                    unique_filename = f"activity_{activity_id_int}_{timestamp}{file_extension}"
-                    
-                    # 确保上传目录存在
-                    upload_dir = os.path.join(current_app.static_folder or 'src/static', 'uploads', 'posters')
-                    if not os.path.exists(upload_dir):
-                        os.makedirs(upload_dir, exist_ok=True)
-                    
-                    # 保存文件
-                    file_path = os.path.join(upload_dir, unique_filename)
-                    form.poster.data.save(file_path)
-                    logger.info(f"编辑活动: 海报文件已保存到: {file_path}")
-                    
-                    # 记录旧海报文件名，以便稍后删除
-                    old_poster = activity.poster_image
-                    
-                    # 更新海报文件名
-                    activity.poster_image = unique_filename
-                    logger.info(f"编辑活动: 海报文件名已更新: {unique_filename}")
-                    
-                    # 尝试删除旧海报文件（如果存在且不是默认banner）
-                    if old_poster and 'banner' not in old_poster:
-                        try:
-                            old_poster_path = os.path.join(current_app.static_folder or 'src/static', 'uploads', 'posters', old_poster)
-                            if os.path.exists(old_poster_path):
-                                os.remove(old_poster_path)
-                                logger.info(f"编辑活动: 已删除旧海报文件: {old_poster_path}")
-                        except Exception as e:
-                            logger.warning(f"编辑活动: 删除旧海报文件时出错: {e}")
+                    if poster_filename:
+                        # 记录旧海报文件名，以便稍后删除
+                        old_poster = activity.poster_image
+                        
+                        # 更新海报文件名
+                        activity.poster_image = poster_filename
+                        logger.info(f"编辑活动: 海报文件名已更新: {poster_filename}")
+                        
+                        # 尝试删除旧海报文件（如果存在且不是默认banner）
+                        if old_poster and 'banner' not in old_poster:
+                            try:
+                                old_poster_path = os.path.join(current_app.static_folder or 'src/static', 'uploads', 'posters', old_poster)
+                                if os.path.exists(old_poster_path):
+                                    os.remove(old_poster_path)
+                                    logger.info(f"编辑活动: 已删除旧海报文件: {old_poster_path}")
+                            except Exception as e:
+                                logger.warning(f"编辑活动: 删除旧海报文件时出错: {e}")
+                    else:
+                        logger.error("编辑活动: 上传海报失败，未获得有效的文件名")
+                        flash('上传海报时出错，但其他活动信息已保存', 'warning')
                 except Exception as e:
                     logger.error(f"编辑活动: 上传海报时出错: {e}", exc_info=True)
                     flash('上传海报时出错，但其他活动信息已保存', 'warning')

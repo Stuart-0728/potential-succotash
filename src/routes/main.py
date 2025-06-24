@@ -62,7 +62,8 @@ def index():
                         # 添加备用文件检查
                         alt_paths = [
                             os.path.join(static_folder, 'img', 'banner1.jpg'),
-                            os.path.join(static_folder, 'img', 'banner2.jpg')
+                            os.path.join(static_folder, 'img', 'banner2.jpg'),
+                            os.path.join(static_folder, 'img', 'banner3.jpg'),
                         ]
                         
                         # 找到第一个存在的备用文件并设置为海报图片
@@ -224,27 +225,47 @@ def activity_detail(activity_id):
         activity = db.get_or_404(Activity, activity_id)
         
         # 检查海报文件是否存在，如果不存在则设置备用海报
-        if activity.poster_image:
-            static_folder = current_app.static_folder
-            if static_folder:
-                poster_path = os.path.join(static_folder, 'uploads', 'posters', activity.poster_image)
-                if not os.path.exists(poster_path):
-                    # 如果原始海报不存在，设置备用海报
-                    alt_paths = [
-                        os.path.join(static_folder, 'img', 'banner1.jpg'),
-                        os.path.join(static_folder, 'img', 'banner2.jpg'),
-                        os.path.join(static_folder, 'img', 'banner3.jpg'),
-                    ]
-                    
-                    # 找到第一个存在的备用文件并设置为海报图片
-                    for i, alt_path in enumerate(alt_paths):
-                        if os.path.exists(alt_path):
-                            backup_filename = f"banner{i+1}.jpg"
-                            activity.poster_image = backup_filename
-                            logger.info(f"  设置活动详情页备用海报: {backup_filename}")
-                            break
-                    else:
-                        logger.warning("  所有备用文件也不存在")
+        try:
+            poster_filename = str(activity.poster_image) if activity.poster_image else None
+            if poster_filename:
+                static_folder = current_app.static_folder
+                if static_folder:
+                    poster_path = os.path.join(static_folder, 'uploads', 'posters', poster_filename)
+                    logger.info(f"检查活动海报路径: {poster_path}")
+                    if not os.path.exists(poster_path):
+                        # 尝试查找匹配的海报文件（只匹配活动ID部分）
+                        poster_dir = os.path.join(static_folder, 'uploads', 'posters')
+                        if os.path.exists(poster_dir):
+                            matching_files = [f for f in os.listdir(poster_dir) if f.startswith(f"activity_{activity_id}_")]
+                            if matching_files:
+                                # 使用最新的匹配文件
+                                matching_files.sort(reverse=True)  # 按文件名降序排序，通常最新的时间戳在最前面
+                                new_poster = matching_files[0]
+                                setattr(activity, 'poster_image', new_poster)
+                                logger.info(f"找到匹配的海报文件: {new_poster}")
+                                # 继续处理，不要提前返回
+                            else:
+                                # 如果没有找到匹配的文件，使用备用海报
+                                logger.warning(f"海报文件不存在: {poster_path}")
+                                alt_paths = [
+                                    os.path.join(static_folder, 'img', 'banner1.jpg'),
+                                    os.path.join(static_folder, 'img', 'banner2.jpg'),
+                                    os.path.join(static_folder, 'img', 'banner3.jpg'),
+                                ]
+                                
+                                # 找到第一个存在的备用文件并设置为海报图片
+                                for i, alt_path in enumerate(alt_paths):
+                                    if os.path.exists(alt_path):
+                                        backup_filename = f"banner{i+1}.jpg"
+                                        setattr(activity, 'poster_image', backup_filename)
+                                        logger.info(f"设置活动详情页备用海报: {backup_filename}")
+                                        break
+                                else:
+                                    logger.warning("所有备用文件也不存在")
+                        else:
+                            logger.warning(f"海报目录不存在: {poster_dir}")
+        except Exception as e:
+            logger.error(f"处理活动海报时出错: {e}")
         
         # 创建空表单对象用于CSRF保护
         form = FlaskForm()
