@@ -1032,6 +1032,8 @@ def api_statistics():
 @admin_required
 def activity_registrations(id):
     try:
+        # 导入display_datetime函数供模板使用
+        from src.utils.time_helpers import display_datetime
         activity = db.get_or_404(Activity, id)
         
         # 获取报名学生列表 - 修复报名详情查看问题
@@ -1073,6 +1075,7 @@ def activity_registrations(id):
                               registered_count=registered_count,
                               cancelled_count=cancelled_count,
                               attended_count=attended_count,
+                              display_datetime=display_datetime,
                               form=form)
     except Exception as e:
         logger.error(f"Error in activity_registrations: {e}")
@@ -1804,26 +1807,31 @@ def api_statistics_ext():
 @admin_bp.route('/activity/<int:id>/reviews')
 @admin_required
 def activity_reviews(id):
-    from src.models import Activity, ActivityReview
-    from src.utils.time_helpers import display_datetime
-    from flask_wtf.csrf import generate_csrf
-    
-    activity = db.get_or_404(Activity, id)
-    reviews = ActivityReview.query.filter_by(activity_id=id).order_by(ActivityReview.created_at.desc()).all()
-    if reviews:
-        average_rating = sum(r.rating for r in reviews) / len(reviews)
-    else:
-        average_rating = 0
-    
-    # 生成CSRF令牌
-    csrf_token = generate_csrf()
-    
-    return render_template('admin/activity_reviews.html', 
-                         activity=activity, 
-                         reviews=reviews, 
-                         average_rating=average_rating,
-                         display_datetime=display_datetime,
-                         csrf_token=csrf_token)
+    try:
+        from src.models import Activity, ActivityReview
+        from src.utils.time_helpers import display_datetime
+        from flask_wtf.csrf import generate_csrf
+        
+        activity = db.get_or_404(Activity, id)
+        reviews = ActivityReview.query.filter_by(activity_id=id).order_by(ActivityReview.created_at.desc()).all()
+        if reviews:
+            average_rating = sum(r.rating for r in reviews) / len(reviews)
+        else:
+            average_rating = 0
+        
+        # 生成CSRF令牌
+        csrf_token = generate_csrf()
+        
+        return render_template('admin/activity_reviews.html', 
+                            activity=activity, 
+                            reviews=reviews, 
+                            average_rating=average_rating,
+                            display_datetime=display_datetime,
+                            csrf_token=csrf_token)
+    except Exception as e:
+        logger.error(f"Error in activity_reviews: {str(e)}")
+        flash('查看活动评价时出错', 'danger')
+        return redirect(url_for('admin.activities'))
 
 @admin_bp.route('/api/qrcode/checkin/<int:id>')
 @admin_required
