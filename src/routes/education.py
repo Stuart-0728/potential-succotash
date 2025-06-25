@@ -110,7 +110,7 @@ def resources():
         flash('加载教育资源页面时出错，请稍后再试', 'danger')
         return redirect(url_for('main.index'))
 
-@education_bp.route('/resource/free-fall')
+@education_bp.route('/free-fall')
 def free_fall():
     """自由落体运动探究页面"""
     try:
