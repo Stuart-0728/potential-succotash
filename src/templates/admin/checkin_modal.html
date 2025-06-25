@@ -96,12 +96,12 @@
                                     <!-- 检查是否已经开启签到，并显示相应的按钮 -->
                                     {% if activity.checkin_enabled %}
                                     <form id="toggle-checkin-form" class="mb-4">
-                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                                         <button type="button" id="toggle-checkin-btn" class="btn btn-danger">关闭签到</button>
                                     </form>
                                     {% else %}
                                     <form id="toggle-checkin-form" class="mb-4">
-                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                                         <button type="button" id="toggle-checkin-btn" class="btn btn-success">开启签到</button>
                                     </form>
                                     {% endif %}
@@ -219,9 +219,9 @@
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/x-www-form-urlencoded',
-                            'X-CSRFToken': '{{ csrf_token() }}'
+                            'X-CSRFToken': '{{ csrf_token }}'
                         },
-                        body: 'csrf_token={{ csrf_token() }}'
+                        body: 'csrf_token={{ csrf_token }}'
                     })
                     .then(response => {
                         if (response.ok) {
