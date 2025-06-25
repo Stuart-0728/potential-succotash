@@ -89,14 +89,13 @@ def create_app(config_name=None):
             return db.session.get(User, int(user_id))
     
     # 注册蓝图 - 在模型初始化之后
-    # 添加特定API路由的CSRF豁免
-    with app.app_context():
-        from src.routes.education import education_bp
-        # 豁免/education/api/gemini路由的CSRF保护
-        app.view_functions[education_bp.name + '.gemini_api']._csrf_exempt = True
-        app.logger.info('已为/education/api/gemini路由添加CSRF豁免')
-    
     register_blueprints(app)
+    
+    # 添加特定API路由的CSRF豁免 - 必须在蓝图注册之后
+    with app.app_context():
+        # 使用官方推荐的 exempt 方法豁免指定路由
+        csrf.exempt('education.gemini_api')
+        app.logger.info('已为education.gemini_api路由添加CSRF豁免')
     
     # 注册时区处理中间件
     @app.before_request
