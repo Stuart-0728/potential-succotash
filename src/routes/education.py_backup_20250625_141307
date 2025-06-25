@@ -94,18 +94,6 @@ def resources():
                 "url": url_for('education.free_fall'),
                 "icon": "fa-arrow-down",
                 "description": "通过交互式实验探究自由落体运动规律，理解伽利略的贡献"
-            },
-            {
-                "name": "洛伦兹力2D实验",
-                "url": url_for('education.lorentz_force_2d'),
-                "icon": "fa-magnet",
-                "description": "通过交互式实验探究带电粒子在磁场中的运动，理解洛伦兹力的作用"
-            },
-            {
-                "name": "磁力耦合器模拟",
-                "url": url_for('education.magnetic_coupler'),
-                "icon": "fa-sync",
-                "description": "通过交互式3D模型探究磁力耦合器的工作原理与应用"
             }
         ]
         
@@ -127,28 +115,6 @@ def free_fall():
     except Exception as e:
         logger.error(f"加载自由落体运动探究页面出错: {e}", exc_info=True)
         flash('加载自由落体运动探究页面时出错，请稍后再试', 'danger')
-        return redirect(url_for('education.resources'))
-
-@education_bp.route('/lorentz-force-2d')
-def lorentz_force_2d():
-    """洛伦兹力2D实验探究页面"""
-    try:
-        logger.info("正在加载洛伦兹力2D实验探究页面")
-        return render_template('education/lorentz_force_2d.html')
-    except Exception as e:
-        logger.error(f"加载洛伦兹力2D实验探究页面出错: {e}", exc_info=True)
-        flash('加载洛伦兹力2D实验探究页面时出错，请稍后再试', 'danger')
-        return redirect(url_for('education.resources'))
-
-@education_bp.route('/magnetic-coupler')
-def magnetic_coupler():
-    """磁力耦合器探究页面"""
-    try:
-        logger.info("正在加载磁力耦合器探究页面")
-        return render_template('education/magnetic_coupler.html')
-    except Exception as e:
-        logger.error(f"加载磁力耦合器探究页面出错: {e}", exc_info=True)
-        flash('加载磁力耦合器探究页面时出错，请稍后再试', 'danger')
         return redirect(url_for('education.resources'))
 
 @education_bp.route('/api/gemini', methods=['POST'])
@@ -265,69 +231,41 @@ def gemini_api():
             'content': "处理请求时发生错误，请稍后再试"
         })
 
-@education_bp.route('/ai_chat_clear_history', methods=['POST'])
-def ai_chat_clear_history():
-    """清除AI聊天历史记录"""
-    try:
-        # 检查请求是否包含有效的CSRF令牌
-        if not current_app.config.get('TESTING', False):  # 非测试环境下检查CSRF
-            csrf_token = request.headers.get('X-CSRFToken')
-            if not csrf_token:
-                logger.warning("清除AI聊天历史时缺少CSRF令牌")
-                return jsonify({
-                    'success': False,
-                    'message': 'CSRF验证失败'
-                }), 400
-
-        # 记录操作
-        user_id = current_user.id if current_user.is_authenticated else None
-        logger.info(f"用户 {user_id or '匿名用户'} 请求清除AI聊天历史")
-        
-        if user_id:
-            log_action(
-                action="education_ai_clear_history",
-                details="清除教育资源AI聊天历史",
-                user_id=user_id
-            )
-        
-        # 这里我们实际上并不需要在服务器端存储任何内容，
-        # 因为聊天历史是在客户端存储的
-        # 但我们仍然返回成功，让前端知道清除操作已确认
-        return jsonify({
-            'success': True,
-            'message': '聊天历史已清除'
-        })
-    
-    except Exception as e:
-        logger.error(f"清除AI聊天历史时出错: {str(e)}", exc_info=True)
-        return jsonify({
-            'success': False,
-            'message': '清除聊天历史时出错，请稍后再试'
-        }), 500
-
+# 添加测试路由
 @education_bp.route('/test')
 def test_route():
-    """测试路由"""
-    try:
-        return jsonify({
-            'success': True,
-            'message': '教育资源路由运行正常'
-        })
-    except Exception as e:
-        current_app.logger.error(f"测试路由出错: {str(e)}", exc_info=True)
-        return jsonify({
-            'success': False,
-            'message': f"测试路由出错: {str(e)}"
-        })
+    """测试路由，用于检查教育模块是否正常工作"""
+    return jsonify({
+        'success': True,
+        'message': '教育模块正常工作',
+        'auth_status': current_user.is_authenticated,
+        'user_info': {
+            'id': current_user.id,
+            'username': current_user.username
+        } if current_user.is_authenticated else None
+    })
 
+# 添加测试路由测试静态文件访问
 @education_bp.route('/test-static')
 def test_static():
-    """测试静态文件路由"""
-    try:
-        return render_template('education/test.html')
-    except Exception as e:
-        current_app.logger.error(f"测试静态文件路由出错: {str(e)}", exc_info=True)
-        return jsonify({
-            'success': False,
-            'message': f"测试静态文件路由出错: {str(e)}"
-        }) 
+    """测试静态文件访问"""
+    # 获取上传目录中的第一个海报文件作为测试
+    static_folder = current_app.static_folder or ""
+    upload_dir = os.path.join(static_folder, 'uploads', 'posters')
+    poster_files = []
+    if os.path.exists(upload_dir):
+        poster_files = os.listdir(upload_dir)
+        poster_files = [f for f in poster_files if os.path.isfile(os.path.join(upload_dir, f))]
+    
+    test_image = poster_files[0] if poster_files else None
+    
+    # 返回测试结果
+    return jsonify({
+        'success': True,
+        'message': '静态文件测试',
+        'test_image': test_image,
+        'static_url': current_app.static_url_path,
+        'image_url': url_for('static', filename=f'uploads/posters/{test_image}') if test_image else None,
+        'upload_dir': upload_dir,
+        'file_exists': os.path.exists(upload_dir)
+    }) 

@@ -3,6 +3,7 @@ import logging
 import secrets
 from datetime import timedelta
 from dotenv import load_dotenv
+import pytz
 
 # 在文件顶部，确保 .env 文件总是在配置被读取前加载
 load_dotenv() 
@@ -64,16 +65,19 @@ def ensure_directories():
 # 创建并设置目录权限
 ensure_directories()
 
+logger = logging.getLogger(__name__)
+
 class Config:
     """应用配置类"""
     # 基础配置
-    SECRET_KEY = os.environ.get('SECRET_KEY') or secrets.token_hex(16)
+    SECRET_KEY = os.environ.get('SECRET_KEY') or 'dev-secret-key-cqnu-association'
+    SECURITY_PASSWORD_SALT = os.environ.get('SECURITY_PASSWORD_SALT') or 'cqnu-association-salt'
     PERMANENT_SESSION_LIFETIME = timedelta(days=7)  # 会话持续7天
     
     # 日志配置
     LOG_PATH = LOG_PATH
     LOG_FILE = os.path.join(LOG_PATH, 'cqnu_association.log')
-    LOG_LEVEL = os.environ.get('LOG_LEVEL', 'INFO')
+    LOG_LEVEL = logging.INFO
     LOG_FORMAT = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
     LOG_BACKUP_COUNT = int(os.environ.get('LOG_BACKUP_COUNT', 10))
     LOG_MAX_BYTES = int(os.environ.get('LOG_MAX_BYTES', 10 * 1024 * 1024))  # 10MB
@@ -81,34 +85,39 @@ class Config:
     # 上传文件配置
     UPLOAD_FOLDER = UPLOAD_FOLDER
     ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'pdf', 'docx', 'xlsx', 'pptx', 'txt', 'zip'}
-    MAX_CONTENT_LENGTH = int(os.environ.get('MAX_CONTENT_LENGTH', 16 * 1024 * 1024))  # 默认16MB
+    MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16MB
     
     # 数据库配置
     INSTANCE_PATH = INSTANCE_PATH
     DB_PATH = DB_PATH
     
-    # --- 用下面的代码块替换掉旧的数据库URI设置逻辑 ---
-    DATABASE_URL = os.environ.get('DATABASE_URL')
-    if not DATABASE_URL:
-        raise ValueError("关键错误：环境变量 DATABASE_URL 未设置！请检查你的 .env 文件是否在项目根目录并且内容正确。")
+    # 优先使用环境变量中的数据库URL
+    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or \
+        'postgresql://cqnureg2_user:Pz8ZVfyLYOD22fkxp9w2XP7B9LsKAPqE@dpg-d1dugl7gi27c73er9p8g-a.oregon-postgres.render.com/cqnureg2'
     
-    # 兼容 Heroku/Render 的 postgres:// 前缀
-    if DATABASE_URL.startswith("postgres://"):
-        SQLALCHEMY_DATABASE_URI = DATABASE_URL.replace("postgres://", "postgresql://", 1)
-    else:
-        SQLALCHEMY_DATABASE_URI = DATABASE_URL
-    # --- 替换结束 ---
+    # 如果数据库URL是以postgres://开头，则替换为postgresql://
+    # 这是因为SQLAlchemy 1.4+要求PostgreSQL连接URL使用postgresql://前缀
+    if SQLALCHEMY_DATABASE_URI and SQLALCHEMY_DATABASE_URI.startswith('postgres://'):
+        SQLALCHEMY_DATABASE_URI = SQLALCHEMY_DATABASE_URI.replace('postgres://', 'postgresql://', 1)
+        
+    # 如果是SQLite数据库，设置路径为项目根目录下的instance文件夹
+    if SQLALCHEMY_DATABASE_URI and SQLALCHEMY_DATABASE_URI.startswith('sqlite:'):
+        db_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'instance')
+        if not os.path.exists(db_path):
+            os.makedirs(db_path)
+        SQLALCHEMY_DATABASE_URI = SQLALCHEMY_DATABASE_URI.replace('////', f'////{db_path}/')
+    
+    # 打印当前使用的数据库URL（隐藏敏感信息）
+    logger.info(f"使用数据库: {SQLALCHEMY_DATABASE_URI[:50] + '...' if len(SQLALCHEMY_DATABASE_URI) > 50 else SQLALCHEMY_DATABASE_URI}")
     
     # SQLAlchemy配置
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SQLALCHEMY_ENGINE_OPTIONS = {
-        'pool_pre_ping': True,
-        'connect_args': {'check_same_thread': False} if 'sqlite:' in str(SQLALCHEMY_DATABASE_URI) else {},
-        # 连接池配置
-        'pool_size': int(os.environ.get('DB_POOL_SIZE', 10)),  # 连接池大小
-        'max_overflow': int(os.environ.get('DB_MAX_OVERFLOW', 20)),  # 最大溢出连接数
-        'pool_timeout': int(os.environ.get('DB_POOL_TIMEOUT', 30)),  # 连接获取超时时间(秒)
-        'pool_recycle': int(os.environ.get('DB_POOL_RECYCLE', 1800)),  # 连接自动回收时间(秒)
+        'pool_size': 10,
+        'max_overflow': 20,
+        'pool_timeout': 30,
+        'pool_recycle': 1800,  # 连接回收时间，30分钟
+        'pool_pre_ping': True,  # 连接前ping一下确保连接有效
     }
     
     # 时区配置
@@ -136,8 +145,8 @@ class Config:
     CACHE_DEFAULT_TIMEOUT = int(os.environ.get('CACHE_TIMEOUT', 300))
     
     # Flask-Limiter配置
-    RATELIMIT_STORAGE_URL = os.environ.get('RATELIMIT_STORAGE_URL', 'memory://')
-    RATELIMIT_DEFAULT = os.environ.get('RATELIMIT_DEFAULT', '200 per day, 50 per hour')
+    RATELIMIT_STORAGE_URL = "memory://"
+    RATELIMIT_DEFAULT = "200 per day, 50 per hour"
     RATELIMIT_STRATEGY = 'fixed-window'
     
     # 系统设置
@@ -151,6 +160,24 @@ class Config:
     VOLCANO_API_KEY = os.environ.get('VOLCANO_API_KEY', os.environ.get('ARK_API_KEY', ''))
     VOLCANO_API_URL = os.environ.get('VOLCANO_API_URL', 'https://ark.cn-beijing.volces.com/api/v3/chat/completions')
     
+    # 应用时区配置
+    APP_TIMEZONE = os.environ.get('APP_TIMEZONE') or 'Asia/Shanghai'
+    logger.info(f"使用时区: {APP_TIMEZONE}")
+    
+    # 是否允许修改密码（调试用）
+    ALLOW_PASSWORD_CHANGE = True
+    
+    # Flask-WTF配置
+    WTF_CSRF_ENABLED = True
+    WTF_CSRF_TIME_LIMIT = 3600  # CSRF令牌有效期（秒）
+    
+    # AI聊天功能配置
+    AI_CHAT_ENABLED = True
+    # AI模型API URL（以/结尾）
+    AI_MODEL_API_URL = os.environ.get('AI_MODEL_API_URL') or 'https://generativelanguage.googleapis.com/'
+    # Google Gemini API 密钥
+    GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY') or 'AIzaSyCcnpzY4ffRPHXkWYSxqi_ynb-mDZbLTQ8'
+    
     @classmethod
     def init_app(cls, app):
         """初始化应用配置"""
@@ -163,11 +190,15 @@ class DevelopmentConfig(Config):
     DEBUG = True
     SQLALCHEMY_ECHO = os.environ.get('SQLALCHEMY_ECHO', 'false').lower() == 'true'
     
+    # 设置SQLite数据库路径
+    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or \
+        'sqlite:////instance/cqnu_association_dev.db'
+
 class TestingConfig(Config):
     """测试环境配置"""
     TESTING = True
-    SQLALCHEMY_DATABASE_URI = os.environ.get('TEST_DATABASE_URL') or 'sqlite:///:memory:'
-    WTF_CSRF_ENABLED = False
+    SQLALCHEMY_DATABASE_URI = 'sqlite:////instance/cqnu_association_test.db'
+    WTF_CSRF_ENABLED = False  # 测试环境禁用CSRF验证
     
 class ProductionConfig(Config):
     """生产环境配置"""

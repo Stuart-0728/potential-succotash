@@ -155,7 +155,7 @@ def normalize_datetime_for_db(dt):
 
 def display_datetime(dt, timezone_or_fmt=None, fmt=None):
     """
-    将UTC时间转换为指定时区并格式化
+    将数据库时间转换为指定时区并格式化
     
     Args:
         dt: 日期时间对象，可能是naive或aware
@@ -188,20 +188,19 @@ def display_datetime(dt, timezone_or_fmt=None, fmt=None):
     except:
         tz = pytz.timezone('Asia/Shanghai')  # 如果时区名称无效，使用默认时区
     
-    # 确保dt有时区信息
+    # 强制处理: 将数据库中的时间总是视为UTC时间
     if dt.tzinfo is None:
-        # 无时区信息，假定为UTC
-        try:
-            dt = pytz.utc.localize(dt)
-        except (ValueError, AttributeError):
-            # 如果已经有时区但不是UTC，则转换为UTC
-            dt = dt.replace(tzinfo=pytz.UTC)
+        # 没有时区信息，总是假设为UTC时间
+        dt = pytz.utc.localize(dt)
+    else:
+        # 有时区信息，强制转为UTC
+        dt = dt.astimezone(pytz.UTC)
     
-    # 转换为指定时区
-    local_time = dt.astimezone(tz)
+    # 转换为北京时间
+    beijing_time = dt.astimezone(tz)
     
     # 格式化
-    return local_time.strftime(actual_fmt)
+    return beijing_time.strftime(actual_fmt)
 
 def safe_compare(dt1, dt2):
     """

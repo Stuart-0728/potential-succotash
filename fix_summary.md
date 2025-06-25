@@ -459,3 +459,112 @@ SELECT 'Successfully added poster_image column to activities table' AS result;
 2025-06-24 11:09:14,223 - src - INFO - 已注册时间处理全局模板函数
 2025-06-24 11:09:14,223 - src - INFO - 已跳过SQLite数据库结构检查，因为当前使用PostgreSQL数据库
 ``` 
+
+# 活动编辑标签处理问题修复总结
+
+## 问题描述
+
+在编辑活动时，系统报错：`'int' object has no attribute '_sa_instance_state'`。这个错误发生在处理活动标签关系时，导致无法保存活动的修改。
+
+## 问题原因分析
+
+1. 标签处理中使用了不安全的方式操作多对多关系
+2. 在处理标签ID时，可能将整数ID直接作为对象使用
+3. 清空标签关系的方法不当，导致SQLAlchemy无法正确处理关系
+
+## 修复方案
+
+### 1. 改进标签处理逻辑
+
+将原来的标签处理代码：
+
+```python
+# 获取当前活动的所有标签ID，用于比较
+current_tag_ids = [tag.id for tag in activity.tags]
+logger.info(f"当前活动标签IDs: {current_tag_ids}")
+
+# 将选中的标签ID转换为整数
+new_tag_ids = []
+for tag_id_str in selected_tag_ids:
+    try:
+        tag_id = int(tag_id_str.strip())
+        new_tag_ids.append(tag_id)
+    except (ValueError, TypeError) as e:
+        logger.warning(f"无效的标签ID: {tag_id_str}, 错误: {e}")
+
+logger.info(f"新选中的标签IDs: {new_tag_ids}")
+
+# 如果标签没有变化，跳过处理
+if sorted(current_tag_ids) == sorted(new_tag_ids):
+    logger.info("标签没有变化，跳过处理")
+else:
+    # 安全地移除所有现有标签
+    for tag in list(activity.tags):
+        activity.tags.remove(tag)
+    
+    db.session.flush()
+    logger.info("已移除所有现有标签")
+```
+
+修改为更安全、更简洁的方式：
+
+```python
+# 将选中的标签ID转换为整数
+new_tag_ids = []
+for tag_id_str in selected_tag_ids:
+    try:
+        tag_id = int(tag_id_str.strip())
+        new_tag_ids.append(tag_id)
+    except (ValueError, TypeError) as e:
+        logger.warning(f"无效的标签ID: {tag_id_str}, 错误: {e}")
+
+logger.info(f"新选中的标签IDs: {new_tag_ids}")
+
+# 清空当前标签
+activity.tags = []
+db.session.flush()
+logger.info("已清空活动标签")
+```
+
+### 2. 改进标签添加方式
+
+将原来的标签添加代码：
+
+```python
+# 按原始顺序添加标签
+for tag_id in new_tag_ids:
+    if tag_id in tag_map:
+        activity.tags.append(tag_map[tag_id])
+        logger.info(f"添加标签: {tag_id}")
+    else:
+        logger.warning(f"找不到标签ID: {tag_id}")
+```
+
+保持不变，但增加了更详细的日志记录和错误处理。
+
+### 3. 增强错误处理和日志记录
+
+- 添加了更详细的日志记录，包括标签处理的每个步骤
+- 增强了异常处理，确保在出现错误时能够回滚数据库事务
+- 添加了更友好的用户错误提示
+
+## 测试验证
+
+创建了专门的测试脚本`test_edit_activity_fix.py`来验证标签处理逻辑：
+
+1. 测试清空标签：`activity.tags = []`
+2. 测试恢复标签：`activity.tags = original_tags`
+3. 测试逐个添加标签：`activity.tags.append(tag)`
+4. 测试回滚操作：`db.session.rollback()`
+
+测试结果表明，修复后的代码能够正确处理活动标签关系，不再出现`'int' object has no attribute '_sa_instance_state'`错误。
+
+## 部署情况
+
+修复已经通过`git push`推送到远程仓库，Render.com将自动部署最新代码。
+
+## 后续建议
+
+1. 为多对多关系操作添加更多的单元测试
+2. 考虑在模型层添加辅助方法，简化多对多关系的处理
+3. 进一步优化标签选择和管理界面，提高用户体验 

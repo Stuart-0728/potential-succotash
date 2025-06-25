@@ -7,14 +7,13 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f0f4f8; color: #333; }
+        body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #111; color: #fff; overflow: hidden; }
         #container { width: 100%; height: 100vh; }
         #title-bar { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); text-align: center; z-index: 10;}
         h1 { margin: 0; font-size: 1.8rem; font-weight: 600; }
-        p { margin-top: 8px; color: #666; font-size: 1rem;}
-        #controls { position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); background-color: rgba(255,255,255,0.8); backdrop-filter: blur(5px); padding: 12px 24px; border-radius: 16px; display: flex; gap: 20px; z-index: 10; border: 1px solid rgba(0, 0, 0, 0.1);}
+        #controls { position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); background-color: rgba(30,30,30,0.7); backdrop-filter: blur(5px); padding: 12px; border-radius: 16px; display: flex; gap: 15px; z-index: 10; border: 1px solid rgba(255, 255, 255, 0.1);}
         button {
-            background-color: #3b82f6;
+            background-color: #007aff;
             color: white;
             border: none;
             padding: 12px 24px;
@@ -22,36 +21,18 @@
             cursor: pointer;
             font-size: 16px;
             transition: background-color 0.3s ease, transform 0.1s ease;
-            box-shadow: 0 4px 15px rgba(59, 130, 246, 0.2);
+            box-shadow: 0 4px 15px rgba(0, 122, 255, 0.2);
         }
-        button:hover { background-color: #2563eb; }
+        button:hover { background-color: #0056b3; }
         button:active { transform: scale(0.96); }
         button.active { 
-            background-color: #ef4444; 
-            box-shadow: 0 4px 15px rgba(220, 38, 38, 0.3);
+            background-color: #c41e3a; 
+            box-shadow: 0 4px 15px rgba(196, 30, 58, 0.3);
         }
-        button.active:hover { background-color: #dc2626; }
-        
-        /* 导航样式 */
-        .nav-link {
-            color: #1f2937;
-            text-decoration: none;
-            padding: 0.5rem 0;
-            border-bottom: 2px solid transparent;
-            transition: all 0.3s;
-        }
-        .nav-link:hover {
-            color: #3b82f6;
-            border-bottom-color: #3b82f6;
-        }
-        .active-link {
-            color: #3b82f6;
-            border-bottom-color: #3b82f6;
-            font-weight: bold;
-        }
-        
-        /* 模态框样式 */
-        .modal {
+        button.active:hover { background-color: #a0172e; }
+
+        /* AI Modal Styles */
+        #ai-modal {
             display: none;
             position: fixed;
             z-index: 1000;
@@ -59,90 +40,155 @@
             top: 0;
             width: 100%;
             height: 100%;
-            overflow: auto;
-            background-color: rgba(0,0,0,0.4);
+            background-color: rgba(0,0,0,0.6);
+            backdrop-filter: blur(5px);
+            align-items: center;
+            justify-content: center;
         }
         .modal-content {
-            background-color: #fefefe;
-            margin: 15% auto;
-            padding: 20px;
-            border: 1px solid #888;
-            width: 80%;
-            max-width: 500px;
-            border-radius: 0.5rem;
-            text-align: center;
+            background-color: #2c2c2e;
+            margin: auto;
+            border: 1px solid #444;
+            width: 90%;
+            max-width: 600px;
+            border-radius: 16px;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.5);
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            height: 70vh;
         }
-        .gemini-response {
-            background-color: #f8fafc;
-            border: 1px solid #e2e8f0;
-            border-radius: 0.5rem;
-            padding: 1rem;
-            margin-top: 1rem;
+        .modal-header {
+            padding: 20px;
+            border-bottom: 1px solid #444;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .modal-header h2 { margin: 0; }
+        .close-button {
+            color: #aaa;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        #chat-history {
+            flex-grow: 1;
+            overflow-y: auto;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        .chat-message {
+            padding: 10px 15px;
+            border-radius: 12px;
+            max-width: 80%;
+            line-height: 1.5;
+        }
+        .user-message {
+            background-color: #007aff;
+            color: white;
+            align-self: flex-end;
+        }
+        .ai-message {
+            background-color: #3a3a3c;
+            color: #f2f2f7;
+            align-self: flex-start;
             white-space: pre-wrap;
-            line-height: 1.75;
+        }
+        .loader {
+            border: 3px solid #f3f3f3;
+            border-radius: 50%;
+            border-top: 3px solid #007aff;
+            width: 25px;
+            height: 25px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .chat-input-area {
+            display: flex;
+            padding: 20px;
+            border-top: 1px solid #444;
+        }
+        #chat-input {
+            flex-grow: 1;
+            background-color: #3a3a3c;
+            border: 1px solid #555;
+            color: white;
+            padding: 10px;
+            border-radius: 8px;
+            margin-right: 10px;
+            font-size: 16px;
+        }
+        #send-button {
+            padding: 10px 20px;
+            font-size: 16px;
+            border-radius: 8px;
         }
         
-        /* AI问答部分样式 */
-        .ai-section {
-            background-color: white;
-            border-radius: 1rem;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            padding: 2rem;
-            margin-top: 2rem;
+        /* 返回按钮样式 */
+        .nav-back {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 100;
+            background-color: rgba(30,30,30,0.7);
+            backdrop-filter: blur(5px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 8px 16px;
+            border-radius: 8px;
+            color: white;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            transition: all 0.3s ease;
+        }
+        .nav-back:hover {
+            background-color: rgba(60,60,60,0.8);
+        }
+        
+        /* 大型AI按钮样式 */
+        #ai-ask-button {
+            padding: 14px 28px;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
     </style>
 </head>
 <body>
-    <!-- 导航栏 -->
-    <header class="bg-white/80 backdrop-blur-md sticky top-0 z-50 shadow-sm">
-        <nav class="container mx-auto px-6 py-3">
-            <div class="flex justify-between items-center">
-                <div class="flex items-center">
-                    <a href="{{ url_for('education.resources') }}" class="bg-blue-600 text-white px-3 py-1 rounded-md mr-4 hover:bg-blue-700 transition-colors">
-                        <i class="fas fa-arrow-left mr-1"></i>返回资源页
-                    </a>
-                    <h1 class="text-xl font-bold text-slate-800">圆筒式磁力耦合器模型</h1>
-                </div>
-                <div class="hidden md:flex space-x-8 text-sm">
-                    <a href="#simulation" class="nav-link">模拟实验</a>
-                    <a href="#theory" class="nav-link">物理原理</a>
-                    <a href="#ai-assistant" class="nav-link font-bold">✨AI助教</a>
-                </div>
-            </div>
-        </nav>
-    </header>
+    <!-- 返回按钮 -->
+    <a href="{{ url_for('education.resources') }}" class="nav-back">
+        ← 返回资源页
+    </a>
 
-    <div id="container">
-        <!-- 3D模拟容器 -->
+    <div id="title-bar">
+        <h1>圆筒式磁力耦合器模型</h1>
     </div>
     
+    <div id="container"></div>
     <div id="controls">
         <button id="toggleInnerRotor">启动内转子耦合</button>
         <button id="toggleRotation">暂停</button>
+        <button id="ai-ask-button">💬 询问AI助手</button>
     </div>
-    
-    <!-- AI助教部分 -->
-    <section id="ai-assistant" class="container mx-auto px-6 py-8 mt-8 mb-16">
-        <h2 class="text-2xl font-bold mb-6 text-center">AI助教 - 磁力耦合器</h2>
-        
-        <div class="ai-section">
-            <h3 class="text-xl font-bold mb-4">磁力耦合器原理解释</h3>
-            <button id="getExplanation" class="mb-4">获取原理解释</button>
-            <div id="explanationDisplay" class="gemini-response">点击按钮获取磁力耦合器原理解释</div>
-        </div>
-        
-        <div class="ai-section mt-8">
-            <h3 class="text-xl font-bold mb-4">提问物理问题</h3>
-            <textarea id="physicsQuestion" class="w-full p-4 border border-gray-300 rounded-md mb-4" rows="3" placeholder="请输入关于磁力耦合器的物理问题..."></textarea>
-            <button id="askQuestion">提交问题</button>
-            <div id="answerDisplay" class="gemini-response mt-4">在此显示回答</div>
-        </div>
-    </section>
-    
-    <!-- 加载模态框 -->
-    <div id="loadingModal" class="modal">
+
+    <!-- AI Chat Modal -->
+    <div id="ai-modal">
         <div class="modal-content">
-            <p>正在处理，请稍候...</p>
+            <div class="modal-header">
+                <h2>AI 助手</h2>
+                <span class="close-button">&times;</span>
+            </div>
+            <div id="chat-history">
+                 <div class="chat-message ai-message">你好！我是你的物理AI助手。你可以向我提问任何关于这个磁力耦合器模型的问题。</div>
+            </div>
+            <div class="chat-input-area">
+                <input type="text" id="chat-input" placeholder="在此输入你的问题...">
+                <button id="send-button">发送</button>
+            </div>
         </div>
     </div>
 
@@ -159,14 +205,15 @@
         const r_coil_outer = r_coil_inner + coil_thickness;
         
         // --- 动画常量 ---
-        const outerRotorSpeed = 0.01; // 外转子匀速转速
-        const innerRotorCoupledSpeed = outerRotorSpeed * 0.6; // 内转子耦合后的匀速转速 (外转子的60%)
+        const outerRotorSpeed = 0.01;
+        const innerRotorCoupledSpeed = outerRotorSpeed * 0.6;
 
         // --- 核心变量 ---
         let scene, camera, renderer, controls;
         let innerRotor, outerRotor;
         let isInnerRotorCoupled = false;
         let isAnimating = true;
+        let chatHistory = [];
 
         init();
         animate();
@@ -176,23 +223,15 @@
             scene = new THREE.Scene();
             scene.background = new THREE.Color(0x111111);
             scene.fog = new THREE.Fog(0x111111, 20, 50);
-
             camera = new THREE.PerspectiveCamera(60, container.clientWidth / container.clientHeight, 0.1, 1000);
             camera.position.set(5, 7, 11);
-
             renderer = new THREE.WebGLRenderer({ antialias: true });
             renderer.setPixelRatio(window.devicePixelRatio);
             renderer.setSize(container.clientWidth, container.clientHeight);
             renderer.shadowMap.enabled = true;
-            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
             container.appendChild(renderer.domElement);
-
             controls = new THREE.OrbitControls(camera, renderer.domElement);
             controls.enableDamping = true;
-            controls.dampingFactor = 0.04;
-            controls.minDistance = 5;
-            controls.maxDistance = 30;
-
             const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
             scene.add(ambientLight);
             const keyLight = new THREE.DirectionalLight(0xffffff, 1.0);
@@ -208,8 +247,6 @@
         
         function createMagneticCoupler() {
             const baseMaterialProps = { metalness: 0.4, roughness: 0.5 };
-
-            // 内转子 (永磁体)
             innerRotor = new THREE.Group();
             const magnetGeometries = [
                 new THREE.CylinderGeometry(r_inner_rotor, r_inner_rotor, L, 32, 1, false, 0, Math.PI / 2),
@@ -219,26 +256,27 @@
             ];
             const north_pole_mat = new THREE.MeshStandardMaterial({ ...baseMaterialProps, color: 0xddeeff });
             const south_pole_mat = new THREE.MeshStandardMaterial({ ...baseMaterialProps, color: 0x667788 });
-            
             innerRotor.add(new THREE.Mesh(magnetGeometries[0], north_pole_mat));
             innerRotor.add(new THREE.Mesh(magnetGeometries[1], south_pole_mat));
             innerRotor.add(new THREE.Mesh(magnetGeometries[2], north_pole_mat));
             innerRotor.add(new THREE.Mesh(magnetGeometries[3], south_pole_mat));
             
-            // 磁场B可视化 (红/蓝箭头)
+            // **磁场B可视化修正**
             const bFieldArrowsGroup = new THREE.Group();
-            const numArrowsPerQuadrant = 7;
-            const arrowLength = 1.0;
+            const numArrowsPerQuadrant = 7, arrowLength = 1.0;
+            const arrowOffset = 0.4; // 箭头与表面的间距
             for (let i = 0; i < 4; i++) {
                 const isN_Pole = (i === 0 || i === 2);
                 for (let j = 0; j < numArrowsPerQuadrant; j++) {
                     const angle = (i * Math.PI / 2) + (j + 1) * (Math.PI / 2) / (numArrowsPerQuadrant + 1);
                     const dir = new THREE.Vector3(Math.cos(angle), 0, Math.sin(angle));
                     if (isN_Pole) {
-                        const origin = dir.clone().multiplyScalar(r_inner_rotor);
+                        // N极磁场(红色): 从表面向外
+                        const origin = dir.clone().multiplyScalar(r_inner_rotor + arrowOffset);
                         bFieldArrowsGroup.add(new THREE.ArrowHelper(dir, origin, arrowLength, 0xff4500, 0.3, 0.25));
                     } else {
-                        const origin = dir.clone().multiplyScalar(r_inner_rotor + arrowLength);
+                        // S极磁场(蓝色): 从外部向内指向表面
+                        const origin = dir.clone().multiplyScalar(r_inner_rotor + arrowLength + arrowOffset);
                         bFieldArrowsGroup.add(new THREE.ArrowHelper(dir.negate(), origin, arrowLength, 0x1e90ff, 0.3, 0.25));
                     }
                 }
@@ -246,23 +284,18 @@
             innerRotor.add(bFieldArrowsGroup);
             scene.add(innerRotor);
 
-            // 外转子 (实体线圈)
             outerRotor = new THREE.Group();
             const coilMaterial = new THREE.MeshStandardMaterial({ color: 0xde9e6a, metalness: 0.8, roughness: 0.25 });
             const gap_angle = 0.08;
             const extrudeSettings = { depth: L, bevelEnabled: true, bevelThickness: 0.05, bevelSize: 0.05, bevelSegments: 2 };
-
             for (let i = 0; i < 4; i++) {
-                const startAngle = (i * Math.PI / 2) + gap_angle / 2;
-                const endAngle = startAngle + (Math.PI / 2) - gap_angle;
-                
+                const startAngle = (i * Math.PI / 2) + gap_angle / 2, endAngle = startAngle + (Math.PI / 2) - gap_angle;
                 const shape = new THREE.Shape();
                 shape.moveTo(r_coil_inner * Math.cos(startAngle), r_coil_inner * Math.sin(startAngle));
                 shape.absarc(0, 0, r_coil_inner, startAngle, endAngle, false);
                 shape.lineTo(r_coil_outer * Math.cos(endAngle), r_coil_outer * Math.sin(endAngle));
                 shape.absarc(0, 0, r_coil_outer, endAngle, startAngle, true);
                 shape.closePath();
-
                 const geometry = new THREE.ExtrudeGeometry(shape, extrudeSettings);
                 const coilSegment = new THREE.Mesh(geometry, coilMaterial);
                 coilSegment.rotation.x = -Math.PI / 2;
@@ -273,174 +306,164 @@
         }
 
         function setupUI() {
-            // 设置按钮的监听器
+            const aiModal = document.getElementById('ai-modal');
+            const closeModalButton = document.querySelector('.close-button');
+            const aiAskButton = document.getElementById('ai-ask-button');
+            const chatHistoryDiv = document.getElementById('chat-history');
+            const chatInput = document.getElementById('chat-input');
+            const sendButton = document.getElementById('send-button');
+            
             document.getElementById('toggleInnerRotor').addEventListener('click', (e) => {
                 isInnerRotorCoupled = !isInnerRotorCoupled;
                 e.target.textContent = isInnerRotorCoupled ? '停止内转子耦合' : '启动内转子耦合';
                 e.target.classList.toggle('active', isInnerRotorCoupled);
             });
+            
             document.getElementById('toggleRotation').addEventListener('click', (e) => {
                 isAnimating = !isAnimating;
                 e.target.textContent = isAnimating ? '暂停' : '播放';
+                e.target.classList.toggle('active', !isAnimating);
             });
             
-            // AI部分按钮监听器
-            document.getElementById('getExplanation').addEventListener('click', () => {
-                getPhysicsExplanation();
+            aiAskButton.onclick = () => {
+                aiModal.style.display = "flex";
+            }
+            
+            closeModalButton.onclick = () => {
+                aiModal.style.display = "none";
+            }
+            
+            const sendMessage = async () => {
+                const userQuestion = chatInput.value.trim();
+                if (!userQuestion) return;
+                
+                appendMessage(userQuestion, 'user');
+                chatInput.value = '';
+                appendMessage('<div class="loader"></div>', 'ai', true);
+                
+                let context;
+                if (!isAnimating) 
+                    context = "磁力耦合器模拟当前处于暂停状态。";
+                else if (isInnerRotorCoupled) 
+                    context = "磁力耦合器模拟中，外转子正带动内转子以稍慢的速度同向旋转。";
+                else 
+                    context = "模拟中，只有外转子在旋转，内转子保持静止。";
+                
+                try {
+                    // 获取CSRF令牌
+                    const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+                    
+                    const response = await fetch('/education/api/gemini', {
+                        method: 'POST',
+                        headers: { 
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': csrfToken
+                        },
+                        body: JSON.stringify({
+                            prompt: `基于以下情景: "${context}" 请简洁准确地回答用户问题: "${userQuestion}"`
+                        })
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (!data.success) {
+                        console.error('API错误:', data.error || data.content);
+                        updateLastMessage(`抱歉，AI服务连接失败。${data.error || data.content || '请稍后再试。'}`);
+                    } else {
+                        updateLastMessage(data.content);
+                        
+                        // 记录聊天历史
+                        chatHistory.push({
+                            role: "user",
+                            message: userQuestion
+                        });
+                        chatHistory.push({
+                            role: "ai",
+                            message: data.content
+                        });
+                    }
+                } catch (error) {
+                    console.error("Error calling API:", error);
+                    updateLastMessage("抱歉，AI服务连接失败。请稍后再试。");
+                }
+            };
+            
+            sendButton.addEventListener('click', sendMessage);
+            chatInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') sendMessage();
             });
             
-            document.getElementById('askQuestion').addEventListener('click', () => {
-                askPhysicsQuestion();
+            // 清除聊天历史按钮
+            const clearHistoryButton = document.createElement('button');
+            clearHistoryButton.textContent = '清除聊天记录';
+            clearHistoryButton.style.marginTop = '10px';
+            clearHistoryButton.style.alignSelf = 'center';
+            clearHistoryButton.style.backgroundColor = '#555';
+            clearHistoryButton.style.padding = '8px 16px';
+            clearHistoryButton.style.fontSize = '14px';
+            
+            clearHistoryButton.addEventListener('click', async () => {
+                try {
+                    const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+                    
+                    const response = await fetch('/education/ai_chat_clear_history', {
+                        method: 'POST',
+                        headers: { 
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': csrfToken
+                        }
+                    });
+                    
+                    if (response.ok) {
+                        chatHistoryDiv.innerHTML = '';
+                        appendMessage('你好！我是你的物理AI助手。你可以向我提问任何关于这个磁力耦合器模型的问题。', 'ai');
+                        chatHistory = [];
+                    } else {
+                        console.error('清除历史记录失败:', await response.text());
+                        appendMessage('清除聊天记录失败，请稍后再试。', 'ai');
+                    }
+                } catch (error) {
+                    console.error('清除历史记录错误:', error);
+                    appendMessage('清除聊天记录时出错。', 'ai');
+                }
             });
+            
+            chatHistoryDiv.parentNode.insertBefore(clearHistoryButton, chatHistoryDiv.nextSibling);
+            
+            function appendMessage(content, type, isHtml = false) {
+                const messageDiv = document.createElement('div');
+                messageDiv.classList.add('chat-message', `${type}-message`);
+                if(isHtml) messageDiv.innerHTML = content;
+                else messageDiv.textContent = content;
+                chatHistoryDiv.appendChild(messageDiv);
+                chatHistoryDiv.scrollTop = chatHistoryDiv.scrollHeight;
+            }
+            
+            function updateLastMessage(content) {
+                const lastMessage = chatHistoryDiv.querySelector('.ai-message:last-child');
+                if(lastMessage) {
+                    lastMessage.innerHTML = '';
+                    lastMessage.textContent = content;
+                }
+                chatHistoryDiv.scrollTop = chatHistoryDiv.scrollHeight;
+            }
         }
         
         function onWindowResize() {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
+            camera.aspect = window.innerWidth / window.innerHeight; 
+            camera.updateProjectionMatrix(); 
             renderer.setSize(window.innerWidth, window.innerHeight);
         }
 
         function animate() {
             requestAnimationFrame(animate);
-
             if (isAnimating) {
-                // 外转子始终以固定速度转动
                 outerRotor.rotation.y += outerRotorSpeed;
-
-                // 内转子以固定的匀速转动或静止
-                let currentInnerRotorSpeed = 0;
-                if (isInnerRotorCoupled) {
-                    // 如果耦合, 内转子以设定的匀速转动
-                    currentInnerRotorSpeed = innerRotorCoupledSpeed;
-                }
-                
-                // 应用内转子的当前速度
+                let currentInnerRotorSpeed = isInnerRotorCoupled ? innerRotorCoupledSpeed : 0;
                 innerRotor.rotation.y += currentInnerRotorSpeed;
             }
-            
             controls.update();
             renderer.render(scene, camera);
-        }
-        
-        // 获取CSRF令牌的辅助函数
-        function getCsrfToken() {
-            // 首先尝试从meta标签获取
-            const metaToken = document.querySelector('meta[name="csrf-token"]');
-            if (metaToken && metaToken.getAttribute('content')) {
-                return metaToken.getAttribute('content');
-            }
-            
-            // 如果meta标签没有，则尝试从cookie获取
-            const cookies = document.cookie.split(';');
-            for (let cookie of cookies) {
-                const [name, value] = cookie.trim().split('=');
-                if (name === 'csrf_token') {
-                    return decodeURIComponent(value);
-                }
-            }
-            
-            console.warn('无法获取CSRF令牌，API请求可能会失败');
-            return '';
-        }
-        
-        // 显示加载模态框
-        function showModal(message) {
-            const modal = document.getElementById('loadingModal');
-            modal.querySelector('.modal-content p').textContent = message || '正在处理，请稍候...';
-            modal.style.display = 'block';
-        }
-        
-        // 隐藏加载模态框
-        function hideModal() {
-            document.getElementById('loadingModal').style.display = 'none';
-        }
-        
-        // 使用网站的API请求
-        async function callGemini(prompt) {
-            showModal('正在思考中，请稍候...');
-            
-            try {
-                // 获取CSRF令牌
-                const csrfToken = getCsrfToken();
-                if (!csrfToken) {
-                    hideModal();
-                    return "系统错误：无法获取安全令牌。请刷新页面后重试。";
-                }
-                
-                // 调用后端API
-                const response = await fetch('/education/api/gemini', {
-                    method: 'POST',
-                    headers: { 
-                        'Content-Type': 'application/json',
-                        'X-CSRFToken': csrfToken
-                    },
-                    body: JSON.stringify({ prompt: prompt })
-                });
-                
-                const data = await response.json();
-                
-                hideModal();
-                
-                if (!data.success) {
-                    console.error('API错误:', data.error || data.content);
-                    return `AI助手暂时无法回答您的问题。${data.error || data.content || '请稍后再试。'}`;
-                }
-                
-                return data.content;
-            } catch (error) {
-                console.error('API调用错误:', error);
-                hideModal();
-                return "与AI助手通信时发生错误，请稍后再试。详细错误: " + error.message;
-            }
-        }
-        
-        // 获取物理解释
-        async function getPhysicsExplanation() {
-            const explanationDisplay = document.getElementById('explanationDisplay');
-            explanationDisplay.textContent = "正在生成解释中，请稍候...";
-            
-            const prompt = `
-                请用通俗易懂的语言解释磁力耦合器的工作原理，特别是以下方面：
-                1. 磁力耦合器如何通过磁场在两个转子之间传递力量和动力
-                2. 在我们的模拟中，内转子和外转子是如何相互作用的
-                3. 磁力耦合器相比于机械连接的优势是什么
-                4. 磁力耦合器在实际工业中的应用场景
-                
-                解释应该面向对物理有初步了解的高中生，语言生动形象，长度在300-400字之间。
-            `;
-            
-            const responseText = await callGemini(prompt);
-            explanationDisplay.textContent = responseText;
-        }
-        
-        // 提问物理问题
-        async function askPhysicsQuestion() {
-            const physicsQuestionInput = document.getElementById('physicsQuestion');
-            const answerDisplay = document.getElementById('answerDisplay');
-            const userQuestion = physicsQuestionInput.value.trim();
-            
-            if (!userQuestion) {
-                answerDisplay.textContent = "请输入您的问题。";
-                return;
-            }
-            
-            answerDisplay.textContent = "正在获取解答中，请稍候...";
-            
-            const prompt = `
-                用户问题: ${userQuestion}
-                
-                请作为一位熟悉电磁学的物理老师，回答上述关于磁力耦合器的问题。
-                当前模拟展示的是一个圆筒式磁力耦合器模型，其中：
-                - 内转子是一个永磁体圆筒，有交替的N极和S极
-                - 外转子是一个导电线圈圆筒，当转动时会在内转子周围产生磁场
-                - 两个转子之间没有机械连接，完全依靠磁场相互作用
-                - 通过按钮可以控制内转子是否与外转子磁力耦合
-                
-                请根据物理学原理和概念，用通俗易懂的方式回答问题。如果问题不是关于磁力耦合器或电磁学的，请礼貌地将话题引回这个主题。
-            `;
-            
-            const responseText = await callGemini(prompt);
-            answerDisplay.textContent = responseText;
         }
     </script>
 </body>
