@@ -19,6 +19,49 @@ db = SQLAlchemy()
 migrate = Migrate()
 login_manager = LoginManager()
 csrf = CSRFProtect()
+sess = Session()
+limiter = Limiter(key_func=get_remote_address)
+cache = Cache()
+
+def create_app(config_name=None):
+    """创建Flask应用"""
+    if config_name is None:
+        config_name = os.environ.get('FLASK_CONFIG', 'default')
+    
+    app = Flask(__name__, instance_relative_config=True)
+    
+    # 从config.py导入配置
+    app.config.from_object(config[config_name])
+    config[config_name].init_app(app)
+    
+    # 设置时区
+    os.environ['TZ'] = app.config.get('TIMEZONE_NAME', 'Asia/Shanghai')
+    
+    # 配置日志系统
+    setup_logging(app)
+    app.logger.info(f"应用启动，配置模式: {config_name}")
+    
+    # 配置数据库连接池
+    if app.config['SQLALCHEMY_DATABASE_URI'].startswith('postgresql'):
+        app.logger.info("检测到PostgreSQL数据库，正在配置连接池...")
+        app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+            'pool_size': 10,  # 连接池大小
+            'pool_recycle': 3600,  # 连接回收时间，单位秒
+            'pool_pre_ping': True,  # 连接前ping以验证连接是否有效
+            'connect_args': {
+                'keepalives': 1,  # 启用TCP keepalive
+                'keepalives_idle': 30,  # 空闲30秒后发送keepalive包
+                'keepalives_interval': 10,  # keepalive包间隔10秒
+                'keepalives_count': 5  # 5次未收到响应则认为连接断开
+            }
+        }
+        app.logger.info("PostgreSQL连接池配置完成")
+    
+    # 初始化扩展
+    db.init_app(app)
+    migrate.init_app(app, db)
+    login_manager.init_app(app)
+    csrf.init_app(app)
     sess.init_app(app)
     limiter.init_app(app)
     cache.init_app(app)
@@ -46,7 +89,7 @@ csrf = CSRFProtect()
             return db.session.get(User, int(user_id))
     
     # 注册蓝图 - 在模型初始化之后
-        # 添加特定API路由的CSRF豁免
+    # 添加特定API路由的CSRF豁免
     with app.app_context():
         from src.routes.education import education_bp
         # 豁免/education/api/gemini路由的CSRF保护
@@ -256,49 +299,40 @@ def register_template_functions(app):
     # 从utils.time_helpers导入时间处理函数
     from src.utils.time_helpers import display_datetime, format_datetime, get_beijing_time
     
-    # 注册时间处理函数
     @app.template_filter('datetime')
     def _display_datetime(dt, fmt=None):
-        """格式化日期时间，考虑时区转换"""
-        return display_datetime(dt, fmt=fmt)
+        """格式化日期时间，展示为友好格式"""
+        return display_datetime(dt, fmt)
     
     @app.template_filter('format_date')
     def _format_date(dt):
-        """格式化为日期"""
-        return display_datetime(dt, fmt='%Y-%m-%d')
+        """格式化日期"""
+        return format_datetime(dt, '%Y-%m-%d')
     
     @app.template_filter('format_time')
     def _format_time(dt):
-        """格式化为时间"""
-        return display_datetime(dt, fmt='%H:%M:%S')
+        """格式化时间"""
+        return format_datetime(dt, '%H:%M:%S')
     
     @app.template_filter('format_datetime')
     def _format_datetime(dt, fmt='%Y-%m-%d %H:%M'):
-        """简单格式化日期时间，不考虑时区转换"""
+        """格式化日期时间"""
         return format_datetime(dt, fmt)
     
     @app.template_global('now')
     def _now():
-        """获取当前北京时间"""
+        """获取当前时间"""
+        # 获取当前中国时区的时间
         return get_beijing_time()
-    
-    app.logger.info('已注册时间处理全局模板函数')
 
 def register_context_processors(app):
-    """注册全局上下文处理器"""
+    """注册上下文处理器"""
     
     @app.context_processor
     def inject_now_and_helpers():
-        """注入当前时间和辅助函数到模板上下文"""
-        from src.utils.time_helpers import get_beijing_time, display_datetime, safe_less_than, safe_greater_than, safe_compare
-        
-        # 记录日志，确保函数正确加载
-        app.logger.info(f"注入全局模板函数: display_datetime类型 = {type(display_datetime)}")
-        
+        """向模板注入当前时间和助手函数"""
+        from src.utils.time_helpers import get_beijing_time
         return {
-            'now': get_beijing_time(),
-            'display_datetime': display_datetime,
-            'safe_less_than': safe_less_than,
-            'safe_greater_than': safe_greater_than,
-            'safe_compare': safe_compare
+            'now': get_beijing_time,
+            'pytz': pytz
         } 
