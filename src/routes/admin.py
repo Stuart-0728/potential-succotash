@@ -373,196 +373,198 @@ def edit_activity(id):
         # 加载所有标签并设置选项
         tags_stmt = db.select(Tag).order_by(Tag.name)
         tags = db.session.execute(tags_stmt).scalars().all()
-        choices = [(tag.id, tag.name) for tag in tags]
-        form.tags.choices = choices
+        form.tags.choices = [(tag.id, tag.name) for tag in tags]
         
         # 设置当前已有的标签
         if request.method == 'GET':
             try:
                 form.tags.data = [tag.id for tag in activity.tags]
+                logger.info(f"已设置活动 {id} 的当前标签: {form.tags.data}")
             except Exception as e:
                 logger.error(f"设置当前标签时出错: {e}")
                 form.tags.data = []
         
         if form.validate_on_submit():
-            # 导入pytz用于时区处理
-            beijing_tz = pytz.timezone('Asia/Shanghai')
-            
-            # 更新活动信息，但先保存标签引用
-            selected_tag_ids = request.form.getlist('tags')
-            logger.info(f"选中的标签IDs: {selected_tag_ids}")
-            
-            # 使用form填充对象，但先处理poster字段
-            # 防止文件字段被意外设置为字符串
-            poster_data = form.poster.data
-            form.poster.data = None
-            
-            # 保存当前签到设置和创建者ID，因为表单中没有这些字段
-            checkin_enabled = activity.checkin_enabled
-            checkin_key = activity.checkin_key
-            checkin_key_expires = activity.checkin_key_expires
-            created_by_id = activity.created_by  # 保存创建者ID
-            
-            # 先保存表单中的时间字段，将它们转换为带时区的UTC时间
-            start_time = form.start_time.data
-            if start_time:
-                # 检查是否已有时区信息，避免重复添加
-                if start_time.tzinfo is None:
-                    start_time = beijing_tz.localize(start_time).astimezone(pytz.utc)
-                else:
-                    # 如果已有时区信息，只需确保是UTC时区
-                    start_time = start_time.astimezone(pytz.utc)
-            
-            end_time = form.end_time.data
-            if end_time:
-                # 检查是否已有时区信息，避免重复添加
-                if end_time.tzinfo is None:
-                    end_time = beijing_tz.localize(end_time).astimezone(pytz.utc)
-                else:
-                    # 如果已有时区信息，只需确保是UTC时区
-                    end_time = end_time.astimezone(pytz.utc)
-            
-            registration_deadline = form.registration_deadline.data
-            if registration_deadline:
-                # 检查是否已有时区信息，避免重复添加
-                if registration_deadline.tzinfo is None:
-                    registration_deadline = beijing_tz.localize(registration_deadline).astimezone(pytz.utc)
-                else:
-                    # 如果已有时区信息，只需确保是UTC时区
-                    registration_deadline = registration_deadline.astimezone(pytz.utc)
-            
-            # 使用form填充对象
-            form.populate_obj(activity)
-            
-            # 使用转换后的时间覆盖填充的时间字段
-            activity.start_time = start_time
-            activity.end_time = end_time
-            activity.registration_deadline = registration_deadline
-            
-            # 恢复保存的值
-            activity.checkin_enabled = checkin_enabled
-            activity.checkin_key = checkin_key
-            activity.checkin_key_expires = checkin_key_expires
-            
-            # 恢复创建者ID
-            activity.created_by = created_by_id
-            
-            # 恢复poster数据以便后续处理
-            form.poster.data = poster_data
-            
-            # 处理标签 - 使用安全的方式更新标签关系
             try:
-                # 备份当前标签列表以防出错
-                original_tags = list(activity.tags)
+                # 导入pytz用于时区处理
+                beijing_tz = pytz.timezone('Asia/Shanghai')
                 
-                # 使用更安全的方式清空当前活动的标签关联
-                activity.tags.clear()
-                db.session.flush()  # 立即执行，确保清空生效
-                logger.info("已清空活动标签关联")
+                # 更新活动信息，但先保存标签引用
+                selected_tag_ids = request.form.getlist('tags')
+                logger.info(f"选中的标签IDs: {selected_tag_ids}")
                 
-                if selected_tag_ids:
-                    # 转换为整数ID列表
-                    valid_tag_ids = []
+                # 使用form填充对象，但先处理poster字段
+                # 防止文件字段被意外设置为字符串
+                poster_data = form.poster.data
+                form.poster.data = None
+                
+                # 保存当前签到设置和创建者ID，因为表单中没有这些字段
+                checkin_enabled = activity.checkin_enabled
+                checkin_key = activity.checkin_key
+                checkin_key_expires = activity.checkin_key_expires
+                created_by_id = activity.created_by  # 保存创建者ID
+                
+                # 先保存表单中的时间字段，将它们转换为带时区的UTC时间
+                start_time = form.start_time.data
+                if start_time:
+                    # 检查是否已有时区信息，避免重复添加
+                    if start_time.tzinfo is None:
+                        start_time = beijing_tz.localize(start_time).astimezone(pytz.utc)
+                    else:
+                        # 如果已有时区信息，只需确保是UTC时区
+                        start_time = start_time.astimezone(pytz.utc)
+                
+                end_time = form.end_time.data
+                if end_time:
+                    # 检查是否已有时区信息，避免重复添加
+                    if end_time.tzinfo is None:
+                        end_time = beijing_tz.localize(end_time).astimezone(pytz.utc)
+                    else:
+                        # 如果已有时区信息，只需确保是UTC时区
+                        end_time = end_time.astimezone(pytz.utc)
+                
+                registration_deadline = form.registration_deadline.data
+                if registration_deadline:
+                    # 检查是否已有时区信息，避免重复添加
+                    if registration_deadline.tzinfo is None:
+                        registration_deadline = beijing_tz.localize(registration_deadline).astimezone(pytz.utc)
+                    else:
+                        # 如果已有时区信息，只需确保是UTC时区
+                        registration_deadline = registration_deadline.astimezone(pytz.utc)
+                
+                # 使用form填充对象
+                form.populate_obj(activity)
+                
+                # 使用转换后的时间覆盖填充的时间字段
+                activity.start_time = start_time
+                activity.end_time = end_time
+                activity.registration_deadline = registration_deadline
+                
+                # 恢复保存的值
+                activity.checkin_enabled = checkin_enabled
+                activity.checkin_key = checkin_key
+                activity.checkin_key_expires = checkin_key_expires
+                
+                # 恢复创建者ID
+                activity.created_by = created_by_id
+                
+                # 恢复poster数据以便后续处理
+                form.poster.data = poster_data
+                
+                # 处理标签 - 使用测试验证过的安全方法
+                try:
+                    # 将选中的标签ID转换为整数
+                    new_tag_ids = []
                     for tag_id_str in selected_tag_ids:
                         try:
                             tag_id = int(tag_id_str.strip())
-                            valid_tag_ids.append(tag_id)
+                            new_tag_ids.append(tag_id)
                         except (ValueError, TypeError) as e:
                             logger.warning(f"无效的标签ID: {tag_id_str}, 错误: {e}")
                     
-                    logger.info(f"有效标签IDs: {valid_tag_ids}")
+                    logger.info(f"新选中的标签IDs: {new_tag_ids}")
                     
-                    # 批量查询有效标签
-                    if valid_tag_ids:
-                        try:
-                            tag_objects = db.session.execute(
-                                db.select(Tag).filter(Tag.id.in_(valid_tag_ids))
-                            ).scalars().all()
-                            
-                            logger.info(f"找到{len(tag_objects)}个标签对象")
-                            
-                            # 使用extend方法添加标签对象
-                            for tag in tag_objects:
-                                activity.tags.append(tag)
-                            logger.info("已将标签添加到活动")
-                        except Exception as e:
-                            logger.error(f"查询或添加标签时出错: {e}", exc_info=True)
-                            # 恢复原标签
-                            activity.tags = original_tags
-                            raise
+                    # 清空当前标签
+                    activity.tags = []
+                    db.session.flush()
+                    logger.info("已清空活动标签")
+                    
+                    # 查询并添加新标签
+                    if new_tag_ids:
+                        # 一次性查询所有标签
+                        tags = db.session.execute(
+                            db.select(Tag).filter(Tag.id.in_(new_tag_ids))
+                        ).scalars().all()
+                        
+                        # 创建ID到标签对象的映射
+                        tag_map = {tag.id: tag for tag in tags}
+                        logger.info(f"找到{len(tags)}个标签对象")
+                        
+                        # 添加标签
+                        for tag_id in new_tag_ids:
+                            if tag_id in tag_map:
+                                activity.tags.append(tag_map[tag_id])
+                                logger.info(f"添加标签: {tag_id}")
+                            else:
+                                logger.warning(f"找不到标签ID: {tag_id}")
+                    
+                    logger.info(f"标签处理完成，共添加{len(activity.tags)}个标签")
                 
-                logger.info(f"标签处理完成，共{len(activity.tags)}个标签")
-            except Exception as e:
-                logger.error(f"处理标签时出错: {e}", exc_info=True)
-                flash('处理活动标签时出错，其他信息已尝试保存', 'warning')
-                # 不要在这里中断处理，继续保存其他信息
-            
-            # 更新积分，确保重点活动有足够积分
-            if activity.is_featured and (activity.points is None or activity.points < 20):
-                activity.points = 20
-            
-            # 处理上传的图片
-            if form.poster.data and hasattr(form.poster.data, 'filename') and form.poster.data.filename:
-                try:
-                    logger.info(f"编辑活动: 准备上传海报，活动ID={activity.id}, 文件名={form.poster.data.filename}")
-                    
-                    # 使用handle_poster_upload函数处理文件上传，确保传递活动ID（整数）而不是整个活动对象
-                    poster_filename = handle_poster_upload(form.poster.data, activity.id)
-                    
-                    if poster_filename:
-                        # 记录旧海报文件名，以便稍后删除
-                        old_poster = activity.poster_image
-                        
-                        # 更新海报文件名
-                        activity.poster_image = poster_filename
-                        logger.info(f"编辑活动: 海报文件名已更新: {poster_filename}")
-                        
-                        # 尝试删除旧海报文件（如果存在且不是默认banner）
-                        if old_poster and 'banner' not in old_poster:
-                            try:
-                                old_poster_path = os.path.join(current_app.static_folder or 'src/static', 'uploads', 'posters', old_poster)
-                                if os.path.exists(old_poster_path):
-                                    os.remove(old_poster_path)
-                                    logger.info(f"编辑活动: 已删除旧海报文件: {old_poster_path}")
-                            except Exception as e:
-                                logger.warning(f"编辑活动: 删除旧海报文件时出错: {e}")
-                    else:
-                        logger.error("编辑活动: 上传海报失败，未获得有效的文件名")
-                        flash('上传海报时出错，但其他活动信息已保存', 'warning')
                 except Exception as e:
-                    logger.error(f"编辑活动: 上传海报时出错: {e}", exc_info=True)
-                    flash('上传海报时出错，但其他活动信息已保存', 'warning')
-            
-            # 记录更新时间，使用UTC时间
-            activity.updated_at = datetime.now(pytz.utc)
-            
-            # 如果状态变为已完成，记录完成时间
-            if activity.status == 'completed' and not activity.completed_at:
-                activity.completed_at = datetime.now(pytz.utc)
-            
-            # 提交前记录详细信息，帮助诊断问题
-            logger.info(f"准备提交活动更新 - ID: {activity.id}, 标题: {activity.title}, 海报: {activity.poster_image}")
-            logger.info(f"标签数量: {len(activity.tags)}")
-            
-            try:
-                db.session.commit()
-                logger.info("活动更新成功提交到数据库")
+                    logger.error(f"处理标签时出错: {e}", exc_info=True)
+                    flash('处理活动标签时出错，其他信息已尝试保存', 'warning')
                 
-                # 记录日志
-                log_action('edit_activity', f'编辑活动: {activity.title}')
+                # 更新积分，确保重点活动有足够积分
+                if activity.is_featured and (activity.points is None or activity.points < 20):
+                    activity.points = 20
                 
-                flash('活动更新成功!', 'success')
-                return redirect(url_for('admin.activities'))
+                # 处理上传的图片
+                if form.poster.data and hasattr(form.poster.data, 'filename') and form.poster.data.filename:
+                    try:
+                        logger.info(f"编辑活动: 准备上传海报，活动ID={activity.id}, 文件名={form.poster.data.filename}")
+                        
+                        # 使用handle_poster_upload函数处理文件上传，确保传递活动ID（整数）而不是整个活动对象
+                        poster_filename = handle_poster_upload(form.poster.data, activity.id)
+                        
+                        if poster_filename:
+                            # 记录旧海报文件名，以便稍后删除
+                            old_poster = activity.poster_image
+                            
+                            # 更新海报文件名
+                            activity.poster_image = poster_filename
+                            logger.info(f"编辑活动: 海报文件名已更新: {poster_filename}")
+                            
+                            # 尝试删除旧海报文件（如果存在且不是默认banner）
+                            if old_poster and 'banner' not in old_poster:
+                                try:
+                                    old_poster_path = os.path.join(current_app.static_folder or 'src/static', 'uploads', 'posters', old_poster)
+                                    if os.path.exists(old_poster_path):
+                                        os.remove(old_poster_path)
+                                        logger.info(f"编辑活动: 已删除旧海报文件: {old_poster_path}")
+                                except Exception as e:
+                                    logger.warning(f"编辑活动: 删除旧海报文件时出错: {e}")
+                        else:
+                            logger.error("编辑活动: 上传海报失败，未获得有效的文件名")
+                            flash('上传海报时出错，但其他活动信息已保存', 'warning')
+                    except Exception as e:
+                        logger.error(f"编辑活动: 上传海报时出错: {e}", exc_info=True)
+                        flash('上传海报时出错，但其他活动信息已保存', 'warning')
+                
+                # 记录更新时间，使用UTC时间
+                activity.updated_at = datetime.now(pytz.utc)
+                
+                # 如果状态变为已完成，记录完成时间
+                if activity.status == 'completed' and not activity.completed_at:
+                    activity.completed_at = datetime.now(pytz.utc)
+                
+                # 提交前记录详细信息，帮助诊断问题
+                logger.info(f"准备提交活动更新 - ID: {activity.id}, 标题: {activity.title}, 海报: {activity.poster_image}")
+                logger.info(f"标签数量: {len(activity.tags)}")
+                
+                try:
+                    db.session.commit()
+                    logger.info("活动更新成功提交到数据库")
+                    
+                    # 记录日志
+                    log_action('edit_activity', f'编辑活动: {activity.title}')
+                    
+                    flash('活动更新成功!', 'success')
+                    return redirect(url_for('admin.activities'))
+                except Exception as e:
+                    db.session.rollback()
+                    logger.error(f"提交活动更新时出错: {e}", exc_info=True)
+                    flash(f'保存活动时出错: {str(e)}', 'danger')
+                    return render_template('admin/activity_form.html', form=form, title='编辑活动', activity=activity)
             except Exception as e:
                 db.session.rollback()
-                logger.error(f"提交活动更新时出错: {e}", exc_info=True)
-                flash(f'保存活动时出错: {str(e)}', 'danger')
+                logger.error(f"编辑活动时出错: {e}", exc_info=True)
+                flash(f'编辑活动时出错: {str(e)}', 'danger')
                 return render_template('admin/activity_form.html', form=form, title='编辑活动', activity=activity)
         
         return render_template('admin/activity_form.html', form=form, title='编辑活动', activity=activity)
     except Exception as e:
         db.session.rollback()
-        logger.error(f"Error in edit_activity: {e}")
+        logger.error(f"Error in edit_activity: {e}", exc_info=True)
         flash('编辑活动时出错，请重试', 'danger')
         return redirect(url_for('admin.activities'))
 
