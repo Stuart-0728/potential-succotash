@@ -342,7 +342,7 @@ def select_tags():
             flash('请至少选择一个标签', 'warning')
             tags_stmt = db.select(Tag)
             tags = db.session.execute(tags_stmt).scalars().all()
-            return render_template('select_tags.html', tags=tags)
+            return render_template('auth/select_tags.html', tags=tags)
         
         # 清除现有标签
         student_info.tags = []
@@ -368,4 +368,4 @@ def select_tags():
     # 获取已选择的标签
     selected_tag_ids = [tag.id for tag in student_info.tags] if student_info.tags else []
     
-    return render_template('select_tags.html', tags=tags, selected_tag_ids=selected_tag_ids)
+    return render_template('auth/select_tags.html', tags=tags, selected_tag_ids=selected_tag_ids)
