@@ -382,7 +382,7 @@ def register_activity(id):
         
         if not form.validate_on_submit():
             flash('表单验证失败，请重试', 'danger')
-            return redirect(url_for('main.activity_detail', activity_id=id))
+            return redirect(url_for('student.activity_detail', id=id))
         
         # 检查活动是否存在
         activity = db.get_or_404(Activity, id)
@@ -390,7 +390,7 @@ def register_activity(id):
         # 检查活动状态
         if activity.status != 'active':
             flash('该活动不在进行中，无法报名', 'warning')
-            return redirect(url_for('main.activity_detail', activity_id=id))
+            return redirect(url_for('student.activity_detail', id=id))
         
         # 检查是否已过报名截止时间 - 使用安全比较函数
         now = get_localized_now()
@@ -398,7 +398,7 @@ def register_activity(id):
         
         if safe_less_than(activity.registration_deadline, now):
             flash('该活动已过报名截止时间', 'warning')
-            return redirect(url_for('main.activity_detail', activity_id=id))
+            return redirect(url_for('student.activity_detail', id=id))
         
         # 检查是否已达到人数上限
         if activity.max_participants > 0:
@@ -409,7 +409,7 @@ def register_activity(id):
             
             if reg_count >= activity.max_participants:
                 flash('该活动报名人数已满', 'warning')
-                return redirect(url_for('main.activity_detail', activity_id=id))
+                return redirect(url_for('student.activity_detail', id=id))
         
         # 检查用户是否已报名
         existing_reg = db.session.execute(db.select(Registration).filter_by(
@@ -421,14 +421,14 @@ def register_activity(id):
         if existing_reg:
             if existing_reg.status == 'registered':
                 flash('您已报名此活动', 'info')
-                return redirect(url_for('main.activity_detail', activity_id=id))
+                return redirect(url_for('student.activity_detail', id=id))
             elif existing_reg.status == 'cancelled':
                 # 重新激活已取消的报名
                 existing_reg.status = 'registered'
                 existing_reg.register_time = now
                 db.session.commit()
                 flash('已成功重新报名活动', 'success')
-                return redirect(url_for('main.activity_detail', activity_id=id))
+                return redirect(url_for('student.activity_detail', id=id))
         
         # 创建新的报名记录
         new_registration = Registration(
@@ -442,12 +442,12 @@ def register_activity(id):
         db.session.commit()
         
         flash('报名成功！', 'success')
-        return redirect(url_for('main.activity_detail', activity_id=id))
+        return redirect(url_for('student.activity_detail', id=id))
     except Exception as e:
         logger.error(f"Error in register activity: {e}")
         db.session.rollback()
         flash('报名过程中发生错误，请稍后再试', 'danger')
-        return redirect(url_for('main.activity_detail', activity_id=id))
+        return redirect(url_for('student.activity_detail', id=id))
 
 @student_bp.route('/activity/<int:id>/cancel', methods=['POST'])
 @student_required
@@ -462,7 +462,7 @@ def cancel_registration(id):
         
         if not form.validate_on_submit():
             flash('表单验证失败，请重试', 'danger')
-            return redirect(url_for('main.activity_detail', activity_id=id))
+            return redirect(url_for('student.activity_detail', id=id))
         
         # 检查活动是否存在
         activity = db.get_or_404(Activity, id)
@@ -473,7 +473,7 @@ def cancel_registration(id):
         
         if not safe_greater_than(activity.start_time, now):
             flash('活动已开始，无法取消报名', 'warning')
-            return redirect(url_for('main.activity_detail', activity_id=id))
+            return redirect(url_for('student.activity_detail', id=id))
         
         # 查找报名记录
         registration = db.session.execute(db.select(Registration).filter_by(
@@ -484,7 +484,7 @@ def cancel_registration(id):
         
         if not registration:
             flash('未找到有效的报名记录', 'warning')
-            return redirect(url_for('main.activity_detail', activity_id=id))
+            return redirect(url_for('student.activity_detail', id=id))
         
         # 更新报名状态为已取消
         registration.status = 'cancelled'

@@ -1611,9 +1611,11 @@ def activity_checkin(id):
 @admin_bp.route('/tags')
 @admin_required
 def manage_tags():
+    from src.utils.time_helpers import display_datetime
+    
     tags_stmt = db.select(Tag).order_by(Tag.created_at.desc())
     tags = db.session.execute(tags_stmt).scalars().all()
-    return render_template('admin/tags.html', tags=tags)
+    return render_template('admin/tags.html', tags=tags, display_datetime=display_datetime)
 
 @admin_bp.route('/tags/create', methods=['POST'])
 @admin_required
