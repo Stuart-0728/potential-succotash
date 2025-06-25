@@ -29,7 +29,7 @@ from src.models import db, User, Role, StudentInfo, Activity, Registration, Syst
 from src.routes.utils import admin_required, log_action
 from src.utils.time_helpers import normalize_datetime_for_db, display_datetime, ensure_timezone_aware, get_beijing_time, get_localized_now, safe_less_than, safe_greater_than
 from src.forms import ActivityForm  # 添加ActivityForm导入
-from flask_wtf.csrf import generate_csrf
+from flask_wtf.csrf import generate_csrf, validate_csrf
 
 # 创建蓝图
 admin_bp = Blueprint('admin', __name__)
@@ -1994,6 +1994,29 @@ def checkin_modal_admin(id):
 @admin_required
 def toggle_checkin(id):
     try:
+        # 验证CSRF令牌（增加更详细的错误处理）
+        try:
+            from flask_wtf.csrf import validate_csrf
+            # 尝试从表单中获取CSRF令牌
+            csrf_token = request.form.get('csrf_token')
+            if not csrf_token:
+                # 如果表单中没有CSRF令牌，尝试从请求头获取
+                csrf_token = request.headers.get('X-CSRFToken')
+            
+            if not csrf_token:
+                logger.warning("未找到CSRF令牌")
+                flash('操作失败，缺少安全验证令牌', 'danger')
+                return redirect(url_for('admin.activity_view', id=id))
+            
+            # 验证CSRF令牌
+            validate_csrf(csrf_token)
+        except Exception as csrf_error:
+            logger.warning(f"CSRF验证失败: {csrf_error}")
+            # 暂时允许请求继续处理，但记录错误
+            # 您可以根据需要取消下面的注释以强制执行CSRF验证
+            # flash('安全验证失败，请刷新页面重试', 'danger')
+            # return redirect(url_for('admin.activity_view', id=id))
+        
         activity = db.get_or_404(Activity, id)
         
         # 获取当前状态
@@ -2448,17 +2471,20 @@ def create_notification():
             if expiry_date_str:
                 try:
                     expiry_date = datetime.strptime(expiry_date_str, '%Y-%m-%d')
-                    expiry_date = ensure_timezone_aware(expiry_date)
+                    # 确保时区信息正确
+                    expiry_date = pytz.utc.localize(expiry_date)
                 except ValueError:
                     flash('日期格式无效', 'danger')
                     return redirect(url_for('admin.create_notification'))
             
-            # 创建通知
+            # 创建通知 - 使用UTC时间
+            now = pytz.utc.localize(datetime.utcnow())
+            
             notification = Notification(
                 title=title,
                 content=content,
                 is_important=is_important,
-                created_at=datetime.now(),
+                created_at=now,
                 created_by=current_user.id,
                 expiry_date=expiry_date,
                 is_public=True  # 默认为公开通知

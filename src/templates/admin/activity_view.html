@@ -311,9 +311,9 @@
                         {% endif %}
                         
                         {% if activity.status == 'active' %}
-                        <form action="{{ url_for('admin.toggle_checkin', id=activity.id) }}" method="post" class="mt-2">
-                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                            <button type="submit" class="btn btn-{% if activity.checkin_enabled %}danger{% else %}success{% endif %} w-100">
+                        <form id="toggle-checkin-form" class="mt-2">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button type="button" id="toggle-checkin-btn" class="btn btn-{% if activity.checkin_enabled %}danger{% else %}success{% endif %} w-100">
                                 <i class="fas fa-{% if activity.checkin_enabled %}times{% else %}check{% endif %} me-2"></i>
                                 {% if activity.checkin_enabled %}关闭{% else %}开启{% endif %}签到
                             </button>
@@ -403,9 +403,9 @@
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/x-www-form-urlencoded',
-                    'X-CSRFToken': '{{ csrf_token }}'
+                    'X-CSRFToken': '{{ csrf_token() }}'
                 },
-                body: 'registration_id=' + registrationId + '&csrf_token={{ csrf_token }}'
+                body: 'registration_id=' + registrationId + '&csrf_token={{ csrf_token() }}'
             })
             .then(response => {
                 if (response.ok) {
@@ -420,5 +420,35 @@
             });
         }
     }
+    
+    // 添加签到状态切换处理
+    document.addEventListener('DOMContentLoaded', function() {
+        const toggleBtn = document.getElementById('toggle-checkin-btn');
+        if (toggleBtn) {
+            toggleBtn.addEventListener('click', function() {
+                if (confirm('确定要切换签到状态吗?')) {
+                    fetch('{{ url_for('admin.toggle_checkin', id=activity.id) }}', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded',
+                            'X-CSRFToken': '{{ csrf_token() }}'
+                        },
+                        body: 'csrf_token={{ csrf_token() }}'
+                    })
+                    .then(response => {
+                        if (response.ok) {
+                            window.location.reload();
+                        } else {
+                            alert('操作失败，请重试');
+                        }
+                    })
+                    .catch(error => {
+                        console.error('错误:', error);
+                        alert('发生错误，请重试');
+                    });
+                }
+            });
+        }
+    });
 </script>
 {% endblock %}
