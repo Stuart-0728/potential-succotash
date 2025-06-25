@@ -366,6 +366,7 @@ def create_activity():
 @admin_required
 def edit_activity(id):
     try:
+        # 获取活动对象
         activity = db.get_or_404(Activity, id)
         form = ActivityForm(obj=activity)
         
@@ -377,7 +378,11 @@ def edit_activity(id):
         
         # 设置当前已有的标签
         if request.method == 'GET':
-            form.tags.data = [tag.id for tag in activity.tags]
+            try:
+                form.tags.data = [tag.id for tag in activity.tags]
+            except Exception as e:
+                logger.error(f"设置当前标签时出错: {e}")
+                form.tags.data = []
         
         if form.validate_on_submit():
             # 导入pytz用于时区处理
@@ -385,6 +390,7 @@ def edit_activity(id):
             
             # 更新活动信息，但先保存标签引用
             selected_tag_ids = request.form.getlist('tags')
+            logger.info(f"选中的标签IDs: {selected_tag_ids}")
             
             # 使用form填充对象，但先处理poster字段
             # 防止文件字段被意外设置为字符串
@@ -444,41 +450,52 @@ def edit_activity(id):
             # 恢复poster数据以便后续处理
             form.poster.data = poster_data
             
-            # 处理标签，完全重写这一部分
+            # 处理标签 - 使用安全的方式更新标签关系
             try:
-                # 清空当前活动的标签关联
-                activity.tags = []
-                db.session.flush()  # 立即执行，确保清空生效
+                # 备份当前标签列表以防出错
+                original_tags = list(activity.tags)
                 
-                # 记录处理进度
-                logger.info(f"活动标签处理 - 已清空现有标签")
+                # 使用更安全的方式清空当前活动的标签关联
+                activity.tags.clear()
+                db.session.flush()  # 立即执行，确保清空生效
+                logger.info("已清空活动标签关联")
                 
                 if selected_tag_ids:
-                    # 根据ID直接查询标签对象
+                    # 转换为整数ID列表
                     valid_tag_ids = []
                     for tag_id_str in selected_tag_ids:
                         try:
-                            if tag_id_str and str(tag_id_str).strip().isdigit():
-                                valid_tag_ids.append(int(tag_id_str))
-                        except Exception as e:
-                            logger.warning(f"处理标签ID时出错: {e}, tag_id={tag_id_str}")
+                            tag_id = int(tag_id_str.strip())
+                            valid_tag_ids.append(tag_id)
+                        except (ValueError, TypeError) as e:
+                            logger.warning(f"无效的标签ID: {tag_id_str}, 错误: {e}")
                     
-                    logger.info(f"活动标签处理 - 有效标签ID: {valid_tag_ids}")
+                    logger.info(f"有效标签IDs: {valid_tag_ids}")
                     
-                    # 批量获取标签
+                    # 批量查询有效标签
                     if valid_tag_ids:
-                        tags_stmt = db.select(Tag).filter(Tag.id.in_(valid_tag_ids))
-                        selected_tags = db.session.execute(tags_stmt).scalars().all()
-                        logger.info(f"活动标签处理 - 找到{len(selected_tags)}个标签")
-                        
-                        # 添加标签关联 - 重要：直接设置Tag对象列表而不是逐个添加
-                        activity.tags = selected_tags
-                        logger.info(f"活动标签处理 - 设置了{len(selected_tags)}个标签")
+                        try:
+                            tag_objects = db.session.execute(
+                                db.select(Tag).filter(Tag.id.in_(valid_tag_ids))
+                            ).scalars().all()
+                            
+                            logger.info(f"找到{len(tag_objects)}个标签对象")
+                            
+                            # 使用extend方法添加标签对象
+                            for tag in tag_objects:
+                                activity.tags.append(tag)
+                            logger.info("已将标签添加到活动")
+                        except Exception as e:
+                            logger.error(f"查询或添加标签时出错: {e}", exc_info=True)
+                            # 恢复原标签
+                            activity.tags = original_tags
+                            raise
                 
-                logger.info(f"活动标签处理 - 最终标签数量: {len(activity.tags)}")
+                logger.info(f"标签处理完成，共{len(activity.tags)}个标签")
             except Exception as e:
-                logger.error(f"处理标签时出现异常: {e}", exc_info=True)
-                flash('处理活动标签时出错，其他信息已保存', 'warning')
+                logger.error(f"处理标签时出错: {e}", exc_info=True)
+                flash('处理活动标签时出错，其他信息已尝试保存', 'warning')
+                # 不要在这里中断处理，继续保存其他信息
             
             # 更新积分，确保重点活动有足够积分
             if activity.is_featured and (activity.points is None or activity.points < 20):
@@ -489,7 +506,7 @@ def edit_activity(id):
                 try:
                     logger.info(f"编辑活动: 准备上传海报，活动ID={activity.id}, 文件名={form.poster.data.filename}")
                     
-                    # 使用handle_poster_upload函数处理文件上传，传递活动ID而不是整个活动对象
+                    # 使用handle_poster_upload函数处理文件上传，确保传递活动ID（整数）而不是整个活动对象
                     poster_filename = handle_poster_upload(form.poster.data, activity.id)
                     
                     if poster_filename:

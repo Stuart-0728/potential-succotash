@@ -142,11 +142,14 @@ class AIChatSession {
         .catch(error => console.error('清除历史记录失败:', error));
     }
     
-    // 清除用户所有会话历史记录
+    // 清除所有会话历史
     clearAllHistory() {
         if (!this.sessionId) {
             return Promise.reject('No session ID');
         }
+
+        // 获取CSRF令牌
+        const csrfToken = this.getCsrfToken();
 
         // 发送清除历史的请求
         return fetch(`/utils/ai_chat/clear_history`, {
@@ -154,23 +157,38 @@ class AIChatSession {
             headers: {
                 'Content-Type': 'application/json',
                 'Accept': 'application/json',
-                'X-CSRFToken': this.getCsrfToken()
+                'X-CSRFToken': csrfToken,
+                'X-CSRF-Token': csrfToken,
+                'CSRF-Token': csrfToken
             },
             body: JSON.stringify({
-                session_id: this.sessionId
+                session_id: this.sessionId,
+                csrf_token: csrfToken
             })
         })
-        .then(response => response.json())
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`服务器返回错误: ${response.status}`);
+            }
+            return response.json();
+        })
         .then(data => {
             if (data.success) {
                 console.log(`清除历史记录成功: ${data.message}`);
                 // 删除cookie中的消息记录
                 this.deleteCookie('messages');
+                // 清空内存中的消息
+                this.messages = [];
+                return data;
             } else {
                 console.error(`清除历史记录失败: ${data.message}`);
+                throw new Error(data.message || '清除历史记录失败');
             }
         })
-        .catch(error => console.error('清除所有历史记录失败:', error));
+        .catch(error => {
+            console.error('清除所有历史记录失败:', error);
+            throw error;
+        });
     }
     
     // 获取所有消息
@@ -455,4 +473,373 @@ class AIChatUI {
         
         // 创建 EventSource 连接
         const role = 'student'; // 默认角色，可扩展
-        const eventSource = new EventSource(`
+        const eventSource = new EventSource(`/utils/api/ai_chat?message=${encodeURIComponent(userMessage)}&role=${role}&session_id=${this.session.sessionId}`);
+        
+        // 完整的AI响应文本
+        let fullResponse = '';
+        let hasError = false;
+        let retryCount = 0;
+        const MAX_RETRIES = 2;
+        
+        // 处理消息
+        eventSource.onmessage = (event) => {
+            try {
+                const data = JSON.parse(event.data);
+                if (data.error) {
+                    hasError = true;
+                    aiMessageDiv.textContent = `错误: ${data.error}`;
+                    eventSource.close();
+                    this.disableInput(false);
+                    this.input.focus();
+                } else if (data.content) {
+                    // 移除加载指示器
+                    if (fullResponse === '') {
+                        aiMessageDiv.innerHTML = '';
+                    }
+                    
+                    fullResponse += data.content;
+                    
+                    // 使用Markdown渲染响应
+                    if (window.marked) {
+                        aiMessageDiv.innerHTML = window.marked.parse(fullResponse);
+                    } else {
+                        // 如果marked未加载，尝试加载
+                        loadMarkedLibrary()
+                            .then(marked => {
+                                aiMessageDiv.innerHTML = marked.parse(fullResponse);
+                            })
+                            .catch(err => {
+                                console.error('Markdown渲染失败:', err);
+                                aiMessageDiv.textContent = fullResponse;
+                            });
+                    }
+                    
+                    // 为新添加的链接添加样式和目标
+                    const links = aiMessageDiv.querySelectorAll('a');
+                    links.forEach(link => {
+                        if (!link.classList.contains('ai-chat-link')) {
+                            link.classList.add('ai-chat-link');
+                        }
+                        link.setAttribute('target', '_blank');
+                    });
+                    
+                    this.scrollToBottom();
+                }
+            } catch (e) {
+                console.error('解析AI响应失败:', e);
+            }
+        };
+        
+        // 处理结束
+        eventSource.addEventListener('done', () => {
+            eventSource.close();
+            
+            // 存储AI响应到会话
+            if (fullResponse) {
+                this.session.addMessage(fullResponse, 'assistant');
+                // 备份到Cookie
+                this.session.saveMessagesToCookie();
+            } else if (!hasError) {
+                // 如果没有响应但也没有错误，显示一个提示
+                aiMessageDiv.textContent = '抱歉，AI没有返回响应。请重试。';
+            }
+            
+            this.disableInput(false);
+            this.input.focus();
+        });
+        
+        // 处理错误
+        eventSource.onerror = () => {
+            eventSource.close();
+            
+            if (retryCount < MAX_RETRIES && !hasError && !fullResponse) {
+                // 尝试重新连接
+                retryCount++;
+                aiMessageDiv.innerHTML = `<span class="loading-indicator">连接中断，正在重试 (${retryCount}/${MAX_RETRIES})<span class="dot-animation">...</span></span>`;
+                
+                setTimeout(() => {
+                    // 重新创建连接
+                    this.receiveAIResponse(userMessage);
+                }, 1000 * retryCount); // 逐步增加重试间隔
+                
+                return;
+            }
+            
+            if (!aiMessageDiv.textContent || aiMessageDiv.textContent.includes('AI思考中') || aiMessageDiv.textContent.includes('连接中断')) {
+                aiMessageDiv.textContent = '抱歉，服务出现错误，请稍后再试。';
+            }
+            this.disableInput(false);
+            this.input.focus();
+        };
+    }
+    
+    // 添加消息到UI
+    addMessageToUI(text, type) {
+        const messageDiv = document.createElement('div');
+        messageDiv.className = `ai-message ${type}`;
+        
+        // 根据不同类型处理内容
+        if (type === 'bot') {
+            // 使用marked库渲染Markdown（如果已加载）
+            if (window.marked) {
+                messageDiv.innerHTML = window.marked.parse(text);
+            } else {
+                // 尝试加载marked库
+                loadMarkedLibrary()
+                    .then(marked => {
+                        messageDiv.innerHTML = marked.parse(text);
+                    })
+                    .catch(err => {
+                        console.error('Markdown渲染失败:', err);
+                        messageDiv.textContent = text;
+                    });
+            }
+        } else {
+            // 用户消息不渲染Markdown
+            messageDiv.textContent = text;
+        }
+        
+        this.messagesContainer.appendChild(messageDiv);
+        this.scrollToBottom();
+        
+        // 为消息中的链接添加点击事件
+        if (type === 'bot') {
+            const links = messageDiv.querySelectorAll('a');
+            links.forEach(link => {
+                if (!link.classList.contains('ai-chat-link')) {
+                    link.classList.add('ai-chat-link');
+                }
+                link.setAttribute('target', '_blank');
+            });
+        }
+    }
+    
+    // 清空消息UI
+    clearMessagesUI() {
+        while (this.messagesContainer.firstChild) {
+            this.messagesContainer.removeChild(this.messagesContainer.firstChild);
+        }
+    }
+    
+    // 滚动到底部
+    scrollToBottom() {
+        this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
+    }
+    
+    // 禁用/启用输入
+    disableInput(disabled) {
+        if (this.input) this.input.disabled = disabled;
+        if (this.sendButton) this.sendButton.disabled = disabled;
+    }
+}
+
+// 初始化
+document.addEventListener('DOMContentLoaded', () => {
+    // 加载Markdown库
+    loadMarkedLibrary().catch(err => console.warn('Markdown库加载失败:', err));
+    
+    // 初始化会话
+    const chatSession = new AIChatSession();
+    
+    // 初始化UI
+    const chatUI = new AIChatUI(chatSession);
+    
+    // 将对象挂到全局以便调试和外部访问
+    window.aiChat = {
+        session: chatSession,
+        ui: chatUI,
+        config: AI_CHAT_CONFIG,
+        associationInfo: ASSOCIATION_INFO,
+        
+        // 公共API
+        clearHistory: () => {
+            console.log("开始清除当前对话历史记录");
+            
+            // 获取CSRF令牌
+            const csrfToken = chatSession.getCsrfToken();
+            console.log("当前CSRF令牌:", csrfToken);
+            
+            // 先发送清除请求到后端
+            fetch(`/utils/ai_chat/clear?session_id=${chatSession.sessionId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken,
+                    'X-CSRF-Token': csrfToken
+                },
+                credentials: 'same-origin' // 确保包含Cookie
+            })
+            .then(response => {
+                console.log("响应状态:", response.status, response.statusText);
+                if (!response.ok) {
+                    return response.text().then(text => {
+                        console.error("响应详情:", text);
+                        throw new Error(`清除历史记录失败 (${response.status}): ${text.substring(0, 100)}`);
+                    });
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log('清除历史记录成功:', data);
+                // 清除本地消息
+                chatSession.messages = [];
+                chatUI.clearMessagesUI();
+                chatUI.addMessageToUI(AI_CHAT_CONFIG.initialBotMessage, 'bot');
+                // 清除cookie中的消息
+                chatSession.deleteCookie('messages');
+                alert('当前对话历史已清除！');
+            })
+            .catch(error => {
+                console.error('清除历史记录失败:', error);
+                alert('清除历史记录失败: ' + error.message);
+                
+                // 如果API失败，尝试直接清除前端消息
+                try {
+                    chatSession.messages = [];
+                    chatUI.clearMessagesUI();
+                    chatUI.addMessageToUI(AI_CHAT_CONFIG.initialBotMessage, 'bot');
+                    chatSession.deleteCookie('messages');
+                    console.log("已强制清除前端消息");
+                } catch (e) {
+                    console.error("前端清除也失败:", e);
+                }
+            });
+        },
+        
+        // 清除所有会话历史
+        clearAllHistory: () => {
+            console.log("开始清除所有历史记录");
+            
+            // 获取CSRF令牌
+            const csrfToken = chatSession.getCsrfToken();
+            console.log("当前CSRF令牌:", csrfToken);
+            
+            // 尝试多种方式获取CSRF令牌
+            const metaToken = document.querySelector('meta[name="csrf-token"]');
+            const csrfInput = document.querySelector('input[name="csrf_token"]');
+            console.log("META标签CSRF:", metaToken ? metaToken.getAttribute('content') : '未找到');
+            console.log("表单CSRF:", csrfInput ? csrfInput.value : '未找到');
+            
+            // 发送清除所有历史的请求到后端
+            fetch('/utils/ai_chat/clear_history', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRFToken': csrfToken,
+                    'X-CSRF-Token': csrfToken,
+                    'CSRF-Token': csrfToken
+                },
+                credentials: 'same-origin', // 确保包含Cookie
+                body: JSON.stringify({
+                    session_id: chatSession.sessionId,
+                    csrf_token: csrfToken
+                })
+            })
+            .then(response => {
+                console.log("响应状态:", response.status, response.statusText);
+                if (!response.ok) {
+                    return response.text().then(text => {
+                        console.error("响应详情:", text);
+                        throw new Error(`清除历史记录失败 (${response.status}): ${text.substring(0, 100)}`);
+                    });
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log('清除所有历史记录成功:', data);
+                // 清除本地消息
+                chatSession.messages = [];
+                chatUI.clearMessagesUI();
+                chatUI.addMessageToUI(AI_CHAT_CONFIG.initialBotMessage, 'bot');
+                // 清除cookie中的消息
+                chatSession.deleteCookie('messages');
+                alert('历史记录已清除！');
+            })
+            .catch(error => {
+                console.error('清除所有历史记录失败:', error);
+                alert('清除历史记录失败: ' + error.message);
+                
+                // 如果API失败，尝试直接清除前端消息
+                try {
+                    chatSession.messages = [];
+                    chatUI.clearMessagesUI();
+                    chatUI.addMessageToUI(AI_CHAT_CONFIG.initialBotMessage, 'bot');
+                    chatSession.deleteCookie('messages');
+                    console.log("已强制清除前端消息");
+                } catch (e) {
+                    console.error("前端清除也失败:", e);
+                }
+            });
+        },
+        
+        // 获取协会信息
+        getAssociationInfo: () => ASSOCIATION_INFO,
+        
+        // 设置初始消息
+        setInitialMessage: (message) => {
+            AI_CHAT_CONFIG.initialBotMessage = message;
+        }
+    };
+});
+
+// 添加样式
+document.addEventListener('DOMContentLoaded', () => {
+    // 创建样式元素
+    const style = document.createElement('style');
+    style.textContent = `
+        .ai-chat-link {
+            color: #1a73e8;
+            text-decoration: underline;
+            cursor: pointer;
+        }
+        
+        .ai-message.bot a {
+            color: #1a73e8;
+            text-decoration: underline;
+        }
+        
+        .ai-message.bot strong, 
+        .ai-message.bot b {
+            font-weight: bold;
+        }
+        
+        .ai-message.bot em,
+        .ai-message.bot i {
+            font-style: italic;
+        }
+        
+        .ai-message.bot code {
+            background-color: #f5f5f5;
+            padding: 2px 4px;
+            border-radius: 3px;
+            font-family: monospace;
+        }
+        
+        .ai-message.bot pre {
+            background-color: #f5f5f5;
+            padding: 10px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+        
+        .ai-message.bot pre code {
+            background-color: transparent;
+            padding: 0;
+        }
+        
+        .ai-message.bot ul, 
+        .ai-message.bot ol {
+            margin-left: 20px;
+            padding-left: 0;
+        }
+        
+        .ai-message.bot blockquote {
+            border-left: 3px solid #ddd;
+            margin-left: 0;
+            padding-left: 10px;
+            color: #555;
+        }
+    `;
+    document.head.appendChild(style);
+});

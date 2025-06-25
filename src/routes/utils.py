@@ -562,7 +562,50 @@ def ai_chat_clear():
 @login_required
 def utils_ai_chat_clear():
     """清除指定会话的AI聊天历史记录 - 带utils前缀的版本"""
-    return ai_chat_clear()
+    session_id = request.args.get('session_id')
+    logger.info(f"收到清除单个会话历史请求: 用户ID={current_user.id}, 会话ID={session_id}, Headers={dict(request.headers)}")
+    
+    if not session_id:
+        logger.warning(f"用户 {current_user.id} 尝试清除历史记录但未提供会话ID")
+        return jsonify({
+            'success': False,
+            'message': '缺少会话ID参数'
+        }), 400
+    
+    try:
+        # 查询该会话是否属于当前用户
+        session_exists = db.session.execute(db.select(AIChatSession).filter_by(
+            id=session_id,
+            user_id=current_user.id
+        )).scalar_one_or_none()
+        
+        if not session_exists:
+            # 直接尝试按session_id删除历史记录
+            logger.info(f"未找到会话记录，尝试直接删除历史: 用户ID={current_user.id}, 会话ID={session_id}")
+        
+        # 删除历史记录
+        result = db.session.execute(db.delete(AIChatHistory).filter_by(
+            session_id=session_id,
+            user_id=current_user.id
+        ))
+        
+        affected_rows = result.rowcount
+        db.session.commit()
+        
+        logger.info(f"成功清除用户 {current_user.id} 的会话 {session_id} 历史记录: {affected_rows} 条消息")
+        
+        return jsonify({
+            'success': True,
+            'message': f'成功清除历史记录: {affected_rows} 条消息',
+            'count': affected_rows
+        })
+    except Exception as e:
+        logger.error(f"清除AI聊天历史记录失败: {str(e)}", exc_info=True)
+        db.session.rollback()
+        return jsonify({
+            'success': False,
+            'message': f'清除历史记录失败: {str(e)}'
+        }), 500
 
 @utils_bp.route('/ai_chat/clear_history', methods=['POST'])
 @login_required
@@ -604,33 +647,51 @@ def ai_chat_clear_history():
 def utils_ai_chat_clear_history():
     """清除用户所有AI聊天历史记录 - 带utils前缀的版本"""
     try:
+        # 记录请求信息以便调试
+        logger.info(f"收到清除历史请求: 用户ID={current_user.id}, Headers={dict(request.headers)}")
+        
         # 获取请求数据
         data = request.get_json(silent=True) or {}
         session_id = data.get('session_id')
+        
+        # 记录会话ID
+        logger.info(f"准备清除用户 {current_user.id} 的所有聊天历史, 会话ID: {session_id}")
 
         # 删除用户的所有聊天记录
         sessions = db.session.execute(db.select(AIChatSession).filter_by(
             user_id=current_user.id
         )).scalars().all()
         
+        if not sessions:
+            logger.info(f"用户 {current_user.id} 没有聊天会话记录")
+            return jsonify({
+                'success': True,
+                'message': '没有可清除的历史记录'
+            })
+        
+        history_count = 0
         for session in sessions:
-            db.session.execute(db.delete(AIChatHistory).filter_by(
+            # 删除聊天历史
+            result = db.session.execute(db.delete(AIChatHistory).filter_by(
                 session_id=session.id
             ))
+            history_count += result.rowcount
         
         # 也可以选择删除会话本身
-        db.session.execute(db.delete(AIChatSession).filter_by(
+        session_result = db.session.execute(db.delete(AIChatSession).filter_by(
             user_id=current_user.id
         ))
         
         db.session.commit()
         
+        logger.info(f"成功清除用户 {current_user.id} 的历史记录: {history_count} 条消息, {session_result.rowcount} 个会话")
+        
         return jsonify({
             'success': True,
-            'message': '成功清除所有历史记录'
+            'message': f'成功清除所有历史记录: {history_count} 条消息'
         })
     except Exception as e:
-        logger.error(f"清除所有AI聊天历史记录失败: {str(e)}")
+        logger.error(f"清除所有AI聊天历史记录失败: {str(e)}", exc_info=True)
         db.session.rollback()
         return jsonify({
             'success': False,
