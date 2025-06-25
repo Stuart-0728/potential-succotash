@@ -193,4 +193,50 @@ logger = logging.getLogger(__name__)
 4. 在不同环境中（开发、测试、生产）验证多对多关系操作的一致性
 5. 为所有路由处理函数添加异常处理和日志记录
 6. 建立更完善的错误监控和报告系统
-7. 考虑添加自动化测试，确保关键功能不会因代码修改而出现问题 
+7. 考虑添加自动化测试，确保关键功能不会因代码修改而出现问题
+
+## 修复5：CSRF令牌和活动编辑标签处理问题
+
+### 问题描述
+1. CSRF令牌处理错误：
+   - 在`education.py`中手动传递了`csrf_token`字符串给模板
+   - 但在模板中使用了`csrf_token()`函数调用方式
+   - 导致TypeError: 'str' object is not callable错误
+
+2. 活动编辑标签处理问题：
+   - 在`admin.py`的`edit_activity`函数中使用`form.populate_obj(activity)`自动填充表单数据
+   - 当处理`tags`字段时，WTForms尝试将整数ID列表直接赋值给`activity.tags`关系
+   - 导致AttributeError: 'int' object has no attribute '_sa_instance_state'错误
+
+### 原因分析
+1. CSRF令牌问题：
+   - Flask-WTF会自动将`csrf_token()`函数注入到所有模板中
+   - 不需要手动传递CSRF令牌字符串
+   - 当手动传递字符串时，它会覆盖原有的函数，导致错误
+
+2. 标签处理问题：
+   - SQLAlchemy的多对多关系需要对象实例，而不是简单的ID值
+   - `form.populate_obj()`无法正确处理这种复杂关系
+   - 需要手动处理标签关系，而不是依赖自动填充
+
+### 修复方法
+1. 修复CSRF令牌问题：
+   - 移除`education.py`中手动传递的`csrf_token`参数
+   - 让Flask-WTF自动处理CSRF令牌
+
+2. 修复标签处理问题：
+   - 替换`form.populate_obj(activity)`为手动字段赋值
+   - 单独处理标签关系，确保使用Tag对象而不是ID
+
+### 修复验证
+1. 执行`test_deploy_fix5.py`脚本进行修复
+2. 验证教育资源页面能够正常访问
+3. 验证活动编辑功能能够正常工作，特别是标签选择功能
+
+### 部署步骤
+1. 将修复代码推送到远程仓库
+2. Render.com将自动部署更新后的代码
+
+### 预期结果
+1. 用户可以正常访问教育资源页面，不再出现CSRF令牌错误
+2. 管理员可以正常编辑活动，包括添加和移除标签 

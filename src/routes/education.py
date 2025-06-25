@@ -97,14 +97,10 @@ def resources():
             }
         ]
         
-        # 生成CSRF令牌供模板使用
-        csrf_token = generate_csrf()
-        
         logger.info("正在加载教育资源页面")
         return render_template('education/resources.html', 
                             online_resources=online_resources,
-                            local_resources=local_resources,
-                            csrf_token=csrf_token)
+                            local_resources=local_resources)
     except Exception as e:
         logger.error(f"加载教育资源页面出错: {e}", exc_info=True)
         flash('加载教育资源页面时出错，请稍后再试', 'danger')
@@ -114,10 +110,8 @@ def resources():
 def free_fall():
     """自由落体运动探究页面"""
     try:
-        # 生成CSRF令牌供模板使用
-        csrf_token = generate_csrf()
         logger.info("正在加载自由落体运动探究页面")
-        return render_template('education/free_fall.html', csrf_token=csrf_token)
+        return render_template('education/free_fall.html')
     except Exception as e:
         logger.error(f"加载自由落体运动探究页面出错: {e}", exc_info=True)
         flash('加载自由落体运动探究页面时出错，请稍后再试', 'danger')

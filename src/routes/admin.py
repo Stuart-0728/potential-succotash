@@ -433,7 +433,16 @@ def edit_activity(id):
                         registration_deadline = registration_deadline.astimezone(pytz.utc)
                 
                 # 使用form填充对象
-                form.populate_obj(activity)
+                # 手动填充对象字段，避免标签处理错误
+                activity.title = form.title.data
+                activity.description = form.description.data
+                activity.location = form.location.data
+                activity.max_participants = form.max_participants.data
+                activity.points = form.points.data
+                activity.status = form.status.data
+                activity.is_featured = form.is_featured.data
+                activity.activity_type = form.activity_type.data if hasattr(form, 'activity_type') else None
+                # 不处理tags字段，它会在后面单独处理
                 
                 # 使用转换后的时间覆盖填充的时间字段
                 activity.start_time = start_time
