@@ -11,6 +11,10 @@ from flask_wtf.csrf import CSRFProtect, generate_csrf
 from src.models import db, User, Role
 from src.routes.utils import log_action
 from src.utils.time_helpers import get_localized_now
+import logging
+
+# 配置日志
+logger = logging.getLogger(__name__)
 
 # 创建蓝图
 education_bp = Blueprint('education', __name__)
@@ -18,94 +22,106 @@ education_bp = Blueprint('education', __name__)
 @education_bp.route('/resources')
 def resources():
     """显示教育资源页面"""
-    # 网络教育资源列表
-    online_resources = [
-        {
-            "name": "国家中小学智慧教育平台",
-            "url": "https://www.zxx.edu.cn/",
-            "icon": "fa-school",
-            "description": "国家级中小学教育平台，提供丰富的教学资源和教育服务"
-        },
-        {
-            "name": "重庆师范大学官网",
-            "url": "https://www.cqnu.edu.cn/",
-            "icon": "fa-university",
-            "description": "重庆师范大学官方网站，提供学校新闻、通知和资源"
-        },
-        {
-            "name": "中国教育资源网",
-            "url": "http://www.cersp.com/",
-            "icon": "fa-book",
-            "description": "综合性教育资源门户，提供各学科教学资源和教育新闻"
-        },
-        {
-            "name": "学科网",
-            "url": "https://www.zxxk.com/",
-            "icon": "fa-pencil-alt",
-            "description": "提供中小学各学科教案、试卷、课件等教学资源"
-        },
-        {
-            "name": "全国教师管理信息系统",
-            "url": "https://www.jszg.edu.cn/",
-            "icon": "fa-id-card",
-            "description": "教师资格证查询和管理的官方平台"
-        },
-        {
-            "name": "中国知网",
-            "url": "https://www.cnki.net/",
-            "icon": "fa-file-alt",
-            "description": "中国知识基础设施工程，提供学术论文和期刊资源"
-        },
-        {
-            "name": "物理实验在线",
-            "url": "http://en.wuli.ac.cn/",
-            "icon": "fa-atom",
-            "description": "提供物理实验的在线模拟和教学资源"
-        },
-        {
-            "name": "中国化学教育网",
-            "url": "http://www.chemhtml.com/",
-            "icon": "fa-flask",
-            "description": "化学教育资源平台，提供教学课件和实验指导"
-        },
-        {
-            "name": "中国数字教育资源公共服务平台",
-            "url": "http://www.eduyun.cn/",
-            "icon": "fa-cloud",
-            "description": "教育部主管的数字教育资源服务平台"
-        },
-        {
-            "name": "PhET互动科学模拟",
-            "url": "https://phet.colorado.edu/zh_CN/",
-            "icon": "fa-microscope",
-            "description": "科罗拉多大学提供的互动科学模拟实验平台"
-        }
-    ]
-    
-    # 本地教育资源列表
-    local_resources = [
-        {
-            "name": "自由落体运动探究",
-            "url": url_for('education.free_fall'),
-            "icon": "fa-arrow-down",
-            "description": "通过交互式实验探究自由落体运动规律，理解伽利略的贡献"
-        }
-    ]
-    
-    # 生成CSRF令牌供模板使用
-    csrf_token = generate_csrf()
-    
-    return render_template('education/resources.html', 
-                          online_resources=online_resources,
-                          local_resources=local_resources,
-                          csrf_token=csrf_token)
+    try:
+        # 网络教育资源列表
+        online_resources = [
+            {
+                "name": "国家中小学智慧教育平台",
+                "url": "https://www.zxx.edu.cn/",
+                "icon": "fa-school",
+                "description": "国家级中小学教育平台，提供丰富的教学资源和教育服务"
+            },
+            {
+                "name": "重庆师范大学官网",
+                "url": "https://www.cqnu.edu.cn/",
+                "icon": "fa-university",
+                "description": "重庆师范大学官方网站，提供学校新闻、通知和资源"
+            },
+            {
+                "name": "中国教育资源网",
+                "url": "http://www.cersp.com/",
+                "icon": "fa-book",
+                "description": "综合性教育资源门户，提供各学科教学资源和教育新闻"
+            },
+            {
+                "name": "学科网",
+                "url": "https://www.zxxk.com/",
+                "icon": "fa-pencil-alt",
+                "description": "提供中小学各学科教案、试卷、课件等教学资源"
+            },
+            {
+                "name": "全国教师管理信息系统",
+                "url": "https://www.jszg.edu.cn/",
+                "icon": "fa-id-card",
+                "description": "教师资格证查询和管理的官方平台"
+            },
+            {
+                "name": "中国知网",
+                "url": "https://www.cnki.net/",
+                "icon": "fa-file-alt",
+                "description": "中国知识基础设施工程，提供学术论文和期刊资源"
+            },
+            {
+                "name": "物理实验在线",
+                "url": "http://en.wuli.ac.cn/",
+                "icon": "fa-atom",
+                "description": "提供物理实验的在线模拟和教学资源"
+            },
+            {
+                "name": "中国化学教育网",
+                "url": "http://www.chemhtml.com/",
+                "icon": "fa-flask",
+                "description": "化学教育资源平台，提供教学课件和实验指导"
+            },
+            {
+                "name": "中国数字教育资源公共服务平台",
+                "url": "http://www.eduyun.cn/",
+                "icon": "fa-cloud",
+                "description": "教育部主管的数字教育资源服务平台"
+            },
+            {
+                "name": "PhET互动科学模拟",
+                "url": "https://phet.colorado.edu/zh_CN/",
+                "icon": "fa-microscope",
+                "description": "科罗拉多大学提供的互动科学模拟实验平台"
+            }
+        ]
+        
+        # 本地教育资源列表
+        local_resources = [
+            {
+                "name": "自由落体运动探究",
+                "url": url_for('education.free_fall'),
+                "icon": "fa-arrow-down",
+                "description": "通过交互式实验探究自由落体运动规律，理解伽利略的贡献"
+            }
+        ]
+        
+        # 生成CSRF令牌供模板使用
+        csrf_token = generate_csrf()
+        
+        logger.info("正在加载教育资源页面")
+        return render_template('education/resources.html', 
+                            online_resources=online_resources,
+                            local_resources=local_resources,
+                            csrf_token=csrf_token)
+    except Exception as e:
+        logger.error(f"加载教育资源页面出错: {e}", exc_info=True)
+        flash('加载教育资源页面时出错，请稍后再试', 'danger')
+        return redirect(url_for('main.index'))
 
 @education_bp.route('/resource/free-fall')
 def free_fall():
     """自由落体运动探究页面"""
-    # 生成CSRF令牌供模板使用
-    csrf_token = generate_csrf()
-    return render_template('education/free_fall.html', csrf_token=csrf_token)
+    try:
+        # 生成CSRF令牌供模板使用
+        csrf_token = generate_csrf()
+        logger.info("正在加载自由落体运动探究页面")
+        return render_template('education/free_fall.html', csrf_token=csrf_token)
+    except Exception as e:
+        logger.error(f"加载自由落体运动探究页面出错: {e}", exc_info=True)
+        flash('加载自由落体运动探究页面时出错，请稍后再试', 'danger')
+        return redirect(url_for('education.resources'))
 
 @education_bp.route('/api/gemini', methods=['POST'])
 def gemini_api():
