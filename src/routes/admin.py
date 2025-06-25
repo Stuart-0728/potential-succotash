@@ -471,10 +471,9 @@ def edit_activity(id):
                         selected_tags = db.session.execute(tags_stmt).scalars().all()
                         logger.info(f"活动标签处理 - 找到{len(selected_tags)}个标签")
                         
-                        # 添加标签关联
-                        for tag in selected_tags:
-                            activity.tags.append(tag)
-                            logger.info(f"活动标签处理 - 添加标签: [{tag.id}]{tag.name}")
+                        # 添加标签关联 - 重要：直接设置Tag对象列表而不是逐个添加
+                        activity.tags = selected_tags
+                        logger.info(f"活动标签处理 - 设置了{len(selected_tags)}个标签")
                 
                 logger.info(f"活动标签处理 - 最终标签数量: {len(activity.tags)}")
             except Exception as e:
