@@ -252,4 +252,38 @@ def safe_less_than(dt1, dt2):
     if dt1_aware is None or dt2_aware is None:
         return False
     
-    return dt1_aware < dt2_aware 
+    return dt1_aware < dt2_aware
+
+def safe_greater_than_equal(dt1, dt2):
+    """
+    安全比较dt1是否大于等于dt2，处理时区问题
+    :param dt1: 第一个datetime对象
+    :param dt2: 第二个datetime对象
+    :return: 比较结果 (True/False)
+    """
+    # 确保两个时间都是timezone aware的
+    dt1_aware = ensure_timezone_aware(dt1) if dt1 else None
+    dt2_aware = ensure_timezone_aware(dt2) if dt2 else None
+    
+    # 如果任一为None，则无法比较
+    if dt1_aware is None or dt2_aware is None:
+        return False
+    
+    return dt1_aware >= dt2_aware
+
+def safe_less_than_equal(dt1, dt2):
+    """
+    安全比较dt1是否小于等于dt2，处理时区问题
+    :param dt1: 第一个datetime对象
+    :param dt2: 第二个datetime对象
+    :return: 比较结果 (True/False)
+    """
+    # 确保两个时间都是timezone aware的
+    dt1_aware = ensure_timezone_aware(dt1) if dt1 else None
+    dt2_aware = ensure_timezone_aware(dt2) if dt2 else None
+    
+    # 如果任一为None，则无法比较
+    if dt1_aware is None or dt2_aware is None:
+        return False
+    
+    return dt1_aware <= dt2_aware 

@@ -10,7 +10,7 @@ from sqlalchemy import func, desc, or_, and_, not_
 from wtforms import StringField, TextAreaField, IntegerField, SelectField, SubmitField, RadioField, BooleanField, HiddenField
 from wtforms.validators import DataRequired, Length, Optional, NumberRange, Email, Regexp
 from flask_wtf import FlaskForm
-from src.utils.time_helpers import get_localized_now, get_beijing_time, ensure_timezone_aware, display_datetime, safe_compare, safe_less_than, safe_greater_than
+from src.utils.time_helpers import get_localized_now, get_beijing_time, ensure_timezone_aware, display_datetime, safe_compare, safe_less_than, safe_greater_than, safe_greater_than_equal, safe_less_than_equal
 
 logger = logging.getLogger(__name__)
 
@@ -323,7 +323,7 @@ def activity_detail(id):
         logger.info(f"准备渲染活动详情模板: 活动ID={id}")
         
         # 导入时间比较工具函数，确保模板可以访问这些函数
-        from src.utils.time_helpers import safe_less_than, safe_greater_than
+        from src.utils.time_helpers import safe_less_than, safe_greater_than, safe_greater_than_equal, safe_less_than_equal
         
         # 创建一个空表单对象用于CSRF保护
         from flask_wtf import FlaskForm
@@ -360,6 +360,8 @@ def activity_detail(id):
                               display_datetime=display_datetime,
                               safe_less_than=safe_less_than,
                               safe_greater_than=safe_greater_than,
+                              safe_greater_than_equal=safe_greater_than_equal,
+                              safe_less_than_equal=safe_less_than_equal,
                               poster_url=poster_url)
                               
     except Exception as e:

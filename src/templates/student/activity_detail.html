@@ -133,14 +133,14 @@
                             <span class="badge bg-success rounded-pill px-3 py-2 me-2">
                                 <i class="fas fa-check-circle me-1"></i>已报名
                             </span>
-                            {% if activity.start_time > now %}
+                            {% if safe_greater_than(activity.start_time, now) %}
                                 <form method="post" action="{{ url_for('student.cancel_registration', id=activity.id) }}" class="d-inline">
                                     <button type="submit" class="btn btn-outline-danger" onclick="return confirm('确定要取消报名吗？')">
                                         <i class="fas fa-times-circle me-1"></i>取消报名
                                     </button>
                                 </form>
                             {% else %}
-                                {% if activity.status == 'active' and ((now >= activity.start_time and now <= activity.end_time) or activity.checkin_enabled == True) and not current_user_registration.check_in_time %}
+                                {% if activity.status == 'active' and ((safe_greater_than_equal(now, activity.start_time) and safe_less_than_equal(now, activity.end_time)) or activity.checkin_enabled == True) and not current_user_registration.check_in_time %}
                                 <button type="button" class="btn btn-success" onclick="showQRScanner()">
                                     <i class="fas fa-qrcode me-1"></i>扫码签到
                                 </button>
@@ -168,7 +168,7 @@
                                 <i class="fas fa-user-plus me-1"></i>立即报名
                             </button>
                         </form>
-                    {% elif activity.status == 'active' and activity.registration_deadline >= now %}
+                    {% elif activity.status == 'active' and safe_greater_than_equal(activity.registration_deadline, now) %}
                         {% if activity.max_participants > 0 and registered_count >= activity.max_participants %}
                             <button class="btn btn-secondary" disabled>
                                 <i class="fas fa-users-slash me-1"></i>名额已满
