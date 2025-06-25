@@ -8,7 +8,6 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from flask import Blueprint, render_template, redirect, url_for, flash, request, current_app, jsonify
 from flask_login import current_user, login_required
 from flask_wtf.csrf import CSRFProtect, generate_csrf
-from flask import Blueprint, render_template, redirect, url_for, flash, request, current_app, jsonify
 from src.models import db, User, Role
 from src.routes.utils import log_action
 from src.utils.time_helpers import get_localized_now
