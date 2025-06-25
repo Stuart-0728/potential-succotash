@@ -94,6 +94,12 @@ def resources():
                 "url": url_for('education.free_fall'),
                 "icon": "fa-arrow-down",
                 "description": "通过交互式实验探究自由落体运动规律，理解伽利略的贡献"
+            },
+            {
+                "name": "洛伦兹力2D实验",
+                "url": url_for('education.lorentz_force_2d'),
+                "icon": "fa-magnet",
+                "description": "通过交互式实验探究带电粒子在磁场中的运动，理解洛伦兹力的作用"
             }
         ]
         
@@ -115,6 +121,17 @@ def free_fall():
     except Exception as e:
         logger.error(f"加载自由落体运动探究页面出错: {e}", exc_info=True)
         flash('加载自由落体运动探究页面时出错，请稍后再试', 'danger')
+        return redirect(url_for('education.resources'))
+
+@education_bp.route('/lorentz-force-2d')
+def lorentz_force_2d():
+    """洛伦兹力2D实验探究页面"""
+    try:
+        logger.info("正在加载洛伦兹力2D实验探究页面")
+        return render_template('education/lorentz_force_2d.html')
+    except Exception as e:
+        logger.error(f"加载洛伦兹力2D实验探究页面出错: {e}", exc_info=True)
+        flash('加载洛伦兹力2D实验探究页面时出错，请稍后再试', 'danger')
         return redirect(url_for('education.resources'))
 
 @education_bp.route('/api/gemini', methods=['POST'])
