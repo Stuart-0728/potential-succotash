@@ -451,7 +451,7 @@ def edit_activity(id):
                 # 恢复poster数据以便后续处理
                 form.poster.data = poster_data
                 
-                # 处理标签 - 使用测试验证过的安全方法
+                # 处理标签 - 使用更直接的方式处理标签关系
                 try:
                     # 将选中的标签ID转换为整数
                     new_tag_ids = []
@@ -464,12 +464,7 @@ def edit_activity(id):
                     
                     logger.info(f"新选中的标签IDs: {new_tag_ids}")
                     
-                    # 清空当前标签
-                    activity.tags = []
-                    db.session.flush()
-                    logger.info("已清空活动标签")
-                    
-                    # 查询并添加新标签
+                    # 直接查询所有需要的标签对象
                     if new_tag_ids:
                         # 一次性查询所有标签
                         tags = db.session.execute(
@@ -480,13 +475,29 @@ def edit_activity(id):
                         tag_map = {tag.id: tag for tag in tags}
                         logger.info(f"找到{len(tags)}个标签对象")
                         
-                        # 添加标签
+                        # 完全重置标签关系
+                        # 先获取当前关联的所有标签
+                        current_tags = list(activity.tags)
+                        
+                        # 移除所有当前标签
+                        for tag in current_tags:
+                            activity.tags.remove(tag)
+                        
+                        logger.info("已移除所有现有标签")
+                        
+                        # 添加新标签
                         for tag_id in new_tag_ids:
                             if tag_id in tag_map:
                                 activity.tags.append(tag_map[tag_id])
                                 logger.info(f"添加标签: {tag_id}")
                             else:
                                 logger.warning(f"找不到标签ID: {tag_id}")
+                    else:
+                        # 如果没有选择标签，则移除所有标签
+                        current_tags = list(activity.tags)
+                        for tag in current_tags:
+                            activity.tags.remove(tag)
+                        logger.info("没有选择标签，已移除所有现有标签")
                     
                     logger.info(f"标签处理完成，共添加{len(activity.tags)}个标签")
                 
