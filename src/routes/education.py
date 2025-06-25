@@ -100,6 +100,12 @@ def resources():
                 "url": url_for('education.lorentz_force_2d'),
                 "icon": "fa-magnet",
                 "description": "通过交互式实验探究带电粒子在磁场中的运动，理解洛伦兹力的作用"
+            },
+            {
+                "name": "磁力耦合器模拟",
+                "url": url_for('education.magnetic_coupler'),
+                "icon": "fa-sync",
+                "description": "通过交互式3D模型探究磁力耦合器的工作原理与应用"
             }
         ]
         
@@ -132,6 +138,17 @@ def lorentz_force_2d():
     except Exception as e:
         logger.error(f"加载洛伦兹力2D实验探究页面出错: {e}", exc_info=True)
         flash('加载洛伦兹力2D实验探究页面时出错，请稍后再试', 'danger')
+        return redirect(url_for('education.resources'))
+
+@education_bp.route('/magnetic-coupler')
+def magnetic_coupler():
+    """磁力耦合器探究页面"""
+    try:
+        logger.info("正在加载磁力耦合器探究页面")
+        return render_template('education/magnetic_coupler.html')
+    except Exception as e:
+        logger.error(f"加载磁力耦合器探究页面出错: {e}", exc_info=True)
+        flash('加载磁力耦合器探究页面时出错，请稍后再试', 'danger')
         return redirect(url_for('education.resources'))
 
 @education_bp.route('/api/gemini', methods=['POST'])
@@ -248,41 +265,29 @@ def gemini_api():
             'content': "处理请求时发生错误，请稍后再试"
         })
 
-# 添加测试路由
 @education_bp.route('/test')
 def test_route():
-    """测试路由，用于检查教育模块是否正常工作"""
-    return jsonify({
-        'success': True,
-        'message': '教育模块正常工作',
-        'auth_status': current_user.is_authenticated,
-        'user_info': {
-            'id': current_user.id,
-            'username': current_user.username
-        } if current_user.is_authenticated else None
-    })
+    """测试路由"""
+    try:
+        return jsonify({
+            'success': True,
+            'message': '教育资源路由运行正常'
+        })
+    except Exception as e:
+        current_app.logger.error(f"测试路由出错: {str(e)}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'message': f"测试路由出错: {str(e)}"
+        })
 
-# 添加测试路由测试静态文件访问
 @education_bp.route('/test-static')
 def test_static():
-    """测试静态文件访问"""
-    # 获取上传目录中的第一个海报文件作为测试
-    static_folder = current_app.static_folder or ""
-    upload_dir = os.path.join(static_folder, 'uploads', 'posters')
-    poster_files = []
-    if os.path.exists(upload_dir):
-        poster_files = os.listdir(upload_dir)
-        poster_files = [f for f in poster_files if os.path.isfile(os.path.join(upload_dir, f))]
-    
-    test_image = poster_files[0] if poster_files else None
-    
-    # 返回测试结果
-    return jsonify({
-        'success': True,
-        'message': '静态文件测试',
-        'test_image': test_image,
-        'static_url': current_app.static_url_path,
-        'image_url': url_for('static', filename=f'uploads/posters/{test_image}') if test_image else None,
-        'upload_dir': upload_dir,
-        'file_exists': os.path.exists(upload_dir)
-    }) 
+    """测试静态文件路由"""
+    try:
+        return render_template('education/test.html')
+    except Exception as e:
+        current_app.logger.error(f"测试静态文件路由出错: {str(e)}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'message': f"测试静态文件路由出错: {str(e)}"
+        }) 

@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>磁力耦合器 - 教育资源</title>
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f0f4f8; color: #333; }
+        #container { width: 100%; height: 100vh; }
+        #title-bar { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); text-align: center; z-index: 10;}
+        h1 { margin: 0; font-size: 1.8rem; font-weight: 600; }
+        p { margin-top: 8px; color: #666; font-size: 1rem;}
+        #controls { position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); background-color: rgba(255,255,255,0.8); backdrop-filter: blur(5px); padding: 12px 24px; border-radius: 16px; display: flex; gap: 20px; z-index: 10; border: 1px solid rgba(0, 0, 0, 0.1);}
+        button {
+            background-color: #3b82f6;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 12px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s ease, transform 0.1s ease;
+            box-shadow: 0 4px 15px rgba(59, 130, 246, 0.2);
+        }
+        button:hover { background-color: #2563eb; }
+        button:active { transform: scale(0.96); }
+        button.active { 
+            background-color: #ef4444; 
+            box-shadow: 0 4px 15px rgba(220, 38, 38, 0.3);
+        }
+        button.active:hover { background-color: #dc2626; }
+        
+        /* 导航样式 */
+        .nav-link {
+            color: #1f2937;
+            text-decoration: none;
+            padding: 0.5rem 0;
+            border-bottom: 2px solid transparent;
+            transition: all 0.3s;
+        }
+        .nav-link:hover {
+            color: #3b82f6;
+            border-bottom-color: #3b82f6;
+        }
+        .active-link {
+            color: #3b82f6;
+            border-bottom-color: #3b82f6;
+            font-weight: bold;
+        }
+        
+        /* 模态框样式 */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.4);
+        }
+        .modal-content {
+            background-color: #fefefe;
+            margin: 15% auto;
+            padding: 20px;
+            border: 1px solid #888;
+            width: 80%;
+            max-width: 500px;
+            border-radius: 0.5rem;
+            text-align: center;
+        }
+        .gemini-response {
+            background-color: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 0.5rem;
+            padding: 1rem;
+            margin-top: 1rem;
+            white-space: pre-wrap;
+            line-height: 1.75;
+        }
+        
+        /* AI问答部分样式 */
+        .ai-section {
+            background-color: white;
+            border-radius: 1rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            padding: 2rem;
+            margin-top: 2rem;
+        }
+    </style>
+</head>
+<body>
+    <!-- 导航栏 -->
+    <header class="bg-white/80 backdrop-blur-md sticky top-0 z-50 shadow-sm">
+        <nav class="container mx-auto px-6 py-3">
+            <div class="flex justify-between items-center">
+                <div class="flex items-center">
+                    <a href="{{ url_for('education.resources') }}" class="bg-blue-600 text-white px-3 py-1 rounded-md mr-4 hover:bg-blue-700 transition-colors">
+                        <i class="fas fa-arrow-left mr-1"></i>返回资源页
+                    </a>
+                    <h1 class="text-xl font-bold text-slate-800">圆筒式磁力耦合器模型</h1>
+                </div>
+                <div class="hidden md:flex space-x-8 text-sm">
+                    <a href="#simulation" class="nav-link">模拟实验</a>
+                    <a href="#theory" class="nav-link">物理原理</a>
+                    <a href="#ai-assistant" class="nav-link font-bold">✨AI助教</a>
+                </div>
+            </div>
+        </nav>
+    </header>
+
+    <div id="container">
+        <!-- 3D模拟容器 -->
+    </div>
+    
+    <div id="controls">
+        <button id="toggleInnerRotor">启动内转子耦合</button>
+        <button id="toggleRotation">暂停</button>
+    </div>
+    
+    <!-- AI助教部分 -->
+    <section id="ai-assistant" class="container mx-auto px-6 py-8 mt-8 mb-16">
+        <h2 class="text-2xl font-bold mb-6 text-center">AI助教 - 磁力耦合器</h2>
+        
+        <div class="ai-section">
+            <h3 class="text-xl font-bold mb-4">磁力耦合器原理解释</h3>
+            <button id="getExplanation" class="mb-4">获取原理解释</button>
+            <div id="explanationDisplay" class="gemini-response">点击按钮获取磁力耦合器原理解释</div>
+        </div>
+        
+        <div class="ai-section mt-8">
+            <h3 class="text-xl font-bold mb-4">提问物理问题</h3>
+            <textarea id="physicsQuestion" class="w-full p-4 border border-gray-300 rounded-md mb-4" rows="3" placeholder="请输入关于磁力耦合器的物理问题..."></textarea>
+            <button id="askQuestion">提交问题</button>
+            <div id="answerDisplay" class="gemini-response mt-4">在此显示回答</div>
+        </div>
+    </section>
+    
+    <!-- 加载模态框 -->
+    <div id="loadingModal" class="modal">
+        <div class="modal-content">
+            <p>正在处理，请稍候...</p>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+    <script>
+        // --- 场景常量 ---
+        const L = 8;
+        const r_inner_rotor = 2.2;
+        const rotor_gap = 0.1;
+        const coil_thickness = 0.35;
+        const r_coil_inner = r_inner_rotor + rotor_gap;
+        const r_coil_outer = r_coil_inner + coil_thickness;
+        
+        // --- 动画常量 ---
+        const outerRotorSpeed = 0.01; // 外转子匀速转速
+        const innerRotorCoupledSpeed = outerRotorSpeed * 0.6; // 内转子耦合后的匀速转速 (外转子的60%)
+
+        // --- 核心变量 ---
+        let scene, camera, renderer, controls;
+        let innerRotor, outerRotor;
+        let isInnerRotorCoupled = false;
+        let isAnimating = true;
+
+        init();
+        animate();
+
+        function init() {
+            const container = document.getElementById('container');
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x111111);
+            scene.fog = new THREE.Fog(0x111111, 20, 50);
+
+            camera = new THREE.PerspectiveCamera(60, container.clientWidth / container.clientHeight, 0.1, 1000);
+            camera.position.set(5, 7, 11);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.setSize(container.clientWidth, container.clientHeight);
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            container.appendChild(renderer.domElement);
+
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.04;
+            controls.minDistance = 5;
+            controls.maxDistance = 30;
+
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+            scene.add(ambientLight);
+            const keyLight = new THREE.DirectionalLight(0xffffff, 1.0);
+            keyLight.position.set(5, 10, 8);
+            keyLight.castShadow = true;
+            scene.add(keyLight);
+            
+            createMagneticCoupler();
+            setupUI();
+
+            window.addEventListener('resize', onWindowResize, false);
+        }
+        
+        function createMagneticCoupler() {
+            const baseMaterialProps = { metalness: 0.4, roughness: 0.5 };
+
+            // 内转子 (永磁体)
+            innerRotor = new THREE.Group();
+            const magnetGeometries = [
+                new THREE.CylinderGeometry(r_inner_rotor, r_inner_rotor, L, 32, 1, false, 0, Math.PI / 2),
+                new THREE.CylinderGeometry(r_inner_rotor, r_inner_rotor, L, 32, 1, false, Math.PI / 2, Math.PI / 2),
+                new THREE.CylinderGeometry(r_inner_rotor, r_inner_rotor, L, 32, 1, false, Math.PI, Math.PI / 2),
+                new THREE.CylinderGeometry(r_inner_rotor, r_inner_rotor, L, 32, 1, false, 3 * Math.PI / 2, Math.PI / 2)
+            ];
+            const north_pole_mat = new THREE.MeshStandardMaterial({ ...baseMaterialProps, color: 0xddeeff });
+            const south_pole_mat = new THREE.MeshStandardMaterial({ ...baseMaterialProps, color: 0x667788 });
+            
+            innerRotor.add(new THREE.Mesh(magnetGeometries[0], north_pole_mat));
+            innerRotor.add(new THREE.Mesh(magnetGeometries[1], south_pole_mat));
+            innerRotor.add(new THREE.Mesh(magnetGeometries[2], north_pole_mat));
+            innerRotor.add(new THREE.Mesh(magnetGeometries[3], south_pole_mat));
+            
+            // 磁场B可视化 (红/蓝箭头)
+            const bFieldArrowsGroup = new THREE.Group();
+            const numArrowsPerQuadrant = 7;
+            const arrowLength = 1.0;
+            for (let i = 0; i < 4; i++) {
+                const isN_Pole = (i === 0 || i === 2);
+                for (let j = 0; j < numArrowsPerQuadrant; j++) {
+                    const angle = (i * Math.PI / 2) + (j + 1) * (Math.PI / 2) / (numArrowsPerQuadrant + 1);
+                    const dir = new THREE.Vector3(Math.cos(angle), 0, Math.sin(angle));
+                    if (isN_Pole) {
+                        const origin = dir.clone().multiplyScalar(r_inner_rotor);
+                        bFieldArrowsGroup.add(new THREE.ArrowHelper(dir, origin, arrowLength, 0xff4500, 0.3, 0.25));
+                    } else {
+                        const origin = dir.clone().multiplyScalar(r_inner_rotor + arrowLength);
+                        bFieldArrowsGroup.add(new THREE.ArrowHelper(dir.negate(), origin, arrowLength, 0x1e90ff, 0.3, 0.25));
+                    }
+                }
+            }
+            innerRotor.add(bFieldArrowsGroup);
+            scene.add(innerRotor);
+
+            // 外转子 (实体线圈)
+            outerRotor = new THREE.Group();
+            const coilMaterial = new THREE.MeshStandardMaterial({ color: 0xde9e6a, metalness: 0.8, roughness: 0.25 });
+            const gap_angle = 0.08;
+            const extrudeSettings = { depth: L, bevelEnabled: true, bevelThickness: 0.05, bevelSize: 0.05, bevelSegments: 2 };
+
+            for (let i = 0; i < 4; i++) {
+                const startAngle = (i * Math.PI / 2) + gap_angle / 2;
+                const endAngle = startAngle + (Math.PI / 2) - gap_angle;
+                
+                const shape = new THREE.Shape();
+                shape.moveTo(r_coil_inner * Math.cos(startAngle), r_coil_inner * Math.sin(startAngle));
+                shape.absarc(0, 0, r_coil_inner, startAngle, endAngle, false);
+                shape.lineTo(r_coil_outer * Math.cos(endAngle), r_coil_outer * Math.sin(endAngle));
+                shape.absarc(0, 0, r_coil_outer, endAngle, startAngle, true);
+                shape.closePath();
+
+                const geometry = new THREE.ExtrudeGeometry(shape, extrudeSettings);
+                const coilSegment = new THREE.Mesh(geometry, coilMaterial);
+                coilSegment.rotation.x = -Math.PI / 2;
+                coilSegment.position.y = -L/2;
+                outerRotor.add(coilSegment);
+            }
+            scene.add(outerRotor);
+        }
+
+        function setupUI() {
+            // 设置按钮的监听器
+            document.getElementById('toggleInnerRotor').addEventListener('click', (e) => {
+                isInnerRotorCoupled = !isInnerRotorCoupled;
+                e.target.textContent = isInnerRotorCoupled ? '停止内转子耦合' : '启动内转子耦合';
+                e.target.classList.toggle('active', isInnerRotorCoupled);
+            });
+            document.getElementById('toggleRotation').addEventListener('click', (e) => {
+                isAnimating = !isAnimating;
+                e.target.textContent = isAnimating ? '暂停' : '播放';
+            });
+            
+            // AI部分按钮监听器
+            document.getElementById('getExplanation').addEventListener('click', () => {
+                getPhysicsExplanation();
+            });
+            
+            document.getElementById('askQuestion').addEventListener('click', () => {
+                askPhysicsQuestion();
+            });
+        }
+        
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            if (isAnimating) {
+                // 外转子始终以固定速度转动
+                outerRotor.rotation.y += outerRotorSpeed;
+
+                // 内转子以固定的匀速转动或静止
+                let currentInnerRotorSpeed = 0;
+                if (isInnerRotorCoupled) {
+                    // 如果耦合, 内转子以设定的匀速转动
+                    currentInnerRotorSpeed = innerRotorCoupledSpeed;
+                }
+                
+                // 应用内转子的当前速度
+                innerRotor.rotation.y += currentInnerRotorSpeed;
+            }
+            
+            controls.update();
+            renderer.render(scene, camera);
+        }
+        
+        // 获取CSRF令牌的辅助函数
+        function getCsrfToken() {
+            // 首先尝试从meta标签获取
+            const metaToken = document.querySelector('meta[name="csrf-token"]');
+            if (metaToken && metaToken.getAttribute('content')) {
+                return metaToken.getAttribute('content');
+            }
+            
+            // 如果meta标签没有，则尝试从cookie获取
+            const cookies = document.cookie.split(';');
+            for (let cookie of cookies) {
+                const [name, value] = cookie.trim().split('=');
+                if (name === 'csrf_token') {
+                    return decodeURIComponent(value);
+                }
+            }
+            
+            console.warn('无法获取CSRF令牌，API请求可能会失败');
+            return '';
+        }
+        
+        // 显示加载模态框
+        function showModal(message) {
+            const modal = document.getElementById('loadingModal');
+            modal.querySelector('.modal-content p').textContent = message || '正在处理，请稍候...';
+            modal.style.display = 'block';
+        }
+        
+        // 隐藏加载模态框
+        function hideModal() {
+            document.getElementById('loadingModal').style.display = 'none';
+        }
+        
+        // 使用网站的API请求
+        async function callGemini(prompt) {
+            showModal('正在思考中，请稍候...');
+            
+            try {
+                // 获取CSRF令牌
+                const csrfToken = getCsrfToken();
+                if (!csrfToken) {
+                    hideModal();
+                    return "系统错误：无法获取安全令牌。请刷新页面后重试。";
+                }
+                
+                // 调用后端API
+                const response = await fetch('/education/api/gemini', {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': csrfToken
+                    },
+                    body: JSON.stringify({ prompt: prompt })
+                });
+                
+                const data = await response.json();
+                
+                hideModal();
+                
+                if (!data.success) {
+                    console.error('API错误:', data.error || data.content);
+                    return `AI助手暂时无法回答您的问题。${data.error || data.content || '请稍后再试。'}`;
+                }
+                
+                return data.content;
+            } catch (error) {
+                console.error('API调用错误:', error);
+                hideModal();
+                return "与AI助手通信时发生错误，请稍后再试。详细错误: " + error.message;
+            }
+        }
+        
+        // 获取物理解释
+        async function getPhysicsExplanation() {
+            const explanationDisplay = document.getElementById('explanationDisplay');
+            explanationDisplay.textContent = "正在生成解释中，请稍候...";
+            
+            const prompt = `
+                请用通俗易懂的语言解释磁力耦合器的工作原理，特别是以下方面：
+                1. 磁力耦合器如何通过磁场在两个转子之间传递力量和动力
+                2. 在我们的模拟中，内转子和外转子是如何相互作用的
+                3. 磁力耦合器相比于机械连接的优势是什么
+                4. 磁力耦合器在实际工业中的应用场景
+                
+                解释应该面向对物理有初步了解的高中生，语言生动形象，长度在300-400字之间。
+            `;
+            
+            const responseText = await callGemini(prompt);
+            explanationDisplay.textContent = responseText;
+        }
+        
+        // 提问物理问题
+        async function askPhysicsQuestion() {
+            const physicsQuestionInput = document.getElementById('physicsQuestion');
+            const answerDisplay = document.getElementById('answerDisplay');
+            const userQuestion = physicsQuestionInput.value.trim();
+            
+            if (!userQuestion) {
+                answerDisplay.textContent = "请输入您的问题。";
+                return;
+            }
+            
+            answerDisplay.textContent = "正在获取解答中，请稍候...";
+            
+            const prompt = `
+                用户问题: ${userQuestion}
+                
+                请作为一位熟悉电磁学的物理老师，回答上述关于磁力耦合器的问题。
+                当前模拟展示的是一个圆筒式磁力耦合器模型，其中：
+                - 内转子是一个永磁体圆筒，有交替的N极和S极
+                - 外转子是一个导电线圈圆筒，当转动时会在内转子周围产生磁场
+                - 两个转子之间没有机械连接，完全依靠磁场相互作用
+                - 通过按钮可以控制内转子是否与外转子磁力耦合
+                
+                请根据物理学原理和概念，用通俗易懂的方式回答问题。如果问题不是关于磁力耦合器或电磁学的，请礼貌地将话题引回这个主题。
+            `;
+            
+            const responseText = await callGemini(prompt);
+            answerDisplay.textContent = responseText;
+        }
+    </script>
+</body>
+</html>
