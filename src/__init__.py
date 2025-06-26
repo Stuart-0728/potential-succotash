@@ -176,16 +176,6 @@ def create_app(config_name=None):
 
 def setup_logging(app):
     """配置日志系统"""
-    log_dir = app.config.get('LOG_FOLDER')
-    if log_dir is None:
-        log_dir = os.path.join(app.root_path, 'logs')
-        app.logger.warning(f"未配置LOG_FOLDER，使用默认日志目录: {log_dir}")
-        
-    if not os.path.exists(log_dir):
-        os.makedirs(log_dir, mode=0o755)
-    
-    log_file = os.path.join(log_dir, app.config.get('LOG_FILENAME', 'cqnu_association.log'))
-    
     # 配置根日志记录器
     log_level_name = app.config.get('LOG_LEVEL', 'INFO')
     if isinstance(log_level_name, str):
@@ -196,16 +186,41 @@ def setup_logging(app):
     
     # 创建处理器
     log_format = app.config.get('LOG_FORMAT', '%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-    file_handler = RotatingFileHandler(log_file, maxBytes=10*1024*1024, backupCount=10)
-    file_handler.setFormatter(logging.Formatter(log_format))
-    file_handler.setLevel(log_level)
+    
+    # 检查是否在Serverless环境中
+    if os.environ.get('SERVERLESS_PLATFORM_VENDOR'):
+        # 在Serverless环境中，使用标准输出流而不是文件
+        handler = logging.StreamHandler()
+        app.logger.info('检测到Serverless环境，日志将输出到标准输出')
+    else:
+        # 在传统环境中，使用文件日志
+        log_dir = app.config.get('LOG_FOLDER')
+        if log_dir is None:
+            log_dir = os.path.join(app.root_path, 'logs')
+            app.logger.warning(f"未配置LOG_FOLDER，使用默认日志目录: {log_dir}")
+            
+        if not os.path.exists(log_dir):
+            try:
+                os.makedirs(log_dir, mode=0o755)
+            except Exception as e:
+                app.logger.warning(f"创建日志目录失败: {e}，将使用标准输出")
+                handler = logging.StreamHandler()
+            else:
+                log_file = os.path.join(log_dir, app.config.get('LOG_FILENAME', 'cqnu_association.log'))
+                handler = RotatingFileHandler(log_file, maxBytes=10*1024*1024, backupCount=10)
+        else:
+            log_file = os.path.join(log_dir, app.config.get('LOG_FILENAME', 'cqnu_association.log'))
+            handler = RotatingFileHandler(log_file, maxBytes=10*1024*1024, backupCount=10)
+    
+    handler.setFormatter(logging.Formatter(log_format))
+    handler.setLevel(log_level)
     
     # 添加到根日志记录器
     logging.getLogger().setLevel(log_level)
-    logging.getLogger().addHandler(file_handler)
+    logging.getLogger().addHandler(handler)
     
     # 添加到应用日志记录器
-    app.logger.addHandler(file_handler)
+    app.logger.addHandler(handler)
     
     # 设置SQLAlchemy日志级别
     if app.config.get('SQLALCHEMY_ECHO'):

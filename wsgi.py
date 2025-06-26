@@ -1,3 +1,6 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
 import os
 import sys
 import logging
@@ -28,5 +31,11 @@ from src import create_app
 app = create_app()
 logger.info("应用创建成功")
 
+# Render需要的WSGI应用对象
+# 腾讯云Serverless需要的处理函数
+def main_handler(event, context):
+    return app
+
+# 本地运行时使用
 if __name__ == "__main__":
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
