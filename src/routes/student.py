@@ -45,8 +45,11 @@ def dashboard():
         if not student_info:
             return redirect(url_for('auth.register'))
         
-        # 获取学生已报名的活动
-        reg_stmt = db.select(Registration).filter_by(user_id=current_user.id)
+        # 获取学生已报名的活动（只包含已报名和已签到的，不包括已取消的）
+        reg_stmt = db.select(Registration).filter(
+            Registration.user_id == current_user.id,
+            Registration.status.in_(['registered', 'attended'])  # 排除已取消的报名
+        )
         registrations = db.session.execute(reg_stmt).scalars().all()
         
         # 获取报名活动的ID列表
@@ -174,9 +177,10 @@ def activities():
         # 分页
         activities = db.paginate(query, page=page, per_page=10)
         
-        # 查询用户已报名的活动ID
+        # 查询用户已报名的活动ID（只包含已报名和已签到的，不包括已取消的）
         reg_stmt = db.select(Registration.activity_id).filter(
-            Registration.user_id == current_user.id
+            Registration.user_id == current_user.id,
+            Registration.status.in_(['registered', 'attended'])  # 排除已取消的报名
         )
         registered = db.session.execute(reg_stmt).all()
         registered_activity_ids = [r[0] for r in registered]

@@ -283,7 +283,9 @@ def activity_detail(activity_id):
                 activity_id=activity_id
             )
             registration = db.session.execute(reg_stmt).scalar_one_or_none()
-            is_registered = registration is not None
+            
+            # 只有当注册状态为'registered'或'attended'时才视为已报名
+            is_registered = registration is not None and registration.status in ['registered', 'attended']
         
         # 获取当前时间（带时区的UTC时间）
         now = get_localized_now()
