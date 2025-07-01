@@ -1010,6 +1010,10 @@ def view_message(id):
 @student_required
 def create_message():
     try:
+        # 创建一个空表单对象用于CSRF保护
+        from flask_wtf import FlaskForm
+        form = FlaskForm()
+        
         if request.method == 'POST':
             subject = request.form.get('subject')
             content = request.form.get('content')
@@ -1045,7 +1049,7 @@ def create_message():
             flash('消息发送成功', 'success')
             return redirect(url_for('student.messages'))
         
-        return render_template('student/message_form.html', title='发送消息')
+        return render_template('student/message_form.html', title='发送消息', form=form)
     except Exception as e:
         logger.error(f"Error in create_message: {e}")
         flash('发送消息时出错', 'danger')
