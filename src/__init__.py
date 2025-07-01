@@ -57,12 +57,26 @@ def create_app(config_name=None):
         }
         app.logger.info("PostgreSQL连接池配置完成")
     
+    # 确保SESSION_COOKIE_NAME已设置
+    if 'SESSION_COOKIE_NAME' not in app.config:
+        app.config['SESSION_COOKIE_NAME'] = 'session'
+        app.logger.warning("SESSION_COOKIE_NAME未设置，使用默认值'session'")
+    
     # 初始化扩展
     db.init_app(app)
     migrate.init_app(app, db)
     login_manager.init_app(app)
     csrf.init_app(app)
-    sess.init_app(app)
+    
+    # 初始化Flask-Session
+    try:
+        sess.init_app(app)
+        app.logger.info("Flask-Session初始化成功")
+    except Exception as e:
+        app.logger.error(f"Flask-Session初始化失败: {e}")
+        # 尝试使用原生Flask会话
+        app.logger.warning("回退到使用Flask原生会话")
+    
     limiter.init_app(app)
     cache.init_app(app)
     
