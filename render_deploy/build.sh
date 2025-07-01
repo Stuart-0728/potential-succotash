@@ -6,5 +6,10 @@ apt-get install -y build-essential python3-dev libffi-dev libopenblas-dev liblap
 # 升级pip
 pip install --upgrade pip
 
-# 安装项目依赖（使用二进制包，不要从源码构建）
-pip install --no-build-isolation -r requirements.txt 
+# 首先安装numpy和pandas的预编译二进制包
+pip install --only-binary=:all: numpy==1.19.5
+pip install --only-binary=:all: pandas==1.1.5
+
+# 安装其余项目依赖
+grep -v "numpy\|pandas" requirements.txt > other_requirements.txt
+pip install -r other_requirements.txt 
