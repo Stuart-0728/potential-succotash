@@ -86,8 +86,8 @@ def dashboard():
                 ongoing_activities.append(activity)
                 logger.info(f"进行中的活动: {activity.title}")
         
-        # 排序活动，按开始时间升序排列
-        upcoming_activities.sort(key=lambda x: x.start_time)
+        # 排序活动，按开始时间降序排列（最近的活动在前面）
+        upcoming_activities.sort(key=lambda x: x.start_time, reverse=True)
         ongoing_activities.sort(key=lambda x: x.end_time)
         past_activities.sort(key=lambda x: x.start_time) # 确保已结束活动也按开始时间升序
 
@@ -757,7 +757,9 @@ def get_recommended_activities(user_id, limit=6):
                 )
         
         # 根据活动开始时间排序，优先推荐最近的活动
-        recommended = recommended.order_by(Activity.start_time.desc())
+        # 只推荐未结束的活动
+        now = get_beijing_time()
+        recommended = recommended.filter(Activity.end_time > now).order_by(Activity.start_time.desc())
         
         return recommended.limit(limit).all()
     except Exception as e:
@@ -776,14 +778,19 @@ def recommend():
     for act in Activity.query.filter(Activity.id.in_(joined_ids)).all():
         tag_ids.update([t.id for t in act.tags])
     # 推荐同标签的其他活动，排除已报名/参加过的
+    now = get_beijing_time()
     if tag_ids:
         recommended = Activity.query.join(Activity.tags).filter(
             Tag.id.in_(tag_ids),
             ~Activity.id.in_(joined_ids),
-            Activity.status=='active'
+            Activity.status=='active',
+            Activity.end_time > now
         ).distinct().all()
     else:
-        recommended = Activity.query.filter_by(status='active').order_by(Activity.created_at.desc()).limit(10).all()
+        recommended = Activity.query.filter(
+            Activity.status=='active',
+            Activity.end_time > now
+        ).order_by(Activity.created_at.desc()).limit(10).all()
     return render_template('student/recommendation.html', recommended=recommended)
 
 @student_bp.route('/api/attendance/checkin', methods=['POST'])
@@ -951,7 +958,8 @@ def messages():
                 Message.sender_id == current_user.id,
                 Message.receiver_id == current_user.id
             ))
-        
+            
+        # 不使用复杂的连接，保持简单查询
         messages = query.order_by(Message.created_at.desc()).paginate(page=page, per_page=10)
         
         return render_template('student/messages.html', 
@@ -1015,16 +1023,16 @@ def view_message(id):
 def create_message():
     try:
         # 创建一个空表单对象用于CSRF保护
-        from flask_wtf import FlaskForm
-        form = FlaskForm()
+        class MessageForm(FlaskForm):
+            subject = StringField('主题', validators=[DataRequired(message='主题不能为空')])
+            content = TextAreaField('内容', validators=[DataRequired(message='内容不能为空')])
+            submit = SubmitField('发送消息')
         
-        if request.method == 'POST':
-            subject = request.form.get('subject')
-            content = request.form.get('content')
-            
-            if not subject or not content:
-                flash('主题和内容不能为空', 'danger')
-                return redirect(url_for('student.create_message'))
+        form = MessageForm()
+        
+        if request.method == 'POST' and form.validate_on_submit():
+            subject = form.subject.data
+            content = form.content.data
             
             # 创建消息，发送给管理员
             # 查找管理员用户
@@ -1043,7 +1051,8 @@ def create_message():
                 sender_id=current_user.id,
                 receiver_id=admin_user.id,
                 subject=subject,
-                content=content
+                content=content,
+                created_at=get_localized_now()
             )
             
             db.session.add(message)

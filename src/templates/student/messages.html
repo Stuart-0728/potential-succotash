@@ -72,9 +72,9 @@
                             </td>
                             <td>
                                 {% if message.sender_id == current_user.id %}
-                                    {{ message.receiver.username }}
+                                    管理员
                                 {% else %}
-                                    {{ message.sender.username }}
+                                    管理员
                                 {% endif %}
                             </td>
                             <td>{{ display_datetime(message.created_at) }}</td>

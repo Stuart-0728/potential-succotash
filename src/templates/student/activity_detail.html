@@ -46,7 +46,7 @@
                     <div id="action-buttons" class="d-flex justify-content-between align-items-center flex-wrap">
                         <div class="mb-3 mb-md-0">
                             {% if registration %}
-                                {% if registration.status == 'attended' %}
+                                {% if registration.status == 'attended' or registration.check_in_time %}
                                     <div class="alert alert-info d-inline-block p-2">
                                         <i class="fas fa-check-circle me-2"></i>您已于 {{ display_datetime(registration.check_in_time) }} 签到
                                     </div>
