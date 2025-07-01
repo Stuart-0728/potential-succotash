@@ -126,6 +126,9 @@ def dashboard():
         # 获取学生积分
         points = student_info.points
         
+        # 获取推荐活动
+        recommended_activities = get_recommended_activities(current_user.id)
+
         return render_template(
             'student/dashboard.html',
             student=student_info,
@@ -137,7 +140,8 @@ def dashboard():
             display_datetime=display_datetime,
             now=now,
             safe_less_than=safe_less_than,
-            safe_greater_than=safe_greater_than
+            safe_greater_than=safe_greater_than,
+            recommended_activities=recommended_activities
         )
     except Exception as e:
         logger.error(f"Error in student dashboard: {e}", exc_info=True)
@@ -208,132 +212,46 @@ def activities():
 @login_required
 def activity_detail(id):
     try:
-        # 查询当前用户
-        user = current_user
-        logger.info(f"开始加载活动详情: 活动ID={id}, 用户ID={user.id}")
-        
-        # 获取活动信息
         activity = db.get_or_404(Activity, id)
-        logger.info(f"查询活动数据: ID={id}")
-        logger.info(f"活动数据获取成功: {activity.title}")
-        
-        # 当前北京时间
         now = get_beijing_time()
-        logger.info(f"当前北京时间: {now}")
-        
-        # 查询用户是否已经报名该活动
-        registration = db.session.execute(db.select(Registration).filter_by(user_id=user.id, activity_id=id)).scalar_one_or_none()
-        logger.info(f"查询用户报名信息: 用户ID={user.id}, 活动ID={id}")
-        
-        current_user_registration = registration
-        
-        if registration:
-            logger.info(f"用户报名状态: 已报名")
-            has_registered = True
-            has_checked_in = registration.check_in_time is not None
-        else:
-            logger.info(f"用户报名状态: 未报名")
-            has_registered = False
-            has_checked_in = False
-        
-        # 获取评价数量
-        review_count = db.session.execute(db.select(func.count()).select_from(ActivityReview).filter_by(activity_id=id)).scalar()
-        logger.info(f"获取到活动评价数量: {review_count}")
-        
-        # 获取报名人数
-        logger.info(f"开始查询活动报名人数: 活动ID={id}")
-        registered_count = db.session.execute(db.select(func.count()).select_from(Registration).filter_by(activity_id=id, status='registered')).scalar()
-        logger.info(f"活动报名人数(status='registered'): {registered_count}")
-        
-        # 修复:也统计已签到的用户
-        checked_in_count = db.session.execute(db.select(func.count()).select_from(Registration).filter_by(
-            activity_id=id, 
-            status='attended'
-        )).scalar()
-        logger.info(f"已签到但未计入报名人数的用户: {checked_in_count}人")
-        
+
+        registration = db.session.execute(db.select(Registration).filter_by(user_id=current_user.id, activity_id=id)).scalar_one_or_none()
+        has_registered = registration is not None and registration.status in ['registered', 'attended']
+        has_checked_in = registration.check_in_time is not None if registration else False
+
+        registered_count = db.session.execute(db.select(func.count()).select_from(Registration).filter_by(activity_id=id, status='registered')).scalar() or 0
+        checked_in_count = db.session.execute(db.select(func.count()).select_from(Registration).filter_by(activity_id=id, status='attended')).scalar() or 0
         total_registered = registered_count + checked_in_count
-        logger.info(f"调整后的总报名人数: {total_registered}")
-        
-        # 判断报名状态
-        # 1. 确保活动、截止时间等字段有时区信息，都统一转为北京时间比较
-        try:
-            start_time = ensure_timezone_aware(activity.start_time) if activity.start_time else now
-            end_time = ensure_timezone_aware(activity.end_time) if activity.end_time else now
-            deadline = ensure_timezone_aware(activity.registration_deadline) if activity.registration_deadline else now
-            
-            logger.info(f"时间比较(原始): now={now}, start={activity.start_time}, end={activity.end_time}, deadline={activity.registration_deadline}")
-            logger.info(f"时间比较(时区处理后): now={now}, start={start_time}, end={end_time}, deadline={deadline}")
-            
-            # 判断各时间是否在未来 - 直接使用标准比较而非safe_greater_than
-            is_start_future = start_time > now if start_time and now else False
-            is_end_future = end_time > now if end_time and now else True
-            is_deadline_future = deadline > now if deadline and now else False
-            
-            logger.info(f"时间比较结果: 开始时间在未来={is_start_future}, 结束时间在未来={is_end_future}, 报名截止在未来={is_deadline_future}")
-        except Exception as e:
-            logger.error(f"时间比较出错: {e}")
-            # 默认值
-            is_start_future = False
-            is_end_future = True
-            is_deadline_future = True
-        
-        # 用户可以报名的条件：未报名 且 报名截止时间在未来 且 活动没有结束 且 未达到最大人数限制
-        can_register = (not has_registered and 
-                        is_deadline_future and 
-                        is_end_future and
-                        (activity.max_participants == 0 or total_registered < activity.max_participants))
-        
-        can_cancel = has_registered and is_start_future
-                        
-        # 是否可以签到
-        can_checkin = has_registered and not has_checked_in and (
-            (not is_start_future and is_end_future) or  # 活动已开始但未结束
-            (activity.checkin_enabled)  # 或者管理员已开启了手动签到
+
+        can_register = (
+            not has_registered and
+            activity.status == 'active' and
+            (activity.registration_deadline is None or safe_greater_than(activity.registration_deadline, now)) and
+            (activity.max_participants == 0 or total_registered < activity.max_participants)
         )
-        
-        logger.info(f"用户是否可以报名: {can_register}")
-        
-        # 报名是否开放
-        registration_open = is_deadline_future and (activity.max_participants == 0 or total_registered < activity.max_participants)
-        logger.info(f"报名是否开放: {registration_open}")
-        
-        # 获取用户评价
-        current_user_review = None
-        if current_user.is_authenticated:
-            current_user_review = db.session.execute(db.select(ActivityReview).filter_by(
-                activity_id=id, user_id=current_user.id
-            )).scalar_one_or_none()
-            
-        # 获取所有评价并计算平均分
+
+        can_cancel = has_registered and safe_greater_than(activity.start_time, now)
+
+        can_checkin = (
+            has_registered and 
+            not has_checked_in and 
+            (
+                (safe_less_than_equal(activity.start_time, now) and safe_greater_than(activity.end_time, now)) or 
+                activity.checkin_enabled
+            )
+        )
+
+        current_user_review = db.session.execute(db.select(ActivityReview).filter_by(activity_id=id, user_id=current_user.id)).scalar_one_or_none()
         reviews = db.session.execute(db.select(ActivityReview).filter_by(activity_id=id)).scalars().all()
-        average_rating = 0
-        avg_content_quality = 0
-        avg_organization = 0
-        avg_facility = 0
-        
-        if reviews:
-            ratings_sum = sum(review.rating for review in reviews if review.rating)
-            content_sum = sum(review.content_quality for review in reviews if review.content_quality)
-            org_sum = sum(review.organization for review in reviews if review.organization)
-            facility_sum = sum(review.facility for review in reviews if review.facility)
-            
-            average_rating = ratings_sum / len(reviews)
-            avg_content_quality = content_sum / len(reviews) if content_sum > 0 else 0
-            avg_organization = org_sum / len(reviews) if org_sum > 0 else 0
-            avg_facility = facility_sum / len(reviews) if facility_sum > 0 else 0
-        
-        # 准备模板数据
-        logger.info(f"准备渲染活动详情模板: 活动ID={id}")
-        
-        # 导入时间比较工具函数，确保模板可以访问这些函数
-        from src.utils.time_helpers import safe_less_than, safe_greater_than, safe_greater_than_equal, safe_less_than_equal
-        
-        # 创建一个空表单对象用于CSRF保护
-        from flask_wtf import FlaskForm
+        review_count = len(reviews)
+
+        average_rating = sum(r.rating for r in reviews) / review_count if review_count > 0 else 0
+        avg_content_quality = sum(r.content_quality for r in reviews if r.content_quality) / review_count if review_count > 0 else 0
+        avg_organization = sum(r.organization for r in reviews if r.organization) / review_count if review_count > 0 else 0
+        avg_facility = sum(r.facility for r in reviews if r.facility) / review_count if review_count > 0 else 0
+
         form = FlaskForm()
-        
-        # 兼容性处理：如果模板使用poster_url但Activity中返回None
+
         poster_url = None
         if activity.poster_image:
             if 'banner' in activity.poster_image:
@@ -350,9 +268,9 @@ def activity_detail(id):
                               can_register=can_register,
                               can_cancel=can_cancel,
                               can_checkin=can_checkin,
-                              current_user_registration=current_user_registration,
+                              current_user_registration=registration,
                               current_user_review=current_user_review,
-                              registration_open=registration_open,
+                              registration_open=can_register, # Simplified
                               review_count=review_count,
                               reviews=reviews,
                               average_rating=average_rating,
@@ -367,7 +285,7 @@ def activity_detail(id):
                               safe_greater_than_equal=safe_greater_than_equal,
                               safe_less_than_equal=safe_less_than_equal,
                               poster_url=poster_url)
-                              
+
     except Exception as e:
         logger.error(f"加载活动详情出错: {str(e)}", exc_info=True)
         flash('加载活动详情出错，请稍后重试', 'danger')
@@ -378,129 +296,73 @@ def activity_detail(id):
 def register_activity(id):
     """报名活动"""
     try:
-        # 使用Flask-WTF验证CSRF令牌
-        from flask_wtf import FlaskForm
-        from src.utils.time_helpers import get_localized_now, safe_less_than, safe_greater_than
-        
-        form = FlaskForm()
-        
-        if not form.validate_on_submit():
-            flash('表单验证失败，请重试', 'danger')
-            return redirect(url_for('student.activity_detail', id=id))
-        
-        # 检查活动是否存在
         activity = db.get_or_404(Activity, id)
-        
-        # 检查活动状态
+
         if activity.status != 'active':
-            flash('该活动不在进行中，无法报名', 'warning')
-            return redirect(url_for('student.activity_detail', id=id))
-        
-        # 检查是否已过报名截止时间 - 使用安全比较函数
+            return jsonify({'success': False, 'message': '该活动不在进行中，无法报名'})
+
         now = get_localized_now()
-        logger.info(f"报名活动时间检查 - 当前时间: {now}, 报名截止时间: {activity.registration_deadline}")
-        
-        if safe_less_than(activity.registration_deadline, now):
-            flash('该活动已过报名截止时间', 'warning')
-            return redirect(url_for('student.activity_detail', id=id))
-        
-        # 检查是否已达到人数上限
+        if activity.registration_deadline and safe_less_than(activity.registration_deadline, now):
+            return jsonify({'success': False, 'message': '该活动已过报名截止时间'})
+
         if activity.max_participants > 0:
-            reg_count = db.session.execute(db.select(func.count()).select_from(Registration).filter_by(
-                activity_id=id, 
-                status='registered'
-            )).scalar()
-            
+            reg_count = db.session.execute(db.select(func.count()).select_from(Registration).filter_by(activity_id=id, status='registered')).scalar() or 0
             if reg_count >= activity.max_participants:
-                flash('该活动报名人数已满', 'warning')
-                return redirect(url_for('student.activity_detail', id=id))
-        
-        # 检查用户是否已报名
-        existing_reg = db.session.execute(db.select(Registration).filter_by(
-            user_id=current_user.id,
-            activity_id=id
-        )).scalar_one_or_none()
-        
-        # 如果已有报名记录，检查状态
+                return jsonify({'success': False, 'message': '该活动报名人数已满'})
+
+        existing_reg = db.session.execute(db.select(Registration).filter_by(user_id=current_user.id, activity_id=id)).scalar_one_or_none()
         if existing_reg:
             if existing_reg.status == 'registered':
-                flash('您已报名此活动', 'info')
-                return redirect(url_for('student.activity_detail', id=id))
+                return jsonify({'success': False, 'message': '您已报名此活动'})
             elif existing_reg.status == 'cancelled':
-                # 重新激活已取消的报名
                 existing_reg.status = 'registered'
                 existing_reg.register_time = now
                 db.session.commit()
-                flash('已成功重新报名活动', 'success')
-                return redirect(url_for('student.activity_detail', id=id))
-        
-        # 创建新的报名记录
+                return jsonify({'success': True, 'message': '已成功重新报名活动'})
+
         new_registration = Registration(
             user_id=current_user.id,
             activity_id=id,
             register_time=now,
             status='registered'
         )
-        
         db.session.add(new_registration)
         db.session.commit()
-        
-        flash('报名成功！', 'success')
-        return redirect(url_for('student.activity_detail', id=id))
+
+        return jsonify({'success': True, 'message': '报名成功！'})
     except Exception as e:
         logger.error(f"Error in register activity: {e}")
         db.session.rollback()
-        flash('报名过程中发生错误，请稍后再试', 'danger')
-        return redirect(url_for('student.activity_detail', id=id))
+        return jsonify({'success': False, 'message': '报名过程中发生错误，请稍后再试'})
 
 @student_bp.route('/activity/<int:id>/cancel', methods=['POST'])
 @student_required
 def cancel_registration(id):
     """取消报名"""
     try:
-        # 使用Flask-WTF验证CSRF令牌
-        from flask_wtf import FlaskForm
-        from src.utils.time_helpers import get_localized_now, safe_less_than, safe_greater_than
-        
-        form = FlaskForm()
-        
-        if not form.validate_on_submit():
-            flash('表单验证失败，请重试', 'danger')
-            return redirect(url_for('student.activity_detail', id=id))
-        
-        # 检查活动是否存在
         activity = db.get_or_404(Activity, id)
-        
-        # 检查活动是否已开始 - 使用安全比较函数
+
         now = get_localized_now()
-        logger.info(f"取消报名时间检查 - 当前时间: {now}, 活动开始时间: {activity.start_time}")
-        
         if not safe_greater_than(activity.start_time, now):
-            flash('活动已开始，无法取消报名', 'warning')
-            return redirect(url_for('student.activity_detail', id=id))
-        
-        # 查找报名记录
+            return jsonify({'success': False, 'message': '活动已开始，无法取消报名'})
+
         registration = db.session.execute(db.select(Registration).filter_by(
             user_id=current_user.id,
             activity_id=id,
             status='registered'
         )).scalar_one_or_none()
-        
+
         if not registration:
-            flash('未找到有效的报名记录', 'warning')
-            return redirect(url_for('student.activity_detail', id=id))
-        
-        # 更新报名状态为已取消
+            return jsonify({'success': False, 'message': '未找到有效的报名记录'})
+
         registration.status = 'cancelled'
         db.session.commit()
-        
-        flash('已成功取消报名', 'success')
-        return redirect(url_for('student.activity_detail', id=id))
+
+        return jsonify({'success': True, 'message': '已成功取消报名'})
     except Exception as e:
         logger.error(f"Error in cancel registration: {e}")
         db.session.rollback()
-        flash('取消报名过程中发生错误，请稍后再试', 'danger')
-        return redirect(url_for('student.activity_detail', id=id))
+        return jsonify({'success': False, 'message': '取消报名过程中发生错误，请稍后再试'})
 
 @student_bp.route('/my_activities')
 @student_required
@@ -905,118 +767,68 @@ def recommend():
 @student_required
 def checkin():
     try:
-        # 获取参数
-        key = request.form.get('key')
-        activity_id = request.form.get('activity_id')
-        
+        data = request.get_json()
+        key = data.get('key')
+        activity_id = data.get('activity_id')
+
         if not key or not activity_id:
             return jsonify({
                 'success': False,
                 'message': '参数不完整'
             })
-        
-        # 查找活动
+
         activity = db.session.get(Activity, activity_id)
         if not activity:
             return jsonify({
                 'success': False,
                 'message': '活动不存在'
             })
-        
-        # 检查活动状态
+
         if activity.status != 'active':
             return jsonify({
                 'success': False,
                 'message': '该活动未在进行中，无法签到'
             })
-        
-        # 检查用户是否已报名
+
         registration = db.session.execute(db.select(Registration).filter_by(
             user_id=current_user.id,
             activity_id=activity_id,
             status='registered'
         )).scalar_one_or_none()
-        
+
         if not registration:
             return jsonify({
                 'success': False,
                 'message': '您尚未报名此活动，无法签到'
             })
-        
-        # 检查是否已签到
+
         if registration.check_in_time:
             return jsonify({
                 'success': False,
                 'message': '您已经签到过了'
             })
-        
-        # 检查活动是否开启了签到功能
-        checkin_enabled = getattr(activity, 'checkin_enabled', False)
-        checkin_key = getattr(activity, 'checkin_key', None)
-        checkin_key_expires = getattr(activity, 'checkin_key_expires', None)
-        
-        # 检查签到码是否有效
+
         now = get_localized_now()
-        
-        # 检查签到方式和条件
-        if checkin_enabled:
-            # 如果管理员开启了签到并设置了签到码
-            if checkin_key and checkin_key == key:
-                # 签到码有效期检查
-                if checkin_key_expires and now > checkin_key_expires:
-                    return jsonify({
-                        'success': False,
-                        'message': '签到码已过期'
-                    })
-            else:
-                return jsonify({
-                    'success': False,
-                    'message': '签到码无效'
-                })
-        else:
-            # 未开启手动签到，只能在活动时间内自动签到
-            # 添加一个缓冲时间（比如活动前30分钟到活动结束后30分钟可以签到）
-            buffer_time = timedelta(minutes=30)
-            
-            # 获取活动的开始和结束时间，并添加缓冲
-            start_time = ensure_timezone_aware(activity.start_time)
-            end_time = ensure_timezone_aware(activity.end_time)
-            
-            if not start_time or not end_time:
-                return jsonify({
-                    'success': False,
-                    'message': '活动时间设置有误'
-                })
-            
-            start_time_buffer = start_time - buffer_time
-            end_time_buffer = end_time + buffer_time
-            
-            now_aware = ensure_timezone_aware(now)
-            
-            # 如果没有手动开启签到，则验证当前时间是否在活动时间范围内
-            if not (now_aware >= start_time_buffer and now_aware <= end_time_buffer):
-                return jsonify({
-                    'success': False,
-                    'message': '当前不在签到时间范围内'
-                })
-        
-        # 执行签到
+        if not (activity.checkin_key and activity.checkin_key == key and (not activity.checkin_key_expires or now < activity.checkin_key_expires)):
+            return jsonify({
+                'success': False,
+                'message': '签到码无效或已过期'
+            })
+
         registration.check_in_time = now
+        registration.status = 'attended'
         db.session.commit()
-        
-        # 为签到奖励积分
+
         try:
             points = activity.points if activity.points else 5
             points_reason = f"参加活动: {activity.title}"
             
             student_info = db.session.execute(db.select(StudentInfo).filter_by(user_id=current_user.id)).scalar_one_or_none()
             if student_info:
-                # 更新学生积分
                 student_info.points = (student_info.points or 0) + points
                 
-                # 记录积分历史
                 points_history = PointsHistory(
-                    user_id=current_user.id,
+                    student_id=student_info.id,
                     points=points,
                     reason=points_reason,
                     activity_id=activity_id,
@@ -1025,12 +837,10 @@ def checkin():
                 db.session.add(points_history)
                 db.session.commit()
                 
-                # 记录操作日志
                 log_action('checkin', f'用户 {current_user.username} 签到活动: {activity.title}, 获得 {points} 积分')
         except Exception as e:
             logger.error(f"记录积分失败: {e}")
-            # 不影响签到结果，继续执行
-        
+
         return jsonify({
             'success': True,
             'message': '签到成功！',
@@ -1319,4 +1129,17 @@ def get_unread_notifications():
         })
     except Exception as e:
         logger.error(f"Error in get_unread_notifications: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@student_bp.route('/api/messages/unread_count')
+@student_required
+def unread_message_count():
+    try:
+        count = db.session.query(func.count(Message.id)).filter(
+            Message.receiver_id == current_user.id,
+            Message.is_read == False
+        ).scalar()
+        return jsonify({'success': True, 'count': count})
+    except Exception as e:
+        logger.error(f"Error getting unread message count: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500

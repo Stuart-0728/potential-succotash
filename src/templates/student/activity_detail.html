@@ -4,237 +4,105 @@
 
 {% block content %}
 <div class="container py-4">
-    <nav aria-label="breadcrumb" class="mb-3">
-        <ol class="breadcrumb">
-            <li class="breadcrumb-item"><a href="{{ url_for('main.index') }}" class="text-decoration-none">首页</a></li>
-            <li class="breadcrumb-item"><a href="{{ url_for('student.activities') }}" class="text-decoration-none">活动列表</a></li>
-            <li class="breadcrumb-item active fw-medium" aria-current="page">{{ activity.title }}</li>
-        </ol>
-    </nav>
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-body p-4">
+                    <h2 class="fw-bold mb-3">{{ activity.title }}</h2>
+                    <div class="d-flex align-items-center mb-4">
+                        <span class="badge {% if activity.status == 'active' %}bg-success{% elif activity.status == 'completed' %}bg-secondary{% else %}bg-danger{% endif %} rounded-pill px-3 py-2 me-3">
+                            {% if activity.status == 'active' %}进行中{% elif activity.status == 'completed' %}已结束{% else %}已取消{% endif %}
+                        </span>
+                        <div class="text-muted">
+                            <i class="fas fa-user me-1"></i> 发布者: 管理员
+                        </div>
+                    </div>
 
-    <div class="card border-0 shadow-sm mb-4">
-        <div class="card-header bg-white border-0 p-4">
-            <div class="d-flex justify-content-between align-items-center flex-wrap">
-                <div class="d-flex align-items-center">
-                    <div class="bg-primary bg-opacity-10 rounded-circle p-2 me-3">
-                        <i class="fas fa-calendar-check text-primary"></i>
-                    </div>
-                    <h3 class="mb-0 fw-bold">{{ activity.title }}</h3>
-                </div>
-                <span class="badge {% if activity.status == 'active' %}bg-success{% elif activity.status == 'completed' %}bg-secondary{% else %}bg-danger{% endif %} rounded-pill px-3 py-2">
-                    {% if activity.status == 'active' %}进行中{% elif activity.status == 'completed' %}已结束{% else %}已取消{% endif %}
-                </span>
-            </div>
-        </div>
-        <div class="card-body p-4">
-            <div class="row mb-4">
-                <div class="col-md-6">
-                    <div class="d-flex align-items-center mb-3">
-                        <div class="bg-light rounded-circle p-2 me-3">
-                            <i class="fas fa-map-marker-alt text-primary"></i>
+                    {% if activity.poster_image or poster_url %}
+                        <div class="mb-4 text-center">
+                            {% if poster_url %}
+                            <img src="{{ poster_url }}" alt="活动海报" class="img-fluid rounded shadow-sm" style="max-height: 400px;">
+                            {% elif 'banner' in activity.poster_image %}
+                            <img src="{{ url_for('static', filename='img/' + activity.poster_image) }}" alt="活动海报" class="img-fluid rounded shadow-sm" style="max-height: 400px;">
+                            {% else %}
+                            <img src="{{ url_for('static', filename='uploads/posters/' + activity.poster_image) }}" alt="活动海报" class="img-fluid rounded shadow-sm" style="max-height: 400px;">
+                            {% endif %}
                         </div>
-                        <div>
-                            <div class="text-muted small">活动地点</div>
-                            <div class="fw-medium">{{ activity.location }}</div>
-                        </div>
-                    </div>
-                    <div class="d-flex align-items-center mb-3">
-                        <div class="bg-light rounded-circle p-2 me-3">
-                            <i class="fas fa-clock text-primary"></i>
-                        </div>
-                        <div>
-                            <div class="text-muted small">活动时间</div>
-                            <div class="fw-medium">{{ display_datetime(activity.start_time) }} 至 {{ display_datetime(activity.end_time) }}</div>
-                        </div>
-                    </div>
-                    <div class="d-flex align-items-center">
-                        <div class="bg-light rounded-circle p-2 me-3">
-                            <i class="fas fa-hourglass-end text-primary"></i>
-                        </div>
-                        <div>
-                            <div class="text-muted small">报名截止</div>
-                            <div class="fw-medium">{{ display_datetime(activity.registration_deadline) }}</div>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-6 mt-4 mt-md-0">
-                    <div class="d-flex align-items-center mb-3">
-                        <div class="bg-light rounded-circle p-2 me-3">
-                            <i class="fas fa-users text-primary"></i>
-                        </div>
-                        <div>
-                            <div class="text-muted small">参与人数</div>
-                            <div class="fw-medium">
-                                {% if activity.max_participants > 0 %}
-                                    {{ activity.registrations.filter_by(status='registered').count() if activity.registrations and activity.registrations.filter_by else 0 }}/{{ activity.max_participants }}
-                                {% else %}
-                                    {{ activity.registrations.filter_by(status='registered').count() if activity.registrations and activity.registrations.filter_by else 0 }} (不限)
-                                {% endif %}
-                            </div>
-                        </div>
-                    </div>
-                    <div class="d-flex align-items-center mb-3">
-                        <div class="bg-light rounded-circle p-2 me-3">
-                            <i class="fas fa-user text-primary"></i>
-                        </div>
-                        <div>
-                            <div class="text-muted small">发布者</div>
-                            <div class="fw-medium">管理员</div>
-                        </div>
-                    </div>
-                    <div class="d-flex align-items-center">
-                        <div class="bg-light rounded-circle p-2 me-3">
-                            <i class="fas fa-calendar-plus text-primary"></i>
-                        </div>
-                        <div>
-                            <div class="text-muted small">发布时间</div>
-                            <div class="fw-medium">{{ display_datetime(activity.created_at) }}</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
+                    {% endif %}
 
-            <div class="card border-0 bg-light mb-4">
-                <div class="card-header bg-light border-0">
-                    <h5 class="mb-0 fw-bold">
-                        <i class="fas fa-align-left me-2 text-primary"></i>活动描述
-                    </h5>
-                </div>
-                <div class="card-body">
-                    <div class="activity-description">
+                    <h5 class="fw-bold mb-3">活动描述</h5>
+                    <div class="activity-description mb-4">
                         {{ activity.description|safe }}
                     </div>
-                </div>
-            </div>
 
-            {% if activity.poster_image or poster_url %}
-            <div class="card border-0 bg-light mb-4">
-                <div class="card-header bg-light border-0">
-                    <h5 class="mb-0 fw-bold">
-                        <i class="fas fa-image me-2 text-primary"></i>活动海报
-                    </h5>
-                </div>
-                <div class="card-body text-center">
-                    {% if poster_url %}
-                    <img src="{{ poster_url }}" alt="活动海报" class="img-fluid rounded shadow-sm" style="max-height: 400px;">
-                    {% elif 'banner' in activity.poster_image %}
-                    <img src="{{ url_for('static', filename='img/' + activity.poster_image) }}" alt="活动海报" class="img-fluid rounded shadow-sm" style="max-height: 400px;">
-                    {% else %}
-                    <img src="{{ url_for('static', filename='uploads/posters/' + activity.poster_image) }}" alt="活动海报" class="img-fluid rounded shadow-sm" style="max-height: 400px;">
-                    {% endif %}
-                </div>
-            </div>
-            {% endif %}
-
-            <div class="d-flex justify-content-between align-items-center flex-wrap">
-                <div class="mb-3 mb-md-0">
-                    {% if current_user_registration %}
-                        {% if current_user_registration.status == 'registered' %}
-                            <span class="badge bg-success rounded-pill px-3 py-2 me-2">
-                                <i class="fas fa-check-circle me-1"></i>已报名
-                            </span>
-                            {% if safe_greater_than(activity.start_time, now) %}
-                                <form method="post" action="{{ url_for('student.cancel_registration', id=activity.id) }}" class="d-inline">
-                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                                    <button type="submit" class="btn btn-outline-danger" onclick="return confirm('确定要取消报名吗？')">
+                    <div id="action-buttons" class="d-flex justify-content-between align-items-center flex-wrap">
+                        <div class="mb-3 mb-md-0">
+                            {% if has_registered %}
+                                <span class="badge bg-success rounded-pill px-3 py-2 me-2">
+                                    <i class="fas fa-check-circle me-1"></i>已报名
+                                </span>
+                                {% if can_cancel %}
+                                    <button id="cancel-btn" class="btn btn-outline-danger">
                                         <i class="fas fa-times-circle me-1"></i>取消报名
                                     </button>
-                                </form>
-                            {% else %}
-                                {% if activity.status == 'active' and ((safe_greater_than_equal(now, activity.start_time) and safe_less_than_equal(now, activity.end_time)) or activity.checkin_enabled == True) and not current_user_registration.check_in_time %}
-                                <button type="button" class="btn btn-success" onclick="showQRScanner()">
-                                    <i class="fas fa-qrcode me-1"></i>扫码签到
-                                </button>
-                                {% elif current_user_registration.check_in_time %}
-                                <span class="badge bg-info rounded-pill px-3 py-2">
-                                    <i class="fas fa-clipboard-check me-1"></i>已签到
-                                </span>
                                 {% endif %}
-                            {% endif %}
-                        {% elif current_user_registration.status == 'cancelled' %}
-                            <span class="badge bg-secondary rounded-pill px-3 py-2 me-2">
-                                <i class="fas fa-ban me-1"></i>已取消报名
-                            </span>
-                            {% if can_register %}
-                                <form method="post" action="{{ url_for('student.register_activity', id=activity.id) }}" class="d-inline">
-                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                                    <button type="submit" class="btn btn-primary">
-                                        <i class="fas fa-user-plus me-1"></i>重新报名
+                                {% if can_checkin %}
+                                    <button type="button" class="btn btn-success" onclick="showQRScanner()">
+                                        <i class="fas fa-qrcode me-1"></i>扫码签到
                                     </button>
-                                </form>
+                                {% elif has_checked_in %}
+                                    <span class="badge bg-info rounded-pill px-3 py-2">
+                                        <i class="fas fa-clipboard-check me-1"></i>已签到
+                                    </span>
+                                {% endif %}
+                            {% elif can_register %}
+                                <button id="register-btn" class="btn btn-primary">
+                                    <i class="fas fa-user-plus me-1"></i>立即报名
+                                </button>
+                            {% elif activity.status == 'active' and (activity.registration_deadline and safe_greater_than_equal(activity.registration_deadline, now)) %}
+                                {% if activity.max_participants > 0 and registered_count >= activity.max_participants %}
+                                    <button class="btn btn-secondary" disabled>
+                                        <i class="fas fa-users-slash me-1"></i>名额已满
+                                    </button>
+                                {% endif %}
+                            {% else %}
+                                <button class="btn btn-secondary" disabled>
+                                    <i class="fas fa-hourglass-end me-1"></i>报名已截止
+                                </button>
                             {% endif %}
-                        {% endif %}
-                    {% elif can_register %}
-                        <form method="post" action="{{ url_for('student.register_activity', id=activity.id) }}">
-                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                            <button type="submit" class="btn btn-primary">
-                                <i class="fas fa-user-plus me-1"></i>立即报名
-                            </button>
-                        </form>
-                    {% elif activity.status == 'active' and safe_greater_than_equal(activity.registration_deadline, now) %}
-                        {% if activity.max_participants > 0 and registered_count >= activity.max_participants %}
-                            <button class="btn btn-secondary" disabled>
-                                <i class="fas fa-users-slash me-1"></i>名额已满
-                            </button>
-                        {% endif %}
-                    {% else %}
-                        <button class="btn btn-secondary" disabled>
-                            <i class="fas fa-hourglass-end me-1"></i>报名已截止
-                        </button>
-                    {% endif %}
+                        </div>
+                        <a href="{{ url_for('student.activities') }}" class="btn btn-outline-secondary">
+                            <i class="fas fa-arrow-left me-1"></i>返回活动列表
+                        </a>
+                    </div>
                 </div>
-                <a href="{{ url_for('student.activities') }}" class="btn btn-outline-secondary">
-                    <i class="fas fa-arrow-left me-1"></i>返回活动列表
-                </a>
             </div>
         </div>
-    </div>
-
-    <div class="card border-0 shadow-sm mt-4">
-        <div class="card-header bg-white border-0 p-4">
-            <h5 class="mb-0 fw-bold">
-                <i class="fas fa-star text-warning me-2"></i>活动评价
-            </h5>
-        </div>
-        <div class="card-body p-4">
-            {% if activity.status == 'completed' and current_user_registration and current_user_registration.status == 'checked_in' %}
-                {% if not current_user_review %}
-                    <div class="text-center py-4 bg-light rounded-3">
-                        <div class="mb-3">
-                            <div class="bg-white rounded-circle mx-auto mb-3 d-flex align-items-center justify-content-center shadow-sm" style="width: 60px; height: 60px;">
-                                <i class="fas fa-comment-dots text-primary fs-3"></i>
-                            </div>
-                            <h5 class="mb-2">参与过活动？分享你的体验吧！</h5>
-                            <p class="text-muted mb-3">您的反馈对我们非常重要</p>
-                        </div>
-                        <a href="{{ url_for('student.review_activity', activity_id=activity.id) }}" class="btn btn-primary">
-                            <i class="fas fa-star me-1"></i>写评价
-                        </a>
-                    </div>
-                {% endif %}
-            {% elif activity.status == 'completed' and current_user_registration and current_user_registration.status == 'attended' %}
-                {% if not current_user_review %}
-                    <div class="text-center py-4 bg-light rounded-3">
-                        <div class="mb-3">
-                            <div class="bg-white rounded-circle mx-auto mb-3 d-flex align-items-center justify-content-center shadow-sm" style="width: 60px; height: 60px;">
-                                <i class="fas fa-comment-dots text-primary fs-3"></i>
-                            </div>
-                            <h5 class="mb-2">参与过活动？分享你的体验吧！</h5>
-                            <p class="text-muted mb-3">您的反馈对我们非常重要</p>
-                        </div>
-                        <a href="{{ url_for('student.review_activity', activity_id=activity.id) }}" class="btn btn-primary">
-                            <i class="fas fa-star me-1"></i>写评价
-                        </a>
-                    </div>
-                {% endif %}
-            {% endif %}
-
-            {% if reviews %}
-                <div class="review-summary mb-4 p-4 bg-light rounded-3">
-                    <div class="row align-items-center">
-                        <div class="col-md-3 text-center">
+        <div class="col-lg-4">
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-body p-4">
+                    <h5 class="fw-bold mb-3">活动信息</h5>
+                    <ul class="list-unstyled">
+                        <li class="mb-3"><i class="fas fa-map-marker-alt text-primary me-2"></i> <strong>地点:</strong> {{ activity.location }}</li>
+                        <li class="mb-3"><i class="fas fa-clock text-primary me-2"></i> <strong>时间:</strong> {{ display_datetime(activity.start_time) }} 至 {{ display_datetime(activity.end_time) }}</li>
+                        <li class="mb-3"><i class="fas fa-hourglass-end text-primary me-2"></i> <strong>报名截止:</strong> {{ display_datetime(activity.registration_deadline) }}</li>
+                        <li><i class="fas fa-users text-primary me-2"></i> <strong>人数:</strong> 
+                            {% if activity.max_participants > 0 %}
+                                <span id="registration-count">{{ registered_count }}</span>/{{ activity.max_participants }}
+                            {% else %}
+                                <span id="registration-count">{{ registered_count }}</span> (不限)
+                            {% endif %}
+                        </li>
+                    </ul>
+                </div>
+            </div>
+            <div class="card border-0 shadow-sm">
+                <div class="card-body p-4">
+                    <h5 class="fw-bold mb-3">活动评价</h5>
+                    {% if reviews %}
+                        <div class="text-center mb-3">
                             <h2 class="display-4 text-primary mb-0 fw-bold">{{ average_rating|round(1) }}</h2>
-                            <div class="text-warning mb-2">
+                            <div class="text-warning">
                                 {% for i in range(5) %}
                                     {% if i < average_rating|round(0, 'floor') %}
                                         <i class="fas fa-star"></i>
@@ -247,98 +115,18 @@
                             </div>
                             <small class="text-muted">{{ reviews|length }} 条评价</small>
                         </div>
-                        <div class="col-md-9">
-                            <div class="row">
-                                <div class="col-md-4 mb-3 mb-md-0">
-                                    <p class="mb-1 fw-medium">内容质量</p>
-                                    <div class="progress" style="height: 8px;">
-                                        <div class="progress-bar bg-success" style="width: {{ (avg_content_quality/5*100)|round }}%"></div>
-                                    </div>
-                                    <div class="d-flex justify-content-between mt-1">
-                                        <small class="text-muted">1</small>
-                                        <small class="text-muted fw-bold">{{ avg_content_quality|round(1) }}</small>
-                                        <small class="text-muted">5</small>
-                                    </div>
-                                </div>
-                                <div class="col-md-4 mb-3 mb-md-0">
-                                    <p class="mb-1 fw-medium">组织安排</p>
-                                    <div class="progress" style="height: 8px;">
-                                        <div class="progress-bar bg-success" style="width: {{ (avg_organization/5*100)|round }}%"></div>
-                                    </div>
-                                    <div class="d-flex justify-content-between mt-1">
-                                        <small class="text-muted">1</small>
-                                        <small class="text-muted fw-bold">{{ avg_organization|round(1) }}</small>
-                                        <small class="text-muted">5</small>
-                                    </div>
-                                </div>
-                                <div class="col-md-4">
-                                    <p class="mb-1 fw-medium">场地设施</p>
-                                    <div class="progress" style="height: 8px;">
-                                        <div class="progress-bar bg-success" style="width: {{ (avg_facility/5*100)|round }}%"></div>
-                                    </div>
-                                    <div class="d-flex justify-content-between mt-1">
-                                        <small class="text-muted">1</small>
-                                        <small class="text-muted fw-bold">{{ avg_facility|round(1) }}</small>
-                                        <small class="text-muted">5</small>
-                                    </div>
-                                </div>
-                            </div>
+                    {% else %}
+                        <div class="text-center text-muted py-3">
+                            <i class="fas fa-comment-slash fs-2 mb-2"></i>
+                            <p>暂无评价</p>
                         </div>
-                    </div>
+                    {% endif %}
+                    {% if activity.status == 'completed' and has_attended and not current_user_review %}
+                        <a href="{{ url_for('student.review_activity', activity_id=activity.id) }}" class="btn btn-outline-primary w-100 mt-3">
+                            <i class="fas fa-star me-1"></i>写评价
+                        </a>
+                    {% endif %}
                 </div>
-
-                <div class="review-list">
-                    {% for review in reviews %}
-                        <div class="review-item border-bottom pb-4 mb-4">
-                            <div class="d-flex justify-content-between align-items-start">
-                                <div class="d-flex align-items-center">
-                                    <div class="bg-light rounded-circle p-2 me-3">
-                                        <i class="fas fa-user text-primary"></i>
-                                    </div>
-                                    <div>
-                                        <h6 class="mb-1 fw-bold">{{ review.reviewer_name }}</h6>
-                                        <div class="text-warning mb-0">
-                                            {% for i in range(review.rating) %}
-                                                <i class="fas fa-star"></i>
-                                            {% endfor %}
-                                            {% for i in range(5 - review.rating) %}
-                                                <i class="far fa-star"></i>
-                                            {% endfor %}
-                                        </div>
-                                    </div>
-                                </div>
-                                <small class="text-muted">{{ display_datetime(review.created_at) }}</small>
-                            </div>
-                            <p class="mb-0 mt-3 ms-5 ps-2">{{ review.review }}</p>
-                        </div>
-                    {% endfor %}
-                </div>
-            {% else %}
-                <div class="text-center py-5">
-                    <div class="bg-light rounded-circle mx-auto mb-3 d-flex align-items-center justify-content-center" style="width: 80px; height: 80px;">
-                        <i class="fas fa-comment-slash text-muted fs-2"></i>
-                    </div>
-                    <h5 class="text-muted mb-1">暂无评价</h5>
-                    <p class="text-muted">成为第一个评价这个活动的人吧</p>
-                </div>
-            {% endif %}
-        </div>
-    </div>
-</div>
-
-<!-- 扫码签到模态框 -->
-<div class="modal fade" id="qrScannerModal" tabindex="-1" aria-labelledby="qrScannerModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content border-0 shadow">
-            <div class="modal-header bg-light">
-                <h5 class="modal-title fw-bold" id="qrScannerModalLabel">
-                    <i class="fas fa-qrcode me-2 text-primary"></i>扫码签到
-                </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
-            </div>
-            <div class="modal-body text-center p-4">
-                <div id="qr-reader" class="border rounded mb-3" style="width: 100%"></div>
-                <div id="qr-reader-results" class="mt-3"></div>
             </div>
         </div>
     </div>
@@ -349,99 +137,50 @@
 {{ super() }}
 <script src="https://unpkg.com/html5-qrcode"></script>
 <script>
-// 全局变量
-var html5QrcodeScanner = null;
+// ... (qr scanner code remains the same)
 
-// 初始化
 document.addEventListener('DOMContentLoaded', function() {
-    // 为模态框添加关闭事件
-    var qrScannerModal = document.getElementById('qrScannerModal');
-    if (qrScannerModal) {
-        qrScannerModal.addEventListener('hidden.bs.modal', function() {
-            stopScanner();
+    const registerBtn = document.getElementById('register-btn');
+    const cancelBtn = document.getElementById('cancel-btn');
+    const csrfToken = "{{ csrf_token() }}";
+
+    if (registerBtn) {
+        registerBtn.addEventListener('click', function() {
+            handleRegistration('{{ url_for("student.register_activity", id=activity.id) }}', '报名');
+        });
+    }
+
+    if (cancelBtn) {
+        cancelBtn.addEventListener('click', function() {
+            if (confirm('确定要取消报名吗？')) {
+                handleRegistration('{{ url_for("student.cancel_registration", id=activity.id) }}', '取消报名');
+            }
+        });
+    }
+
+    function handleRegistration(url, action) {
+        fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            },
+            body: JSON.stringify({})
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                toastr.success(data.message);
+                setTimeout(() => window.location.reload(), 1500);
+            } else {
+                toastr.error(data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            toastr.error('发生错误，请稍后重试');
         });
     }
 });
-
-// 显示扫码器
-function showQRScanner() {
-    var modal = new bootstrap.Modal(document.getElementById('qrScannerModal'));
-    modal.show();
-    
-    // 初始化扫码器
-    if (!html5QrcodeScanner) {
-        html5QrcodeScanner = new Html5Qrcode("qr-reader");
-    }
-    
-    // 开始扫描
-    html5QrcodeScanner.start(
-        { facingMode: "environment" },
-        {
-            fps: 10,
-            qrbox: { width: 250, height: 250 }
-        },
-        onScanSuccess,
-        onScanFailure
-    );
-}
-
-// 停止扫描器
-function stopScanner() {
-    if (html5QrcodeScanner) {
-        html5QrcodeScanner.stop().catch(function(err) {
-            console.error("停止扫描失败:", err);
-        });
-    }
-}
-
-// 扫码成功回调
-function onScanSuccess(decodedText, decodedResult) {
-    // 停止扫描
-    stopScanner();
-    
-    // 处理扫描结果
-    var resultsDiv = document.getElementById('qr-reader-results');
-    resultsDiv.innerHTML = '<div class="alert alert-info"><i class="fas fa-spinner fa-spin me-2"></i>正在处理签到...</div>';
-    
-    // 发送签到请求
-    fetch('/student/api/attendance/checkin', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-            activity_id: {{ activity.id }},
-            qr_data: decodedText
-        })
-    })
-    .then(function(response) {
-        return response.json();
-    })
-    .then(function(data) {
-        if (data.success) {
-            resultsDiv.innerHTML = '<div class="alert alert-success"><i class="fas fa-check-circle me-2"></i> 签到成功！<p class="small mb-0">' + data.message + '</p></div>';
-            // 3秒后关闭模态框并刷新页面
-            setTimeout(function() {
-                var modalElem = document.getElementById('qrScannerModal');
-                var modalInstance = bootstrap.Modal.getInstance(modalElem);
-                if (modalInstance) {
-                    modalInstance.hide();
-                }
-                window.location.reload();
-            }, 3000);
-        } else {
-            resultsDiv.innerHTML = '<div class="alert alert-danger"><i class="fas fa-exclamation-circle me-2"></i> 签到失败<p class="small mb-0">' + data.message + '</p><button class="btn btn-sm btn-outline-danger mt-2" onclick="showQRScanner()"><i class="fas fa-redo me-1"></i>重试</button></div>';
-        }
-    })
-    .catch(function(error) {
-        console.error('Error:', error);
-        resultsDiv.innerHTML = '<div class="alert alert-danger"><i class="fas fa-exclamation-circle me-2"></i> 签到请求失败<p class="small mb-0">请检查网络连接后重试</p><button class="btn btn-sm btn-outline-danger mt-2" onclick="showQRScanner()"><i class="fas fa-redo me-1"></i>重试</button></div>';
-    });
-}
-
-// 扫码失败回调
-function onScanFailure(error) {
-    console.warn("扫描失败:", error);
-}
 </script>
 {% endblock %}

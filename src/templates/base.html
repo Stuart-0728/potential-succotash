@@ -10,6 +10,8 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Toastr CSS -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css">
     <!-- Custom CSS -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     {% block styles %}{% endblock %}
@@ -571,6 +573,11 @@
                                 <a class="nav-link" href="{{ url_for('student.my_activities') }}">我的活动</a>
                             </li>
                             <li class="nav-item">
+                                <a class="nav-link" href="{{ url_for('student.messages') }}">
+                                    消息 <span id="unread-messages-badge" class="badge bg-danger" style="display: none;"></span>
+                                </a>
+                            </li>
+                            <li class="nav-item">
                                 <a class="nav-link" href="{{ url_for('student.points') }}">我的积分</a>
                             </li>
                         {% endif %}
@@ -674,6 +681,8 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <!-- jQuery -->
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <!-- Toastr JS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
     <!-- Custom JS -->
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>
     <!-- AI Chat JS -->
@@ -737,6 +746,27 @@
             const modal = new bootstrap.Modal(document.getElementById('aiChatInfoModal'));
             modal.show();
         }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            function updateUnreadMessages() {
+                fetch("{{ url_for('student.unread_message_count') }}")
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success && data.count > 0) {
+                            const badge = document.getElementById('unread-messages-badge');
+                            badge.textContent = data.count;
+                            badge.style.display = 'inline';
+                        } else {
+                            document.getElementById('unread-messages-badge').style.display = 'none';
+                        }
+                    });
+            }
+
+            if (document.body.dataset.userLoggedIn === 'true') {
+                updateUnreadMessages();
+                setInterval(updateUnreadMessages, 60000); // 每分钟更新一次
+            }
+        });
     </script>
 </body>
 </html>

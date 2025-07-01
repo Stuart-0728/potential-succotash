@@ -91,9 +91,9 @@ class Config:
     INSTANCE_PATH = INSTANCE_PATH
     DB_PATH = DB_PATH
     
-    # 优先使用环境变量中的数据库URL
+    # 优先使用环境变量中的数据库URL，默认为本地PostgreSQL数据库
     SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or \
-        'postgresql://cqnureg2_user:Pz8ZVfyLYOD22fkxp9w2XP7B9LsKAPqE@dpg-d1dugl7gi27c73er9p8g-a.oregon-postgres.render.com/cqnureg2'
+        'postgresql://localhost/cqnu_local'
     
     # 如果数据库URL是以postgres://开头，则替换为postgresql://
     # 这是因为SQLAlchemy 1.4+要求PostgreSQL连接URL使用postgresql://前缀

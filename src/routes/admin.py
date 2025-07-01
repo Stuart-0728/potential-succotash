@@ -718,11 +718,14 @@ def delete_student(id):
         flash('删除学生账号时出错', 'danger')
         return redirect(url_for('admin.students'))
 
-@admin_bp.route('/student/<int:id>')
+@admin_bp.route('/student/<int:user_id>')
 @admin_required
-def student_view(id):
-    student = db.get_or_404(StudentInfo, id)
-    user = db.get_or_404(User, student.user_id)
+def student_view(user_id):
+    user = db.get_or_404(User, user_id)
+    student = db.session.execute(db.select(StudentInfo).filter_by(user_id=user_id)).scalar_one_or_none()
+    if not student:
+        flash('未找到该学生的详细信息', 'warning')
+        return redirect(url_for('admin.students'))
     
     # 使用SQLAlchemy 2.0风格查询
     points_stmt = db.select(PointsHistory).filter_by(student_id=student.id).order_by(PointsHistory.created_at.desc())

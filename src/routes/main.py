@@ -397,3 +397,24 @@ def uploaded_file(filename):
     except Exception as e:
         logger.error(f"Error accessing uploaded file {filename}: {e}")
         abort(404)
+
+@main_bp.route('/utils/ai_chat/clear_history', methods=['POST'])
+@login_required
+def clear_ai_chat_history():
+    try:
+        data = request.get_json()
+        session_id = data.get('session_id')
+
+        if not session_id:
+            return jsonify({'success': False, 'message': '缺少 session_id'}), 400
+
+        from src.models import AIChatHistory
+        AIChatHistory.query.filter_by(session_id=session_id, user_id=current_user.id).delete()
+        db.session.commit()
+
+        return jsonify({'success': True, 'message': '聊天记录已清除'})
+
+    except Exception as e:
+        logger.error(f"清除聊天记录时出错: {e}")
+        db.session.rollback()
+        return jsonify({'success': False, 'message': '服务器错误'}), 500

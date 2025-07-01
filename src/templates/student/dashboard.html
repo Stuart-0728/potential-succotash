@@ -195,9 +195,9 @@
                 </div>
             </div>
             <div class="card-body p-4">
-                {% if upcoming_activities %}
+                {% if recommended_activities %}
                     <div class="row row-cols-1 row-cols-md-3 g-4">
-                        {% for activity in upcoming_activities %}
+                        {% for activity in recommended_activities %}
                             <div class="col">
                                 <div class="card border-0 shadow-sm h-100 position-relative overflow-hidden">
                                     {% if safe_less_than(activity.registration_deadline, now) %}
