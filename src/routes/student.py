@@ -575,6 +575,9 @@ def delete_account():
 @login_required
 def points():
     try:
+        # 导入display_datetime函数
+        from src.utils.time_helpers import display_datetime
+        
         student_info = db.session.execute(db.select(StudentInfo).filter_by(user_id=current_user.id)).scalar_one_or_none()
         if not student_info:
             flash('请先完善个人信息', 'warning')
@@ -585,7 +588,8 @@ def points():
         
         return render_template('student/points.html', 
                              student_info=student_info,
-                             points_history=points_history)
+                             points_history=points_history,
+                             display_datetime=display_datetime)
     except Exception as e:
         logger.error(f"Error in student points page: {e}")
         flash('加载积分信息时出错', 'danger')
