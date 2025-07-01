@@ -24,12 +24,26 @@ if 'ARK_API_KEY' not in os.environ and 'VOLCANO_API_KEY' in os.environ:
 
 # 添加应用路径到Python路径
 current_dir = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, current_dir)
+parent_dir = os.path.dirname(current_dir)
+sys.path.insert(0, parent_dir)
+logger.info(f"添加路径到Python路径: {parent_dir}")
 
-# 创建应用
-from src import create_app
-app = create_app()
-logger.info("应用创建成功")
+# 打印当前Python路径以便调试
+logger.info(f"Python路径: {sys.path}")
+
+try:
+    # 创建应用
+    from src import create_app
+    app = create_app()
+    logger.info("应用创建成功")
+except ImportError as e:
+    logger.error(f"导入错误: {e}")
+    # 尝试列出目录内容
+    if os.path.exists(parent_dir):
+        logger.info(f"父目录 {parent_dir} 内容: {os.listdir(parent_dir)}")
+    if os.path.exists(os.path.join(parent_dir, 'src')):
+        logger.info(f"src目录内容: {os.listdir(os.path.join(parent_dir, 'src'))}")
+    raise
 
 # Render需要的WSGI应用对象
 def main_handler(event, context):
