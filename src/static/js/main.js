@@ -227,7 +227,8 @@ function initToastSystem() {
         toast.setAttribute('aria-atomic', 'true');
         toast.id = toastId;
         toast.style.maxWidth = '300px';
-        toast.style.fontSize = '0.9rem';
+        toast.style.fontSize = '0.85rem';
+        toast.style.padding = '0.25rem';
         
         // 设置不同类型的背景色
         let bgClass = 'bg-primary';
@@ -242,10 +243,10 @@ function initToastSystem() {
         
         toast.innerHTML = `
             <div class="d-flex">
-                <div class="toast-body py-2">
+                <div class="toast-body py-1 px-2">
                     ${message}
                 </div>
-                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+                <button type="button" class="btn-close btn-close-white me-1 m-auto" data-bs-dismiss="toast" aria-label="Close" style="font-size: 0.7rem;"></button>
             </div>
         `;
         
