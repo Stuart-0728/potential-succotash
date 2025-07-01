@@ -84,6 +84,7 @@
                                         <i class="fas fa-eye"></i> 查看
                                     </a>
                                     <form method="post" action="{{ url_for('student.delete_message', id=message.id) }}" onsubmit="return confirm('确定要删除此消息吗？');" class="d-inline">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                         <button type="submit" class="btn btn-sm btn-outline-danger">
                                             <i class="fas fa-trash-alt"></i> 删除
                                         </button>

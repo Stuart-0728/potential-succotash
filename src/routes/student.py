@@ -395,10 +395,16 @@ def my_activities():
         if not any(status == s for s in ['active', 'completed']):
             query = query.join(ActivityAlias, ActivityAlias.id == Registration.activity_id)
         
-        registrations = query.order_by(ActivityAlias.start_time.desc()).paginate(page=page, per_page=10)
-        
-        # 记录分页后的记录数量
-        logger.info(f"my_activities - 分页后有 {len(registrations.items)} 条记录, 总页数: {registrations.pages}")
+        # 执行查询并分页
+        try:
+            registrations = query.order_by(ActivityAlias.start_time.desc()).paginate(page=page, per_page=10)
+            logger.info(f"my_activities - 分页后有 {len(registrations.items)} 条记录, 总页数: {registrations.pages}")
+        except Exception as e:
+            logger.error(f"分页查询出错: {e}")
+            # 尝试使用兼容方法
+            from src.utils import get_compatible_paginate
+            registrations = get_compatible_paginate(db, query.order_by(ActivityAlias.start_time.desc()), page=page, per_page=10, error_out=False)
+            logger.info(f"使用兼容分页方法后有 {len(registrations.items)} 条记录")
         
         # 记录每个活动的详细信息，方便调试
         for reg in registrations.items:
@@ -411,6 +417,7 @@ def my_activities():
         reviewed_activity_ids = db.session.execute(db.select(ActivityReview.activity_id).filter_by(user_id=current_user.id)).scalars().all()
         pending_reviews = [reg.activity_id for reg in registrations.items if reg.activity and reg.activity.status == 'completed' and reg.activity_id not in reviewed_activity_ids]
         
+        # 确保模板中能正确处理数据
         return render_template('student/my_activities.html', 
                               registrations=registrations,
                               current_status=status,
@@ -1029,6 +1036,7 @@ def create_message():
 
 @student_bp.route('/message/<int:id>/delete', methods=['POST'])
 @student_required
+@csrf.exempt  # 豁免CSRF保护
 def delete_message(id):
     try:
         message = db.get_or_404(Message, id)
