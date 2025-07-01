@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify
+from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify, current_app, abort, session, Response
 from flask_login import login_required, current_user
 from src.models import db, Activity, Registration, User, StudentInfo, PointsHistory, ActivityReview, Tag, Message, Notification, NotificationRead, Role
 from datetime import datetime, timedelta
@@ -11,6 +11,10 @@ from wtforms import StringField, TextAreaField, IntegerField, SelectField, Submi
 from wtforms.validators import DataRequired, Length, Optional, NumberRange, Email, Regexp
 from flask_wtf import FlaskForm
 from src.utils.time_helpers import get_localized_now, get_beijing_time, ensure_timezone_aware, display_datetime, safe_compare, safe_less_than, safe_greater_than, safe_greater_than_equal, safe_less_than_equal
+from src.utils import get_compatible_paginate
+from sqlalchemy.orm import joinedload
+import pytz
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -161,7 +165,7 @@ def activities():
         query = query.order_by(Activity.start_time)
             
         # 分页
-        activities = db.paginate(query, page=page, per_page=10)
+        activities = get_compatible_paginate(db, query, page=page, per_page=10, error_out=False)
         
         # 查询用户已报名的活动ID（只包含已报名和已签到的，不包括已取消的）
         reg_stmt = db.select(Registration.activity_id).filter(

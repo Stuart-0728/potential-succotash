@@ -13,7 +13,7 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 INSTANCE_PATH = os.path.join(BASE_DIR, 'instance')
 DB_PATH = os.path.join(INSTANCE_PATH, 'cqnu_association.db')
 LOG_PATH = os.path.join(BASE_DIR, 'logs')
-UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static', 'uploads')
+UPLOAD_FOLDER = os.environ.get('PERSISTENT_STORAGE_PATH', '/var/data/posters') # Render Disk 挂载点
 SESSION_FILE_DIR = os.path.join(BASE_DIR, 'flask_session')
 
 # 确保目录存在并设置权限
@@ -53,10 +53,7 @@ def ensure_directories():
     # 确保上传目录存在
     if not os.path.exists(UPLOAD_FOLDER):
         os.makedirs(UPLOAD_FOLDER)
-        # 创建海报目录
-        poster_path = os.path.join(UPLOAD_FOLDER, 'posters')
-        if not os.path.exists(poster_path):
-            os.makedirs(poster_path)
+        
     
     # 确保session目录存在
     if not os.path.exists(SESSION_FILE_DIR):

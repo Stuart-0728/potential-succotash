@@ -30,6 +30,7 @@ from src.routes.utils import admin_required, log_action
 from src.utils.time_helpers import normalize_datetime_for_db, display_datetime, ensure_timezone_aware, get_beijing_time, get_localized_now, safe_less_than, safe_greater_than
 from src.forms import ActivityForm  # 添加ActivityForm导入
 from flask_wtf.csrf import generate_csrf, validate_csrf
+from src.utils import get_compatible_paginate
 
 # 创建蓝图
 admin_bp = Blueprint('admin', __name__)
@@ -178,13 +179,31 @@ def dashboard():
 @admin_required
 def activities(status='all'):
     try:
+        from src.utils import get_compatible_paginate
+        
         page = request.args.get('page', 1, type=int)
+        search = request.args.get('search', '')
         
         # 基本查询
         query = db.select(Activity)
         
-        # 根据状态筛选
-        if status == 'active':
+        # 搜索功能
+        if search:
+            query = query.filter(
+                db.or_(
+                    Activity.title.ilike(f'%{search}%'),
+                    Activity.description.ilike(f'%{search}%')
+                )
+            )
+        
+        # 状态筛选
+        if status == 'upcoming':
+            now = get_localized_now()
+            query = query.filter(
+                Activity.status == 'active',
+                Activity.start_time > now
+            )
+        elif status == 'active':
             query = query.filter(Activity.status == 'active')
         elif status == 'completed':
             query = query.filter(Activity.status == 'completed')
@@ -194,8 +213,8 @@ def activities(status='all'):
         # 排序
         query = query.order_by(Activity.created_at.desc())
         
-        # 分页查询
-        activities = db.paginate(query, page=page, per_page=10)
+        # 使用兼容性分页查询
+        activities = get_compatible_paginate(db, query, page=page, per_page=10, error_out=False)
         
         # 优化：使用子查询一次性获取所有活动的报名人数
         activity_ids = [activity.id for activity in activities.items]
@@ -605,13 +624,15 @@ def edit_activity(id):
     except Exception as e:
         db.session.rollback()
         logger.error(f"Error in edit_activity: {e}", exc_info=True)
-        flash('编辑活动时出错，请重试', 'danger')
+        flash('编辑活动时出错', 'danger')
         return redirect(url_for('admin.activities'))
 
 @admin_bp.route('/students')
 @admin_required
 def students():
     try:
+        from src.utils import get_compatible_paginate
+        
         page = request.args.get('page', 1, type=int)
         search = request.args.get('search', '')
         
@@ -629,8 +650,9 @@ def students():
                 )
             )
         
-        # 使用db.paginate进行分页
-        students = db.paginate(query.order_by(StudentInfo.id.desc()), page=page, per_page=20)
+        # 使用兼容性分页
+        query = query.order_by(StudentInfo.id.desc())
+        students = get_compatible_paginate(db, query, page=page, per_page=20, error_out=False)
         
         # 确保所有学生记录都有qq和has_selected_tags字段的值
         for student in students.items:

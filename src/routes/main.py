@@ -12,6 +12,7 @@ import traceback
 import pytz
 from flask_wtf import FlaskForm
 import os
+from src.utils import get_compatible_paginate
 
 logger = logging.getLogger(__name__)
 
@@ -189,7 +190,7 @@ def activities():
         query = query.order_by(Activity.created_at.desc())
         
         # 分页
-        activities_list = db.paginate(query, page=page, per_page=9)
+        activities_list = get_compatible_paginate(db, query, page=page, per_page=9, error_out=False)
         
         # 获取用户已报名的活动ID列表
         registered_activity_ids = []
