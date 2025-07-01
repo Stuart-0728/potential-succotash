@@ -2617,6 +2617,12 @@ def messages():
 @admin_required
 def create_message():
     try:
+        logger.info("开始创建站内信")
+        
+        # 创建一个空表单对象用于CSRF保护
+        from flask_wtf import FlaskForm
+        form = FlaskForm()
+        
         if request.method == 'POST':
             receiver_id = request.form.get('receiver_id')
             subject = request.form.get('subject')
@@ -2652,7 +2658,8 @@ def create_message():
         
         return render_template('admin/message_form.html', 
                               students=students,
-                              title='发送消息')
+                              title='发送消息',
+                              form=form)
     except Exception as e:
         logger.error(f"Error in create_message: {e}")
         flash('发送消息时出错', 'danger')

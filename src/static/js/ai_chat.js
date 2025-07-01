@@ -159,9 +159,7 @@ class AIChatSession {
         // 发送清除历史的请求
         return fetch(`/utils/ai_chat/clear_history`, {
             method: 'POST',
-            headers: {
-                'X-CSRFToken': csrfToken
-            },
+            // 不设置Content-Type，让浏览器自动设置为multipart/form-data
             body: formData
         })
         .then(response => {
