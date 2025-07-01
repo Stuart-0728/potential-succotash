@@ -154,11 +154,16 @@ function showQRScanner() {
                 <div class="modal-content">
                     <div class="modal-header">
                         <h5 class="modal-title">扫描签到二维码</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" onclick="closeQRScanner()"></button>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭" onclick="closeQRScanner()"></button>
                     </div>
                     <div class="modal-body">
                         <div id="qr-reader" style="width: 100%"></div>
                         <div id="qr-reader-results" class="mt-3"></div>
+                        <div class="text-center mt-3">
+                            <button type="button" class="btn btn-primary" id="switchCameraBtn">
+                                <i class="fas fa-sync me-1"></i>切换摄像头
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -169,12 +174,58 @@ function showQRScanner() {
         const qrModal = new bootstrap.Modal(qrContainer);
         qrModal.show();
         
-        // 初始化QR扫描器
+        // 初始化QR扫描器，使用中文提示
+        const config = { 
+            fps: 10, 
+            qrbox: 250,
+            rememberLastUsedCamera: true,
+            // 自定义字符串
+            formatsToSupport: [ Html5QrcodeSupportedFormats.QR_CODE ],
+            supportedScanTypes: [ Html5QrcodeScanType.SCAN_TYPE_CAMERA ],
+            aspectRatio: 1.0
+        };
+        
         html5QrcodeScanner = new Html5QrcodeScanner(
-            "qr-reader", { fps: 10, qrbox: 250 }
+            "qr-reader", config
         );
         
-        html5QrcodeScanner.render(onScanSuccess);
+        // 自定义UI文本
+        setTimeout(() => {
+            // 修改扫描仪UI文本
+            const elements = document.querySelectorAll('#qr-reader__dashboard_section_csr span');
+            elements.forEach(el => {
+                if (el.innerText === 'Request Camera Permissions') {
+                    el.innerText = '请求摄像头权限';
+                }
+            });
+            
+            // 修改摄像头选择下拉框
+            const select = document.querySelector('#qr-reader__camera_selection');
+            if (select) {
+                const option = select.querySelector('option');
+                if (option && option.text === 'Select Camera') {
+                    option.text = '选择摄像头';
+                }
+            }
+            
+            // 修改开始扫描按钮
+            const startButton = document.querySelector('#qr-reader__camera_permission_button');
+            if (startButton) {
+                startButton.innerText = '开始扫描';
+            }
+            
+            // 添加切换摄像头功能
+            document.getElementById('switchCameraBtn').addEventListener('click', function() {
+                if (html5QrcodeScanner) {
+                    html5QrcodeScanner.clear();
+                    setTimeout(() => {
+                        html5QrcodeScanner.render(onScanSuccess);
+                    }, 500);
+                }
+            });
+        }, 500);
+        
+        html5QrcodeScanner.render(onScanSuccess, onScanFailure);
     } else {
         const qrModal = new bootstrap.Modal(document.getElementById('qr-reader-container'));
         qrModal.show();
@@ -187,12 +238,43 @@ function closeQRScanner() {
     }
 }
 
+function onScanFailure(error) {
+    // 可以选择不显示错误，或者显示友好的错误信息
+    console.log("扫描失败: " + error);
+}
+
 function onScanSuccess(decodedText) {
     // 处理扫描结果
     try {
-        const data = JSON.parse(decodedText);
-        if (data.activity_id && data.key) {
+        console.log("扫描成功，结果: " + decodedText);
+        let data;
+        try {
+            data = JSON.parse(decodedText);
+        } catch (e) {
+            // 如果不是JSON格式，尝试其他格式解析
+            const urlParams = new URLSearchParams(decodedText);
+            const key = urlParams.get('key');
+            const activityId = urlParams.get('activity_id') || {{ activity.id }};
+            
+            if (key) {
+                data = { key: key, activity_id: activityId };
+            } else {
+                // 如果是纯文本，假设它就是签到码
+                data = { key: decodedText, activity_id: {{ activity.id }} };
+            }
+        }
+        
+        if (data.key || data.checkin_key) {
             document.getElementById('qr-reader-results').innerHTML = '<div class="alert alert-info">正在验证签到码...</div>';
+            
+            // 准备签到数据
+            const checkinData = {
+                activity_id: data.activity_id || {{ activity.id }},
+                checkin_key: data.key || data.checkin_key,
+                csrf_token: '{{ csrf_token() }}'
+            };
+            
+            console.log("发送签到请求:", checkinData);
             
             // 发送签到请求
             fetch('{{ url_for("student.checkin") }}', {
@@ -201,14 +283,11 @@ function onScanSuccess(decodedText) {
                     'Content-Type': 'application/json',
                     'X-CSRFToken': '{{ csrf_token() }}'
                 },
-                body: JSON.stringify({
-                    activity_id: data.activity_id,
-                    checkin_key: data.key,
-                    csrf_token: '{{ csrf_token() }}'
-                })
+                body: JSON.stringify(checkinData)
             })
             .then(response => response.json())
             .then(result => {
+                console.log("签到结果:", result);
                 if (result.success) {
                     document.getElementById('qr-reader-results').innerHTML = 
                         '<div class="alert alert-success"><i class="fas fa-check-circle me-2"></i>' + result.message + '</div>';
@@ -224,18 +303,18 @@ function onScanSuccess(decodedText) {
                 }
             })
             .catch(error => {
+                console.error('签到请求失败:', error);
                 document.getElementById('qr-reader-results').innerHTML = 
                     '<div class="alert alert-danger"><i class="fas fa-exclamation-circle me-2"></i>签到请求失败，请重试</div>';
-                console.error('Error:', error);
             });
         } else {
             document.getElementById('qr-reader-results').innerHTML = 
                 '<div class="alert alert-warning"><i class="fas fa-exclamation-triangle me-2"></i>无效的二维码格式</div>';
         }
     } catch (e) {
+        console.error('处理二维码内容失败:', e);
         document.getElementById('qr-reader-results').innerHTML = 
             '<div class="alert alert-warning"><i class="fas fa-exclamation-triangle me-2"></i>无效的二维码内容</div>';
-        console.error('Error parsing QR code:', e);
     }
 }
 

@@ -744,17 +744,22 @@ def recommend():
 def checkin():
     try:
         data = request.get_json()
-        key = data.get('key')
+        # 支持多种参数名称格式
+        key = data.get('key') or data.get('checkin_key')
         activity_id = data.get('activity_id')
+        
+        logger.info(f"收到签到请求: activity_id={activity_id}, 请求数据={data}")
 
         if not key or not activity_id:
+            logger.warning(f"签到参数不完整: key={key}, activity_id={activity_id}")
             return jsonify({
                 'success': False,
-                'message': '参数不完整'
+                'message': '签到参数不完整'
             })
 
         activity = db.session.get(Activity, activity_id)
         if not activity:
+            logger.warning(f"签到活动不存在: activity_id={activity_id}")
             return jsonify({
                 'success': False,
                 'message': '活动不存在'
@@ -785,6 +790,10 @@ def checkin():
             })
 
         now = get_localized_now()
+        
+        # 记录签到码和活动的签到码，方便调试
+        logger.info(f"签到码比对: 提供的签到码={key}, 活动签到码={activity.checkin_key}, 过期时间={activity.checkin_key_expires}")
+        
         if not (activity.checkin_key and activity.checkin_key == key and (not activity.checkin_key_expires or now < activity.checkin_key_expires)):
             return jsonify({
                 'success': False,

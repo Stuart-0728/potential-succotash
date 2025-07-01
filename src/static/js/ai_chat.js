@@ -156,11 +156,6 @@ class AIChatSession {
             return;
         }
         
-        // 创建FormData对象
-        const formData = new FormData();
-        formData.append('csrf_token', csrfToken);
-        formData.append('session_id', this.sessionId);
-        
         // 显示加载提示
         const originalButtonText = document.querySelector('.clear-history-btn') ? 
                                   document.querySelector('.clear-history-btn').innerHTML : 
@@ -173,7 +168,14 @@ class AIChatSession {
         // 发送清除所有历史的请求到后端
         fetch('/utils/ai_chat/clear_history', {
             method: 'POST',
-            body: formData,
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            },
+            body: JSON.stringify({
+                csrf_token: csrfToken,
+                session_id: this.sessionId
+            }),
             credentials: 'same-origin' // 确保包含Cookie
         })
         .then(response => {
@@ -746,11 +748,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
             
-            // 创建FormData对象
-            const formData = new FormData();
-            formData.append('csrf_token', csrfToken);
-            formData.append('session_id', chatSession.sessionId);
-            
             // 显示加载提示
             const originalButtonText = document.querySelector('.clear-history-btn') ? 
                                       document.querySelector('.clear-history-btn').innerHTML : 
@@ -763,7 +760,14 @@ document.addEventListener('DOMContentLoaded', () => {
             // 发送清除所有历史的请求到后端
             fetch('/utils/ai_chat/clear_history', {
                 method: 'POST',
-                body: formData,
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken
+                },
+                body: JSON.stringify({
+                    csrf_token: csrfToken,
+                    session_id: chatSession.sessionId
+                }),
                 credentials: 'same-origin' // 确保包含Cookie
             })
             .then(response => {

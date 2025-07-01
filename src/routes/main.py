@@ -483,22 +483,30 @@ def uploaded_file(filename):
 @login_required
 def clear_ai_chat_history():
     try:
-        data = request.get_json()
-        session_id = data.get('session_id')
+        # 支持JSON和表单数据
+        if request.is_json:
+            data = request.get_json()
+            session_id = data.get('session_id')
+        else:
+            session_id = request.form.get('session_id')
 
+        logger.info(f"清除AI聊天历史记录请求: session_id={session_id}, user_id={current_user.id}")
+        
         if not session_id:
+            logger.warning("清除AI聊天历史记录失败: 缺少session_id")
             return jsonify({'success': False, 'message': '缺少 session_id'}), 400
 
         from src.models import AIChatHistory
-        AIChatHistory.query.filter_by(session_id=session_id, user_id=current_user.id).delete()
+        deleted = AIChatHistory.query.filter_by(session_id=session_id, user_id=current_user.id).delete()
         db.session.commit()
-
-        return jsonify({'success': True, 'message': '聊天记录已清除'})
+        
+        logger.info(f"已清除AI聊天历史记录: {deleted} 条记录")
+        return jsonify({'success': True, 'message': f'聊天记录已清除: {deleted} 条记录'})
 
     except Exception as e:
         logger.error(f"清除聊天记录时出错: {e}")
         db.session.rollback()
-        return jsonify({'success': False, 'message': '服务器错误'}), 500
+        return jsonify({'success': False, 'message': f'服务器错误: {str(e)}'}), 500
 
 @main_bp.route('/poster/<int:activity_id>')
 def poster_image(activity_id):
