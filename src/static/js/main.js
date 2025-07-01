@@ -213,7 +213,7 @@ function initToastSystem() {
     // 创建Toast容器
     const toastContainer = document.createElement('div');
     toastContainer.id = 'toast-container';
-    toastContainer.className = 'toast-container position-fixed bottom-0 end-0 p-3';
+    toastContainer.className = 'toast-container position-fixed bottom-0 start-0 p-3';
     toastContainer.style.zIndex = '1090';
     document.body.appendChild(toastContainer);
     
