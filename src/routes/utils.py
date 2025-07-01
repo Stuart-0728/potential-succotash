@@ -12,6 +12,7 @@ from datetime import datetime, timedelta
 from sqlalchemy import func
 from src.models import db, Activity, Tag, StudentInfo, SystemLog, Registration, AIChatHistory, AIChatSession, activity_tags, PointsHistory, User, Role, Message
 from src.utils.time_helpers import get_beijing_time, ensure_timezone_aware
+from src import csrf # Import csrf
 
 utils_bp = Blueprint('utils', __name__)
 logger = logging.getLogger(__name__)
@@ -644,15 +645,22 @@ def ai_chat_clear_history():
 # 添加utils前缀路由
 @utils_bp.route('/utils/ai_chat/clear_history', methods=['POST'])
 @login_required
+@csrf.protect
 def utils_ai_chat_clear_history():
     """清除用户所有AI聊天历史记录 - 带utils前缀的版本"""
     try:
         # 记录请求信息以便调试
         logger.info(f"收到清除历史请求: 用户ID={current_user.id}, Headers={dict(request.headers)}")
+        logger.info(f"CSRF Token from headers: {request.headers.get('X-CSRFToken')}")
+        logger.info(f"CSRF Token from form: {request.form.get('csrf_token')}")
         
-        # 获取请求数据
-        data = request.get_json(silent=True) or {}
-        session_id = data.get('session_id')
+        # 获取请求数据 - 同时支持JSON和表单数据
+        if request.is_json:
+            data = request.get_json(silent=True) or {}
+            session_id = data.get('session_id')
+        else:
+            # 从表单数据中获取
+            session_id = request.form.get('session_id')
         
         # 记录会话ID
         logger.info(f"准备清除用户 {current_user.id} 的所有聊天历史, 会话ID: {session_id}")

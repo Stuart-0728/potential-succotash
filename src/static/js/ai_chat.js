@@ -150,21 +150,19 @@ class AIChatSession {
 
         // 获取CSRF令牌
         const csrfToken = this.getCsrfToken();
+        
+        // 创建FormData对象
+        const formData = new FormData();
+        formData.append('csrf_token', csrfToken);
+        formData.append('session_id', this.sessionId);
 
         // 发送清除历史的请求
         return fetch(`/utils/ai_chat/clear_history`, {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json',
-                'X-CSRFToken': csrfToken,
-                'X-CSRF-Token': csrfToken,
-                'CSRF-Token': csrfToken
+                'X-CSRFToken': csrfToken
             },
-            body: JSON.stringify({
-                session_id: this.sessionId,
-                csrf_token: csrfToken
-            })
+            body: formData
         })
         .then(response => {
             if (!response.ok) {
@@ -733,7 +731,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 credentials: 'same-origin', // 确保包含Cookie
                 body: JSON.stringify({
                     session_id: chatSession.sessionId,
-                    csrf_token: csrfToken
+                    csrf_token: csrfToken // Ensure csrf_token is in the body
                 })
             })
             .then(response => {

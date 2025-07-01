@@ -254,7 +254,7 @@ def activities():
     try:
         # 延迟导入，避免循环导入问题
         from src.models import Activity, Registration
-        from src.utils.time_helpers import get_beijing_time, safe_less_than, safe_greater_than, safe_compare
+        from src.utils.time_helpers import get_beijing_time, safe_less_than, safe_greater_than, safe_compare, display_datetime
         from src import db
         
         # 获取当前北京时间
@@ -306,6 +306,7 @@ def activities():
                                current_status=status,
                                registered_activity_ids=registered_activity_ids,
                                now=now,
+                               display_datetime=display_datetime,
                                safe_less_than=safe_less_than,
                                safe_greater_than=safe_greater_than,
                                safe_compare=safe_compare)

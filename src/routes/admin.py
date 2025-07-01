@@ -694,6 +694,9 @@ def delete_student(id):
 @admin_bp.route('/student/<int:user_id>')
 @admin_required
 def student_view(user_id):
+    # 导入display_datetime函数
+    from src.utils.time_helpers import display_datetime
+    
     user = db.get_or_404(User, user_id)
     student = db.session.execute(db.select(StudentInfo).filter_by(user_id=user_id)).scalar_one_or_none()
     if not student:
@@ -716,7 +719,8 @@ def student_view(user_id):
     
     return render_template('admin/student_view.html', student=student, user=user, 
                            points_history=points_history, registrations=registrations,
-                           selected_tag_ids=selected_tag_ids, all_tags=all_tags)
+                           selected_tag_ids=selected_tag_ids, all_tags=all_tags,
+                           display_datetime=display_datetime)
 
 @admin_bp.route('/student/<int:id>/update-tags', methods=['POST'])
 @admin_required
