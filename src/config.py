@@ -19,6 +19,8 @@ SESSION_FILE_DIR = os.path.join(BASE_DIR, 'flask_session')
 # 确保目录存在并设置权限
 def ensure_directories():
     """确保必要的目录存在并设置正确的权限"""
+    global UPLOAD_FOLDER
+    
     # 确保instance目录存在
     if not os.path.exists(INSTANCE_PATH):
         try:
@@ -67,7 +69,6 @@ def ensure_directories():
             if not os.path.exists(temp_upload):
                 os.makedirs(temp_upload)
             print(f"使用临时上传目录: {temp_upload}")
-            global UPLOAD_FOLDER
             UPLOAD_FOLDER = temp_upload
         except Exception as e2:
             print(f"创建临时上传目录也失败: {e2}")
