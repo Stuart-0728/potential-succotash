@@ -83,6 +83,7 @@
                                             </span>
                                         {% elif activity.status == 'active' and (not safe_less_than(activity.registration_deadline, now) or safe_compare(activity.registration_deadline, now)) %}
                                             <form method="post" action="{{ url_for('student.register_activity', id=activity.id) }}" class="d-inline">
+                                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                                 <button type="submit" class="btn btn-primary">
                                                     <i class="fas fa-user-plus me-1"></i>立即报名
                                                 </button>
