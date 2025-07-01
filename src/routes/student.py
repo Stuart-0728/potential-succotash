@@ -362,12 +362,12 @@ def my_activities():
         now = get_localized_now()
         logger.info(f"my_activities - 当前UTC时间: {now}")
         
-        # 基本查询 - 获取用户的所有报名记录
-        query = Registration.query.filter_by(user_id=current_user.id)
-        
         # 使用别名避免表连接问题
         from sqlalchemy.orm import aliased
         ActivityAlias = aliased(Activity)
+        
+        # 基本查询 - 获取用户的所有报名记录
+        query = Registration.query.filter_by(user_id=current_user.id)
         
         # 根据状态筛选
         if status == 'active':
@@ -381,15 +381,19 @@ def my_activities():
         
         # 获取报名记录，并预加载活动信息
         query = query.options(joinedload(Registration.activity))
-        registrations = query.order_by(desc(ActivityAlias.start_time)).paginate(page=page, per_page=10)
+        
+        # 确保在所有情况下都添加连接，并使用正确的表别名进行排序
+        if not any(status == s for s in ['active', 'completed']):
+            query = query.join(ActivityAlias, ActivityAlias.id == Registration.activity_id)
+        
+        registrations = query.order_by(ActivityAlias.start_time.desc()).paginate(page=page, per_page=10)
 
         # 获取待评价的活动
         reviewed_activity_ids = db.session.execute(db.select(ActivityReview.activity_id).filter_by(user_id=current_user.id)).scalars().all()
-        pending_reviews = [reg.activity_id for reg in registrations.items if reg.activity.status == 'completed' and reg.activity_id not in reviewed_activity_ids]
+        pending_reviews = [reg.activity_id for reg in registrations.items if reg.activity and reg.activity.status == 'completed' and reg.activity_id not in reviewed_activity_ids]
         
         return render_template('student/my_activities.html', 
                               registrations=registrations,
-                              activities=activities,
                               current_status=status,
                               pending_reviews=pending_reviews,
                               now=now,

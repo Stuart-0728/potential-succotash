@@ -18,14 +18,16 @@
                         </div>
                     </div>
 
-                    {% if activity.poster_image or poster_url %}
+                    {% if activity.poster_image or poster_url or activity.poster_data %}
                         <div class="mb-4 text-center">
-                            {% if poster_url %}
+                            {% if activity.poster_data %}
+                            <img src="{{ url_for('main.poster_image', activity_id=activity.id) }}" alt="活动海报" class="img-fluid rounded shadow-sm" style="max-height: 400px;">
+                            {% elif poster_url %}
                             <img src="{{ poster_url }}" alt="活动海报" class="img-fluid rounded shadow-sm" style="max-height: 400px;">
                             {% elif 'banner' in activity.poster_image %}
                             <img src="{{ url_for('static', filename='img/' + activity.poster_image) }}" alt="活动海报" class="img-fluid rounded shadow-sm" style="max-height: 400px;">
                             {% else %}
-                            <img src="{{ url_for('main.poster_image', activity_id=activity.id) }}" alt="活动海报" class="img-fluid rounded shadow-sm" style="max-height: 400px;">
+                            <img src="{{ url_for('static', filename='img/landscape.jpg') }}" alt="活动海报" class="img-fluid rounded shadow-sm" style="max-height: 400px;">
                             {% endif %}
                         </div>
                     {% endif %}
@@ -137,7 +139,105 @@
 {{ super() }}
 <script src="https://unpkg.com/html5-qrcode"></script>
 <script>
-// ... (qr scanner code remains the same)
+// QR扫描器代码
+let html5QrcodeScanner = null;
+
+function showQRScanner() {
+    // 创建QR扫描器容器
+    if (!document.getElementById('qr-reader')) {
+        const qrContainer = document.createElement('div');
+        qrContainer.id = 'qr-reader-container';
+        qrContainer.className = 'modal fade';
+        qrContainer.setAttribute('tabindex', '-1');
+        qrContainer.innerHTML = `
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">扫描签到二维码</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" onclick="closeQRScanner()"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div id="qr-reader" style="width: 100%"></div>
+                        <div id="qr-reader-results" class="mt-3"></div>
+                    </div>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(qrContainer);
+        
+        // 初始化Bootstrap模态框
+        const qrModal = new bootstrap.Modal(qrContainer);
+        qrModal.show();
+        
+        // 初始化QR扫描器
+        html5QrcodeScanner = new Html5QrcodeScanner(
+            "qr-reader", { fps: 10, qrbox: 250 }
+        );
+        
+        html5QrcodeScanner.render(onScanSuccess);
+    } else {
+        const qrModal = new bootstrap.Modal(document.getElementById('qr-reader-container'));
+        qrModal.show();
+    }
+}
+
+function closeQRScanner() {
+    if (html5QrcodeScanner) {
+        html5QrcodeScanner.clear();
+    }
+}
+
+function onScanSuccess(decodedText) {
+    // 处理扫描结果
+    try {
+        const data = JSON.parse(decodedText);
+        if (data.activity_id && data.key) {
+            document.getElementById('qr-reader-results').innerHTML = '<div class="alert alert-info">正在验证签到码...</div>';
+            
+            // 发送签到请求
+            fetch('{{ url_for("student.checkin") }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token() }}'
+                },
+                body: JSON.stringify({
+                    activity_id: data.activity_id,
+                    checkin_key: data.key,
+                    csrf_token: '{{ csrf_token() }}'
+                })
+            })
+            .then(response => response.json())
+            .then(result => {
+                if (result.success) {
+                    document.getElementById('qr-reader-results').innerHTML = 
+                        '<div class="alert alert-success"><i class="fas fa-check-circle me-2"></i>' + result.message + '</div>';
+                    
+                    // 关闭扫描器并刷新页面
+                    setTimeout(() => {
+                        closeQRScanner();
+                        window.location.reload();
+                    }, 2000);
+                } else {
+                    document.getElementById('qr-reader-results').innerHTML = 
+                        '<div class="alert alert-danger"><i class="fas fa-exclamation-circle me-2"></i>' + result.message + '</div>';
+                }
+            })
+            .catch(error => {
+                document.getElementById('qr-reader-results').innerHTML = 
+                    '<div class="alert alert-danger"><i class="fas fa-exclamation-circle me-2"></i>签到请求失败，请重试</div>';
+                console.error('Error:', error);
+            });
+        } else {
+            document.getElementById('qr-reader-results').innerHTML = 
+                '<div class="alert alert-warning"><i class="fas fa-exclamation-triangle me-2"></i>无效的二维码格式</div>';
+        }
+    } catch (e) {
+        document.getElementById('qr-reader-results').innerHTML = 
+            '<div class="alert alert-warning"><i class="fas fa-exclamation-triangle me-2"></i>无效的二维码内容</div>';
+        console.error('Error parsing QR code:', e);
+    }
+}
 
 document.addEventListener('DOMContentLoaded', function() {
     const registerBtn = document.getElementById('register-btn');
@@ -185,6 +285,46 @@ document.addEventListener('DOMContentLoaded', function() {
             console.error('Error:', error);
             showToast('发生错误，请稍后重试', 'error');
         });
+    }
+    
+    // 添加Toast通知功能
+    if (!window.showToast) {
+        window.showToast = function(message, type) {
+            const toastContainer = document.getElementById('toast-container');
+            if (!toastContainer) {
+                const container = document.createElement('div');
+                container.id = 'toast-container';
+                container.className = 'position-fixed bottom-0 end-0 p-3';
+                container.style.zIndex = '5';
+                document.body.appendChild(container);
+            }
+            
+            const toastId = 'toast-' + Date.now();
+            const toastEl = document.createElement('div');
+            toastEl.id = toastId;
+            toastEl.className = `toast align-items-center text-white bg-${type === 'success' ? 'success' : 'danger'} border-0`;
+            toastEl.setAttribute('role', 'alert');
+            toastEl.setAttribute('aria-live', 'assertive');
+            toastEl.setAttribute('aria-atomic', 'true');
+            
+            toastEl.innerHTML = `
+                <div class="d-flex">
+                    <div class="toast-body">
+                        ${message}
+                    </div>
+                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+                </div>
+            `;
+            
+            document.getElementById('toast-container').appendChild(toastEl);
+            const toast = new bootstrap.Toast(toastEl);
+            toast.show();
+            
+            // 自动删除
+            toastEl.addEventListener('hidden.bs.toast', function() {
+                toastEl.remove();
+            });
+        }
     }
 });
 </script>
