@@ -184,26 +184,39 @@ def process_activity_poster(activity, static_folder):
                 # 查找以活动ID开头的任何海报文件
                 matching_files = [f for f in os.listdir(poster_dir) if f.startswith(f"activity_{activity.id}_")]
                 if matching_files:
-                    # 使用最新的匹配文件
+                    # 使用最新的匹配文件 - 按时间戳排序
                     matching_files.sort(reverse=True)  # 按文件名降序排序，通常最新的时间戳在最前面
                     new_poster = matching_files[0]
-                    setattr(activity, 'poster_image', new_poster)
+                    # 检查是否需要更新活动的海报文件名
+                    if new_poster != activity.poster_image:
+                        logger.info(f"更新活动ID={activity.id}的海报: {activity.poster_image} -> {new_poster}")
+                        setattr(activity, 'poster_image', new_poster)
+                    
                     poster_path = os.path.join(poster_dir, new_poster)
                     if os.path.exists(poster_path):
+                        logger.info(f"使用最新海报文件: {new_poster}")
                         return
                 
                 # 如果没有找到匹配的文件或文件不存在，检查指定的海报是否存在
                 if activity.poster_image:
                     poster_path = os.path.join(poster_dir, str(activity.poster_image))
-                    if not os.path.exists(poster_path):
+                    if os.path.exists(poster_path):
+                        logger.info(f"使用指定海报文件: {activity.poster_image}")
+                        return
+                    else:
+                        logger.warning(f"海报文件不存在: {poster_path}")
                         setattr(activity, 'poster_image', "landscape.jpg")
+                        logger.info(f"设置活动详情页备用风景图: landscape.jpg")
                 else:
                     setattr(activity, 'poster_image', "landscape.jpg")
+                    logger.info(f"设置活动详情页备用风景图: landscape.jpg")
             else:
                 setattr(activity, 'poster_image', "landscape.jpg")
+                logger.info(f"海报目录不存在，设置备用风景图: landscape.jpg")
     except Exception as e:
         logger.error(f"处理活动海报出错: {e}")
         setattr(activity, 'poster_image', "landscape.jpg")
+        logger.info(f"处理出错，设置备用风景图: landscape.jpg")
 
 @main_bp.route('/activities')
 def activities():

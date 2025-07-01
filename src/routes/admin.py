@@ -745,7 +745,7 @@ def update_student_tags(id):
         logger.error(f"更新学生标签时出错: {e}")
         flash('更新学生标签时出错', 'danger')
     
-    return redirect(url_for('admin.student_view', id=id))
+    return redirect(url_for('admin.student_view', user_id=student.user_id))
 
 @admin_bp.route('/student/<int:id>/adjust_points', methods=['POST'])
 @admin_required
@@ -757,11 +757,11 @@ def adjust_student_points(id):
         
         if not points:
             flash('请输入有效的积分值', 'warning')
-            return redirect(url_for('admin.student_view', id=id))
+            return redirect(url_for('admin.student_view', user_id=student_info.user_id))
         
         if not reason:
             flash('请输入积分调整原因', 'warning')
-            return redirect(url_for('admin.student_view', id=id))
+            return redirect(url_for('admin.student_view', user_id=student_info.user_id))
         
         # 更新学生积分
         student_info.points = (student_info.points or 0) + points
@@ -780,12 +780,12 @@ def adjust_student_points(id):
         log_action('adjust_points', f'调整学生 {student_info.real_name} (ID: {id}) 的积分: {points}分, 原因: {reason}')
         flash(f'积分调整成功，当前积分: {student_info.points}', 'success')
         
-        return redirect(url_for('admin.student_view', id=id))
+        return redirect(url_for('admin.student_view', user_id=student_info.user_id))
     except Exception as e:
         db.session.rollback()
         logger.error(f"Error in adjust_student_points: {e}")
         flash('调整积分时出错', 'danger')
-        return redirect(url_for('admin.student_view', id=id))
+        return redirect(url_for('admin.student_view', user_id=student_info.user_id))
 
 @admin_bp.route('/statistics')
 @admin_required
