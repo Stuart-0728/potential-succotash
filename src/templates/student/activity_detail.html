@@ -3,10 +3,10 @@
 {% block title %}{{ activity.title }} - 重庆师范大学师能素质协会{% endblock %}
 
 {% block content %}
-<!-- 添加CSRF令牌到页面头部 -->
-<meta name="csrf-token" content="{{ csrf_token() }}">
-
 <div class="container py-4">
+    <!-- 添加CSRF令牌到页面头部 -->
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    
     <div class="row">
         <div class="col-lg-8">
             <div class="card border-0 shadow-sm mb-4">
@@ -296,8 +296,8 @@ function onScanSuccess(decodedText, decodedResult) {
     }
     
     // 获取CSRF令牌
-    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || 
-                     document.querySelector('input[name="csrf_token"]')?.value;
+    const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+    console.log('使用CSRF令牌:', csrfToken);
     
     // 发送签到请求
     fetch('/student/api/attendance/checkin', {
@@ -313,7 +313,8 @@ function onScanSuccess(decodedText, decodedResult) {
     })
     .then(response => {
         if (!response.ok) {
-            throw new Error('网络请求失败');
+            console.error('签到请求失败:', response.status, response.statusText);
+            throw new Error(`网络请求失败: ${response.status} ${response.statusText}`);
         }
         return response.json();
     })
