@@ -64,6 +64,10 @@ def dashboard():
         upcoming_activities = []
         ongoing_activities = []
         past_activities = []
+        
+        # 记录找到的活动数量
+        logger.info(f"获取到学生报名的活动数量: {len(registrations)}")
+        
         for reg in registrations:
             activity = reg.activity
             if not activity or activity.status == 'cancelled':
@@ -74,10 +78,20 @@ def dashboard():
 
             if safe_greater_than(activity.start_time, now):
                 upcoming_activities.append(activity)
+                logger.info(f"即将开始的活动: {activity.title}")
             elif safe_less_than(activity.end_time, now):
                 past_activities.append(activity)
+                logger.info(f"已结束的活动: {activity.title}")
             else:
                 ongoing_activities.append(activity)
+                logger.info(f"进行中的活动: {activity.title}")
+        
+        # 排序活动，按开始时间升序排列
+        upcoming_activities.sort(key=lambda x: x.start_time)
+        ongoing_activities.sort(key=lambda x: x.end_time)
+        past_activities.sort(key=lambda x: x.end_time, reverse=True)
+        
+        logger.info(f"仪表盘活动分类: 即将开始={len(upcoming_activities)}, 进行中={len(ongoing_activities)}, 已结束={len(past_activities)}")
         
         # 获取最近的通知
         notifications = []
@@ -395,9 +409,11 @@ def my_activities():
         if not any(status == s for s in ['active', 'completed']):
             query = query.join(ActivityAlias, ActivityAlias.id == Registration.activity_id)
         
-        # 执行查询并分页
+        # 执行查询并分页 - 按开始时间排序（升序，最近的活动在前面）
         try:
-            registrations = query.order_by(ActivityAlias.start_time.asc()).paginate(page=page, per_page=10)
+            order_by_clause = ActivityAlias.start_time.asc()
+            logger.info(f"my_activities - 按照活动开始时间升序排序")
+            registrations = query.order_by(order_by_clause).paginate(page=page, per_page=10)
             logger.info(f"my_activities - 分页后有 {len(registrations.items)} 条记录, 总页数: {registrations.pages}")
         except Exception as e:
             logger.error(f"分页查询出错: {e}")
@@ -411,7 +427,7 @@ def my_activities():
             activity = reg.activity
             logger.info(f"my_activities - 报名记录: 活动ID={reg.activity_id}, 状态={reg.status}, 活动对象存在={activity is not None}")
             if activity:
-                logger.info(f"my_activities - 活动信息: 标题={activity.title}, 状态={activity.status}")
+                logger.info(f"my_activities - 活动信息: 标题={activity.title}, 状态={activity.status}, 开始时间={activity.start_time}")
 
         # 获取待评价的活动
         reviewed_activity_ids = db.session.execute(db.select(ActivityReview.activity_id).filter_by(user_id=current_user.id)).scalars().all()

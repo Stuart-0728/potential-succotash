@@ -2,11 +2,14 @@
 
 {% block title %}{{ activity.title }} - 重庆师范大学师能素质协会{% endblock %}
 
+{% block head %}
+{{ super() }}
+<!-- 添加CSRF令牌到页面头部 -->
+<meta name="csrf-token" content="{{ csrf_token() }}">
+{% endblock %}
+
 {% block content %}
 <div class="container py-4">
-    <!-- 添加CSRF令牌到页面头部 -->
-    <meta name="csrf-token" content="{{ csrf_token() }}">
-    
     <div class="row">
         <div class="col-lg-8">
             <div class="card border-0 shadow-sm mb-4">
