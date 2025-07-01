@@ -165,20 +165,25 @@ document.addEventListener('DOMContentLoaded', function() {
                 'Content-Type': 'application/json',
                 'X-CSRFToken': csrfToken
             },
-            body: JSON.stringify({})
+            credentials: 'same-origin',
+            body: JSON.stringify({
+                csrf_token: csrfToken
+            })
         })
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                toastr.success(data.message);
-                setTimeout(() => window.location.reload(), 1500);
+                showToast(data.message, 'success');
+                setTimeout(() => {
+                    window.location.reload();
+                }, 1500);
             } else {
-                toastr.error(data.message);
+                showToast(data.message, 'error');
             }
         })
         .catch(error => {
             console.error('Error:', error);
-            toastr.error('发生错误，请稍后重试');
+            showToast('发生错误，请稍后重试', 'error');
         });
     }
 });

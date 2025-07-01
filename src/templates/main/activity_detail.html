@@ -61,12 +61,9 @@
                                             </div>
                                             
                                             {% if activity.start_time and safe_greater_than(activity.start_time, now) %}
-                                                <form action="{{ url_for('student.cancel_registration', id=activity.id) }}" method="post" onsubmit="return confirm('确定要取消报名吗？');">
-                                                    {{ form.hidden_tag() }}
-                                                    <button type="submit" class="btn btn-outline-danger w-100">
-                                                        <i class="fas fa-times-circle me-2"></i> 取消报名
-                                                    </button>
-                                                </form>
+                                                <button type="button" class="btn btn-outline-danger w-100" id="cancelBtn">
+                                                    <i class="fas fa-times-circle me-2"></i> 取消报名
+                                                </button>
                                             {% endif %}
                                         {% elif can_register %}
                                             <div class="alert alert-info">
@@ -74,12 +71,9 @@
                                                 <p class="small mb-0">截止时间：{{ display_datetime(activity.registration_deadline) }}</p>
                                             </div>
                                             
-                                            <form action="{{ url_for('student.register_activity', id=activity.id) }}" method="post">
-                                                {{ form.hidden_tag() }}
-                                                <button type="submit" class="btn btn-primary w-100">
-                                                    <i class="fas fa-user-plus me-2"></i> 立即报名
-                                                </button>
-                                            </form>
+                                            <button type="button" class="btn btn-primary w-100" id="registerBtn">
+                                                <i class="fas fa-user-plus me-2"></i> 立即报名
+                                            </button>
                                         {% else %}
                                             {% if activity.registration_deadline and safe_less_than(activity.registration_deadline, now) %}
                                                 <div class="alert alert-secondary">
@@ -95,12 +89,9 @@
                                                     <p class="small mb-0">可重新报名</p>
                                                 </div>
                                                 
-                                                <form action="{{ url_for('student.register_activity', id=activity.id) }}" method="post">
-                                                    {{ form.hidden_tag() }}
-                                                    <button type="submit" class="btn btn-outline-primary w-100">
-                                                        <i class="fas fa-redo me-2"></i> 重新报名
-                                                    </button>
-                                                </form>
+                                                <button type="button" class="btn btn-outline-primary w-100" id="reregisterBtn">
+                                                    <i class="fas fa-redo me-2"></i> 重新报名
+                                                </button>
                                             {% endif %}
                                         {% endif %}
                                     {% elif current_user.is_authenticated %}
@@ -166,4 +157,66 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const registerBtn = document.getElementById('registerBtn');
+    const reregisterBtn = document.getElementById('reregisterBtn');
+    const cancelBtn = document.getElementById('cancelBtn');
+    const csrfToken = "{{ csrf_token() }}";
+
+    if (registerBtn) {
+        registerBtn.addEventListener('click', function() {
+            handleRegistration('{{ url_for("student.register_activity", id=activity.id) }}', '报名');
+        });
+    }
+
+    if (reregisterBtn) {
+        reregisterBtn.addEventListener('click', function() {
+            handleRegistration('{{ url_for("student.register_activity", id=activity.id) }}', '重新报名');
+        });
+    }
+
+    if (cancelBtn) {
+        cancelBtn.addEventListener('click', function() {
+            if (confirm('确定要取消报名吗？')) {
+                handleRegistration('{{ url_for("student.cancel_registration", id=activity.id) }}', '取消报名');
+            }
+        });
+    }
+
+    function handleRegistration(url, action) {
+        fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            },
+            credentials: 'same-origin',
+            body: JSON.stringify({
+                csrf_token: csrfToken
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showToast(data.message, 'success');
+                // 延迟1.5秒后刷新页面，让用户有时间看到消息
+                setTimeout(() => {
+                    window.location.reload();
+                }, 1500);
+            } else {
+                showToast(data.message, 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showToast('发生错误，请稍后重试', 'error');
+        });
+    }
+});
+</script>
 {% endblock %}
