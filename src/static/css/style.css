@@ -360,6 +360,7 @@ body {
     width: 1.5rem;
     height: 1.5rem;
     border-width: 0.2rem;
+    aspect-ratio: 1/1;
 }
 
 /* 自定义滚动条 */

@@ -20,12 +20,12 @@
                     <img src="{{ url_for('static', filename='img/' + activity.poster_image) }}" 
                          class="img-fluid rounded" 
                          alt="{{ activity.title }}" 
-                         style="max-height: 400px;">
+                         style="max-height: 400px; width: auto; object-fit: contain;">
                     {% else %}
                     <img src="{{ url_for('main.poster_image', activity_id=activity.id) }}" 
                          class="img-fluid rounded" 
                          alt="{{ activity.title }}" 
-                         style="max-height: 400px;">
+                         style="max-height: 400px; width: auto; object-fit: contain;">
                     {% endif %}
                 </div>
                 {% endif %}

@@ -144,46 +144,76 @@ class AIChatSession {
     
     // 清除所有会话历史
     clearAllHistory() {
-        if (!this.sessionId) {
-            return Promise.reject('No session ID');
-        }
-
+        console.log("开始清除所有历史记录");
+        
         // 获取CSRF令牌
         const csrfToken = this.getCsrfToken();
+        console.log("当前CSRF令牌:", csrfToken);
+        
+        if (!csrfToken) {
+            console.error("无法获取CSRF令牌");
+            alert("无法获取安全令牌，请刷新页面后重试");
+            return;
+        }
         
         // 创建FormData对象
         const formData = new FormData();
         formData.append('csrf_token', csrfToken);
         formData.append('session_id', this.sessionId);
-
-        // 发送清除历史的请求
-        return fetch(`/utils/ai_chat/clear_history`, {
+        
+        // 显示加载提示
+        const originalButtonText = document.querySelector('.clear-history-btn') ? 
+                                  document.querySelector('.clear-history-btn').innerHTML : 
+                                  "清除历史";
+        if (document.querySelector('.clear-history-btn')) {
+            document.querySelector('.clear-history-btn').innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> 处理中...';
+            document.querySelector('.clear-history-btn').disabled = true;
+        }
+        
+        // 发送清除所有历史的请求到后端
+        fetch('/utils/ai_chat/clear_history', {
             method: 'POST',
-            // 不设置Content-Type，让浏览器自动设置为multipart/form-data
-            body: formData
+            body: formData,
+            credentials: 'same-origin' // 确保包含Cookie
         })
         .then(response => {
+            console.log("响应状态:", response.status, response.statusText);
             if (!response.ok) {
-                throw new Error(`服务器返回错误: ${response.status}`);
+                return response.text().then(text => {
+                    console.error("响应详情:", text);
+                    throw new Error(`清除历史记录失败 (${response.status}): ${text.substring(0, 100)}`);
+                });
             }
             return response.json();
         })
         .then(data => {
-            if (data.success) {
-                console.log(`清除历史记录成功: ${data.message}`);
-                // 删除cookie中的消息记录
-                this.deleteCookie('messages');
-                // 清空内存中的消息
-                this.messages = [];
-                return data;
-            } else {
-                console.error(`清除历史记录失败: ${data.message}`);
-                throw new Error(data.message || '清除历史记录失败');
-            }
+            console.log('清除所有历史记录成功:', data);
+            // 清除本地消息
+            this.messages = [];
+            // 清除cookie中的消息
+            this.deleteCookie('messages');
+            alert('历史记录已清除！');
         })
         .catch(error => {
             console.error('清除所有历史记录失败:', error);
-            throw error;
+            alert('清除历史记录失败: ' + error.message);
+            
+            // 如果API失败，尝试直接清除前端消息
+            try {
+                this.messages = [];
+                // 清除cookie中的消息
+                this.deleteCookie('messages');
+                console.log("已强制清除前端消息");
+            } catch (e) {
+                console.error("前端清除也失败:", e);
+            }
+        })
+        .finally(() => {
+            // 恢复按钮状态
+            if (document.querySelector('.clear-history-btn')) {
+                document.querySelector('.clear-history-btn').innerHTML = originalButtonText;
+                document.querySelector('.clear-history-btn').disabled = false;
+            }
         });
     }
     
@@ -710,10 +740,25 @@ document.addEventListener('DOMContentLoaded', () => {
             const csrfToken = chatSession.getCsrfToken();
             console.log("当前CSRF令牌:", csrfToken);
             
+            if (!csrfToken) {
+                console.error("无法获取CSRF令牌");
+                alert("无法获取安全令牌，请刷新页面后重试");
+                return;
+            }
+            
             // 创建FormData对象
             const formData = new FormData();
             formData.append('csrf_token', csrfToken);
             formData.append('session_id', chatSession.sessionId);
+            
+            // 显示加载提示
+            const originalButtonText = document.querySelector('.clear-history-btn') ? 
+                                      document.querySelector('.clear-history-btn').innerHTML : 
+                                      "清除历史";
+            if (document.querySelector('.clear-history-btn')) {
+                document.querySelector('.clear-history-btn').innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> 处理中...';
+                document.querySelector('.clear-history-btn').disabled = true;
+            }
             
             // 发送清除所有历史的请求到后端
             fetch('/utils/ai_chat/clear_history', {
@@ -754,6 +799,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     console.log("已强制清除前端消息");
                 } catch (e) {
                     console.error("前端清除也失败:", e);
+                }
+            })
+            .finally(() => {
+                // 恢复按钮状态
+                if (document.querySelector('.clear-history-btn')) {
+                    document.querySelector('.clear-history-btn').innerHTML = originalButtonText;
+                    document.querySelector('.clear-history-btn').disabled = false;
                 }
             });
         },

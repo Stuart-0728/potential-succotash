@@ -381,7 +381,7 @@ def my_activities():
         
         # 获取报名记录，并预加载活动信息
         query = query.options(joinedload(Registration.activity))
-        registrations = query.order_by(desc(Activity.start_time)).paginate(page=page, per_page=10)
+        registrations = query.order_by(desc(ActivityAlias.start_time)).paginate(page=page, per_page=10)
 
         # 获取待评价的活动
         reviewed_activity_ids = db.session.execute(db.select(ActivityReview.activity_id).filter_by(user_id=current_user.id)).scalars().all()
