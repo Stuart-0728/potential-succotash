@@ -13,7 +13,7 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 INSTANCE_PATH = os.path.join(BASE_DIR, 'instance')
 DB_PATH = os.path.join(INSTANCE_PATH, 'cqnu_association.db')
 LOG_PATH = os.path.join(BASE_DIR, 'logs')
-UPLOAD_FOLDER = os.environ.get('PERSISTENT_STORAGE_PATH', '/var/data/posters') # Render Disk 挂载点
+UPLOAD_FOLDER = os.environ.get('PERSISTENT_STORAGE_PATH', os.path.join(BASE_DIR, 'static', 'uploads', 'posters'))
 SESSION_FILE_DIR = os.path.join(BASE_DIR, 'flask_session')
 
 # 确保目录存在并设置权限
@@ -48,16 +48,42 @@ def ensure_directories():
     
     # 确保日志目录存在
     if not os.path.exists(LOG_PATH):
-        os.makedirs(LOG_PATH)
+        try:
+            os.makedirs(LOG_PATH)
+            print(f"已创建日志目录: {LOG_PATH}")
+        except Exception as e:
+            print(f"创建日志目录失败: {e}")
     
     # 确保上传目录存在
-    if not os.path.exists(UPLOAD_FOLDER):
-        os.makedirs(UPLOAD_FOLDER)
-        
+    try:
+        if not os.path.exists(UPLOAD_FOLDER):
+            os.makedirs(UPLOAD_FOLDER)
+            print(f"已创建上传目录: {UPLOAD_FOLDER}")
+    except Exception as e:
+        print(f"创建上传目录失败: {e}")
+        # 如果创建失败，尝试使用临时目录
+        temp_upload = os.path.join(BASE_DIR, 'temp_uploads')
+        try:
+            if not os.path.exists(temp_upload):
+                os.makedirs(temp_upload)
+            print(f"使用临时上传目录: {temp_upload}")
+            global UPLOAD_FOLDER
+            UPLOAD_FOLDER = temp_upload
+        except Exception as e2:
+            print(f"创建临时上传目录也失败: {e2}")
     
     # 确保session目录存在
     if not os.path.exists(SESSION_FILE_DIR):
-        os.makedirs(SESSION_FILE_DIR)
+        try:
+            os.makedirs(SESSION_FILE_DIR)
+            print(f"已创建session目录: {SESSION_FILE_DIR}")
+        except Exception as e:
+            print(f"创建session目录失败: {e}")
+            
+    # 打印当前工作目录和权限信息
+    print(f"当前工作目录: {os.getcwd()}")
+    print(f"BASE_DIR: {BASE_DIR}")
+    print(f"UPLOAD_FOLDER: {UPLOAD_FOLDER}")
 
 # 创建并设置目录权限
 ensure_directories()
