@@ -7,6 +7,7 @@
 1. `wsgi.py` - WSGI应用入口点
 2. `Procfile` - 定义应用启动命令
 3. `gunicorn_config.py` - Gunicorn配置文件
+4. `build.sh` - 构建脚本，特别处理了numpy和pandas的安装
 
 ## 部署步骤
 
@@ -17,8 +18,8 @@
 3. 设置以下配置：
    - 名称：`cqnureg`（或您选择的名称）
    - 运行时环境：Python
-   - 构建命令：`pip install -r requirements.txt`
-   - 启动命令：`gunicorn -c gunicorn_config.py wsgi:app`
+   - 构建命令：`bash render_deploy/build.sh`
+   - 启动命令：`cd render_deploy && gunicorn -c gunicorn_config.py wsgi:app`
    - 实例类型：根据需求选择（建议至少512MB内存）
 
 4. 配置环境变量：
