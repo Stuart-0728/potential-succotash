@@ -45,7 +45,7 @@ def handle_poster_upload(file_data, activity_id):
         activity_id: 活动ID
     
     Returns:
-        str: 保存后的文件名（不包含路径）
+        dict: 包含文件名、二进制数据和MIME类型的字典
     """
     try:
         if not file_data or not hasattr(file_data, 'filename') or not file_data.filename:
@@ -56,6 +56,10 @@ def handle_poster_upload(file_data, activity_id):
         
         # 确保文件名安全
         filename = secure_filename(file_data.filename)
+        
+        # 获取MIME类型
+        mime_type = file_data.mimetype
+        logger.info(f"文件MIME类型: {mime_type}")
         
         # 生成唯一文件名 - 确保活动ID不为None
         _, file_extension = os.path.splitext(filename)
@@ -88,32 +92,39 @@ def handle_poster_upload(file_data, activity_id):
             
             unique_filename = f"activity_{str_activity_id}_{timestamp}{file_extension}"
         
-        # 确保上传目录存在
-        upload_dir = os.path.join(current_app.static_folder or 'src/static', 'uploads', 'posters')
-        if not os.path.exists(upload_dir):
-            os.makedirs(upload_dir, exist_ok=True)
-            logger.info(f"创建上传目录: {upload_dir}")
-        
-        # 保存文件
-        file_path = os.path.join(upload_dir, unique_filename)
-        file_data.save(file_path)
-        logger.info(f"海报文件已保存到: {file_path}")
-        
-        # 检查文件是否成功保存
-        if not os.path.exists(file_path):
-            logger.error(f"文件保存失败，无法找到: {file_path}")
-            return None
-        
-        # 设置文件权限为可读
+        # 保存到文件系统 (同时保留这部分，确保向后兼容)
         try:
-            os.chmod(file_path, 0o644)
-            logger.info(f"设置文件权限为644: {file_path}")
+            # 确保上传目录存在
+            upload_dir = current_app.config['UPLOAD_FOLDER']
+            if not os.path.exists(upload_dir):
+                os.makedirs(upload_dir, exist_ok=True)
+                logger.info(f"创建上传目录: {upload_dir}")
+            
+            # 保存文件
+            file_path = os.path.join(upload_dir, unique_filename)
+            file_data.save(file_path)
+            logger.info(f"海报文件已保存到: {file_path}")
+            
+            # 设置文件权限为可读
+            try:
+                os.chmod(file_path, 0o644)
+                logger.info(f"设置文件权限为644: {file_path}")
+            except Exception as e:
+                logger.warning(f"无法设置文件权限: {e}")
         except Exception as e:
-            logger.warning(f"无法设置文件权限: {e}")
+            logger.warning(f"保存文件到文件系统失败，但将继续保存到数据库: {e}")
         
-        # 返回文件名（不包含路径）
-        logger.info(f"活动海报已上传: {unique_filename}")
-        return unique_filename
+        # 读取二进制数据 (先保存文件再读取是为了确保文件指针位置正确)
+        file_data.seek(0)
+        binary_data = file_data.read()
+        
+        # 返回文件信息 (包含文件名、二进制数据和MIME类型)
+        logger.info(f"活动海报已处理: {unique_filename}")
+        return {
+            'filename': unique_filename,
+            'data': binary_data,
+            'mimetype': mime_type
+        }
         
     except Exception as e:
         logger.error(f"海报上传失败: {str(e)}", exc_info=True)
@@ -320,14 +331,16 @@ def create_activity():
                     logger.info(f"准备上传海报，活动ID={activity.id}, 文件名={form.poster.data.filename}")
                     
                     # 使用活动的实际ID上传图片
-                    poster_filename = handle_poster_upload(form.poster.data, activity.id)
-                    if poster_filename:
+                    poster_info = handle_poster_upload(form.poster.data, activity.id)
+                    if poster_info:
                         # 记录旧海报文件名，以便稍后删除
                         old_poster = activity.poster_image
                         
-                        # 更新海报文件名
-                        activity.poster_image = poster_filename
-                        logger.info(f"活动海报文件名已更新: {poster_filename}")
+                        # 更新海报信息
+                        activity.poster_image = poster_info['filename']
+                        activity.poster_data = poster_info['data']
+                        activity.poster_mimetype = poster_info['mimetype']
+                        logger.info(f"活动海报信息已更新: {poster_info['filename']}")
                         
                         # 尝试删除旧海报文件（如果存在且不是默认banner）
                         if old_poster and 'banner' not in old_poster:
@@ -339,7 +352,7 @@ def create_activity():
                             except Exception as e:
                                 logger.warning(f"删除旧海报文件时出错: {e}")
                     else:
-                        logger.error("上传海报失败，未获得有效的文件名")
+                        logger.error("上传海报失败，未获得有效的文件信息")
                         flash('上传海报失败，请重试', 'warning')
                 except Exception as e:
                     logger.error(f"上传海报时出错: {e}", exc_info=True)
@@ -529,15 +542,17 @@ def edit_activity(id):
                         logger.info(f"编辑活动: 准备上传海报，活动ID={activity.id}, 文件名={form.poster.data.filename}")
                         
                         # 使用handle_poster_upload函数处理文件上传，确保传递活动ID（整数）而不是整个活动对象
-                        poster_filename = handle_poster_upload(form.poster.data, activity.id)
+                        poster_info = handle_poster_upload(form.poster.data, activity.id)
                         
-                        if poster_filename:
+                        if poster_info:
                             # 记录旧海报文件名，以便稍后删除
                             old_poster = activity.poster_image
                             
-                            # 更新海报文件名
-                            activity.poster_image = poster_filename
-                            logger.info(f"编辑活动: 海报文件名已更新: {poster_filename}")
+                            # 更新海报信息
+                            activity.poster_image = poster_info['filename']
+                            activity.poster_data = poster_info['data']
+                            activity.poster_mimetype = poster_info['mimetype']
+                            logger.info(f"编辑活动: 海报信息已更新: {poster_info['filename']}")
                             
                             # 尝试删除旧海报文件（如果存在且不是默认banner）
                             if old_poster and 'banner' not in old_poster:
@@ -549,7 +564,7 @@ def edit_activity(id):
                                 except Exception as e:
                                     logger.warning(f"编辑活动: 删除旧海报文件时出错: {e}")
                         else:
-                            logger.error("编辑活动: 上传海报失败，未获得有效的文件名")
+                            logger.error("编辑活动: 上传海报失败，未获得有效的文件信息")
                             flash('上传海报时出错，但其他活动信息已保存', 'warning')
                     except Exception as e:
                         logger.error(f"编辑活动: 上传海报时出错: {e}", exc_info=True)

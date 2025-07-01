@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, redirect, url_for, flash, request, current_app, abort, send_from_directory, g, session, jsonify
+from flask import Blueprint, render_template, redirect, url_for, flash, request, current_app, abort, send_from_directory, g, session, jsonify, make_response
 from flask_login import login_required, current_user
 from datetime import datetime, timedelta
 import logging
@@ -418,3 +418,30 @@ def clear_ai_chat_history():
         logger.error(f"清除聊天记录时出错: {e}")
         db.session.rollback()
         return jsonify({'success': False, 'message': '服务器错误'}), 500
+
+@main_bp.route('/poster/<int:activity_id>')
+def poster_image(activity_id):
+    """直接从数据库获取海报图片"""
+    try:
+        from src.models import Activity
+        
+        # 获取活动信息
+        activity = db.get_or_404(Activity, activity_id)
+        
+        # 检查活动是否有图片数据
+        if not activity.poster_data:
+            # 如果没有图片数据，重定向到默认图片
+            return redirect(url_for('static', filename='img/landscape.jpg'))
+        
+        # 获取MIME类型，默认为image/png
+        mime_type = activity.poster_mimetype or 'image/png'
+        
+        # 返回图片数据
+        response = make_response(activity.poster_data)
+        response.headers.set('Content-Type', mime_type)
+        response.headers.set('Cache-Control', 'public, max-age=3600')  # 缓存1小时
+        return response
+    except Exception as e:
+        logger.error(f"获取活动海报时出错: {e}")
+        # 重定向到默认图片
+        return redirect(url_for('static', filename='img/landscape.jpg'))
