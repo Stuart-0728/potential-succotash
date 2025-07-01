@@ -71,7 +71,7 @@
                             </td>
                             <td>
                                 {% if message.sender_id == current_user.id %}
-                                    {{ message.receiver.username }}
+                                    {{ message.recipient.username }}
                                 {% else %}
                                     {{ message.sender.username }}
                                 {% endif %}

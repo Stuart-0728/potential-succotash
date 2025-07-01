@@ -710,27 +710,16 @@ document.addEventListener('DOMContentLoaded', () => {
             const csrfToken = chatSession.getCsrfToken();
             console.log("当前CSRF令牌:", csrfToken);
             
-            // 尝试多种方式获取CSRF令牌
-            const metaToken = document.querySelector('meta[name="csrf-token"]');
-            const csrfInput = document.querySelector('input[name="csrf_token"]');
-            console.log("META标签CSRF:", metaToken ? metaToken.getAttribute('content') : '未找到');
-            console.log("表单CSRF:", csrfInput ? csrfInput.value : '未找到');
+            // 创建FormData对象
+            const formData = new FormData();
+            formData.append('csrf_token', csrfToken);
+            formData.append('session_id', chatSession.sessionId);
             
             // 发送清除所有历史的请求到后端
             fetch('/utils/ai_chat/clear_history', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json',
-                    'X-CSRFToken': csrfToken,
-                    'X-CSRF-Token': csrfToken,
-                    'CSRF-Token': csrfToken
-                },
-                credentials: 'same-origin', // 确保包含Cookie
-                body: JSON.stringify({
-                    session_id: chatSession.sessionId,
-                    csrf_token: csrfToken // Ensure csrf_token is in the body
-                })
+                body: formData,
+                credentials: 'same-origin' // 确保包含Cookie
             })
             .then(response => {
                 console.log("响应状态:", response.status, response.statusText);
