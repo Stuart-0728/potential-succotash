@@ -171,7 +171,8 @@ def dashboard():
                               recent_activities=recent_activities,
                               recent_students=recent_students,
                               total_registrations=total_registrations,
-                              display_datetime=display_datetime)
+                              display_datetime=display_datetime,
+                              Registration=Registration)
     except Exception as e:
         logger.error(f"Error in admin dashboard: {e}")
         flash('加载管理面板时出错', 'danger')

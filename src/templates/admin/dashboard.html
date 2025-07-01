@@ -204,7 +204,7 @@
                                             <span class="badge bg-danger rounded-pill">已取消</span>
                                         {% endif %}
                                     </td>
-                                    <td class="d-none d-md-table-cell">{{ activity.registrations.filter_by(status='registered').count() if activity.registrations and activity.registrations.filter_by else 0 }}</td>
+                                    <td class="d-none d-md-table-cell">{{ activity.registrations.filter(Registration.status.in_(['registered', 'attended'])).count() if activity.registrations else 0 }}</td>
                                     <td>
                                         <div class="btn-group">
                                             <a href="{{ url_for('admin.edit_activity', id=activity.id) }}" class="btn btn-sm btn-outline-primary">
