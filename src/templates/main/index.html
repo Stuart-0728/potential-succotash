@@ -193,7 +193,7 @@
                                      alt="{{ activity.title }}" 
                                      style="height: 200px; object-fit: cover;">
                                 {% else %}
-                                <img src="{{ url_for('static', filename='uploads/posters/' + activity.poster_image) }}" 
+                                <img src="{{ url_for('main.poster_image', activity_id=activity.id) }}" 
                                      class="card-img-top" 
                                      alt="{{ activity.title }}" 
                                      style="height: 200px; object-fit: cover;">
@@ -245,7 +245,7 @@
                                      alt="{{ activity.title }}" 
                                      style="height: 200px; object-fit: cover;">
                                 {% else %}
-                                <img src="{{ url_for('static', filename='uploads/posters/' + activity.poster_image) }}" 
+                                <img src="{{ url_for('main.poster_image', activity_id=activity.id) }}" 
                                      class="card-img-top" 
                                      alt="{{ activity.title }}" 
                                      style="height: 200px; object-fit: cover;">
@@ -297,7 +297,7 @@
                                      alt="{{ activity.title }}" 
                                      style="height: 200px; object-fit: cover;">
                                 {% else %}
-                                <img src="{{ url_for('static', filename='uploads/posters/' + activity.poster_image) }}" 
+                                <img src="{{ url_for('main.poster_image', activity_id=activity.id) }}" 
                                      class="card-img-top" 
                                      alt="{{ activity.title }}" 
                                      style="height: 200px; object-fit: cover;">

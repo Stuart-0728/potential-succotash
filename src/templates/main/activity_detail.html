@@ -22,7 +22,7 @@
                          alt="{{ activity.title }}" 
                          style="max-height: 400px;">
                     {% else %}
-                    <img src="{{ url_for('static', filename='uploads/posters/' + activity.poster_image) }}" 
+                    <img src="{{ url_for('main.poster_image', activity_id=activity.id) }}" 
                          class="img-fluid rounded" 
                          alt="{{ activity.title }}" 
                          style="max-height: 400px;">

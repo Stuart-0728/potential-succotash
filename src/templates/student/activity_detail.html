@@ -25,7 +25,7 @@
                             {% elif 'banner' in activity.poster_image %}
                             <img src="{{ url_for('static', filename='img/' + activity.poster_image) }}" alt="活动海报" class="img-fluid rounded shadow-sm" style="max-height: 400px;">
                             {% else %}
-                            <img src="{{ url_for('static', filename='uploads/posters/' + activity.poster_image) }}" alt="活动海报" class="img-fluid rounded shadow-sm" style="max-height: 400px;">
+                            <img src="{{ url_for('main.poster_image', activity_id=activity.id) }}" alt="活动海报" class="img-fluid rounded shadow-sm" style="max-height: 400px;">
                             {% endif %}
                         </div>
                     {% endif %}

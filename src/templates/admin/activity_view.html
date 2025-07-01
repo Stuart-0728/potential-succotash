@@ -27,7 +27,7 @@
 
                     <div class="mb-4">
                         {% if activity.poster_image %}
-                        <img src="{{ url_for('static', filename='uploads/posters/' + activity.poster_image) }}" class="img-fluid rounded" style="max-height: 350px; width: auto; margin: 0 auto; display: block;">
+                        <img src="{{ url_for('main.poster_image', activity_id=activity.id) }}" class="img-fluid rounded" style="max-height: 350px; width: auto; margin: 0 auto; display: block;">
                         {% else %}
                         <div class="alert alert-secondary text-center">未上传海报</div>
                         {% endif %}

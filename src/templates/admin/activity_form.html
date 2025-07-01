@@ -200,7 +200,7 @@
                   <img src="{{ url_for('static', filename='img/' + activity.poster_image) }}" alt="活动海报" class="img-thumbnail" style="max-height: 200px;">
                   <small class="form-text text-muted d-block mt-1">使用系统默认图片：{{ activity.poster_image }}</small>
                   {% else %}
-                  <img src="{{ url_for('static', filename='uploads/posters/' + activity.poster_image) }}" alt="活动海报" class="img-thumbnail" style="max-height: 200px;">
+                  <img src="{{ url_for('main.poster_image', activity_id=activity.id) }}" alt="活动海报" class="img-thumbnail" style="max-height: 200px;">
                   <small class="form-text text-muted d-block mt-1">当前文件名：{{ activity.poster_image }}</small>
                   {% endif %}
                 </div>
