@@ -4,6 +4,13 @@ import uuid
 from datetime import datetime
 from flask import current_app
 import logging
+import os
+import time
+import pytz
+from functools import wraps
+from sqlalchemy.exc import SQLAlchemyError
+
+logger = logging.getLogger(__name__)
 
 def generate_session_id():
     """生成唯一的会话ID"""
@@ -68,8 +75,13 @@ def get_compatible_paginate(db, query, page, per_page, max_per_page=None, error_
         # 尝试使用新版本SQLAlchemy 2.0的分页语法
         if hasattr(db, 'paginate'):
             # SQLAlchemy 2.0
-            return get_compatible_paginate(db, 
-                query, page=page, per_page=per_page, error_out=False)
+            return db.paginate(
+                query, 
+                page=page, 
+                per_page=per_page,
+                max_per_page=max_per_page,
+                error_out=error_out
+            )
         else:
             # 旧版本SQLAlchemy
             return query.paginate(
@@ -142,4 +154,26 @@ def get_compatible_paginate(db, query, page, per_page, max_per_page=None, error_
                 def iter_pages(self, *args, **kwargs):
                     return []
             
-            return EmptyPagination() 
+            return EmptyPagination()
+
+# 添加通用的数据库事务处理装饰器
+def db_transaction(func):
+    """
+    装饰器：自动处理数据库事务，出错时回滚
+    """
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        from src import db
+        try:
+            result = func(*args, **kwargs)
+            db.session.commit()
+            return result
+        except SQLAlchemyError as e:
+            db.session.rollback()
+            current_app.logger.error(f"数据库事务错误: {str(e)}")
+            raise
+        except Exception as e:
+            db.session.rollback()
+            current_app.logger.error(f"未知错误: {str(e)}")
+            raise
+    return wrapper 

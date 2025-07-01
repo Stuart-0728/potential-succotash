@@ -65,7 +65,236 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // 处理活动倒计时
     setupCountdowns();
+
+    // 初始化Toast通知系统
+    initToastSystem();
+    
+    // 初始化全局加载动画
+    initGlobalLoading();
+    
+    // 为所有表单添加加载动画
+    setupFormLoading();
 });
+
+// 初始化全局加载动画
+function initGlobalLoading() {
+    // 创建加载动画元素
+    const loadingEl = document.createElement('div');
+    loadingEl.className = 'global-loading';
+    loadingEl.innerHTML = `
+        <div class="spinner"></div>
+        <div class="message">加载中...</div>
+    `;
+    document.body.appendChild(loadingEl);
+    
+    // 添加全局显示/隐藏加载的函数
+    window.showLoading = function(message = '加载中...') {
+        const loadingEl = document.querySelector('.global-loading');
+        if (loadingEl) {
+            const messageEl = loadingEl.querySelector('.message');
+            if (messageEl) {
+                messageEl.textContent = message;
+            }
+            loadingEl.classList.add('show');
+        }
+    };
+    
+    window.hideLoading = function() {
+        const loadingEl = document.querySelector('.global-loading');
+        if (loadingEl) {
+            loadingEl.classList.remove('show');
+        }
+    };
+}
+
+// 为所有表单添加加载动画
+function setupFormLoading() {
+    document.addEventListener('submit', function(e) {
+        const form = e.target;
+        
+        // 排除特定表单（如搜索表单）
+        if (form.classList.contains('no-loading') || 
+            form.id === 'search-form' || 
+            form.getAttribute('data-no-loading') === 'true') {
+            return;
+        }
+        
+        // 获取表单提交按钮
+        const submitBtn = form.querySelector('button[type="submit"], input[type="submit"]');
+        if (submitBtn) {
+            // 保存原始内容
+            const originalContent = submitBtn.innerHTML;
+            
+            // 替换为加载图标
+            submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> 处理中...';
+            submitBtn.disabled = true;
+            
+            // 提交完成后恢复按钮状态
+            setTimeout(function() {
+                // 如果5秒后表单还在页面上，恢复按钮状态
+                if (document.body.contains(submitBtn)) {
+                    submitBtn.innerHTML = originalContent;
+                    submitBtn.disabled = false;
+                }
+            }, 5000);
+        } else {
+            // 如果没有找到提交按钮，显示全局加载动画
+            showLoading('提交中...');
+            
+            // 5秒后自动隐藏
+            setTimeout(hideLoading, 5000);
+        }
+    });
+    
+    // 为所有AJAX请求添加全局加载指示器
+    setupAjaxLoading();
+}
+
+// 为AJAX请求添加全局加载指示器
+function setupAjaxLoading() {
+    // 保存原始的XMLHttpRequest
+    const originalXHR = window.XMLHttpRequest;
+    
+    // 创建一个计数器来跟踪活动的AJAX请求
+    let activeRequests = 0;
+    
+    // 替换XMLHttpRequest
+    window.XMLHttpRequest = function() {
+        const xhr = new originalXHR();
+        
+        // 覆盖open方法
+        const originalOpen = xhr.open;
+        xhr.open = function() {
+            // 检查是否需要显示加载动画
+            const url = arguments[1];
+            
+            // 排除某些不需要显示加载的请求
+            const excludedUrls = [
+                '/api/notifications/unread',
+                '/student/api/messages/unread_count'
+            ];
+            
+            xhr.showLoading = !excludedUrls.some(excluded => url.includes(excluded));
+            
+            return originalOpen.apply(this, arguments);
+        };
+        
+        // 覆盖send方法
+        const originalSend = xhr.send;
+        xhr.send = function() {
+            if (xhr.showLoading) {
+                activeRequests++;
+                if (activeRequests === 1) {
+                    // 第一个请求开始时显示加载动画
+                    window.showLoading();
+                }
+            }
+            
+            // 处理请求完成
+            xhr.addEventListener('loadend', function() {
+                if (xhr.showLoading) {
+                    activeRequests--;
+                    if (activeRequests === 0) {
+                        // 所有请求完成时隐藏加载动画
+                        window.hideLoading();
+                    }
+                }
+            });
+            
+            return originalSend.apply(this, arguments);
+        };
+        
+        return xhr;
+    };
+}
+
+// 初始化Toast通知系统
+function initToastSystem() {
+    // 创建Toast容器
+    const toastContainer = document.createElement('div');
+    toastContainer.id = 'toast-container';
+    toastContainer.className = 'toast-container position-fixed bottom-0 start-0 p-3';
+    toastContainer.style.zIndex = '1090';
+    document.body.appendChild(toastContainer);
+    
+    // 添加全局showToast函数
+    window.showToast = function(message, type = 'info', duration = 3000) {
+        const toastId = 'toast-' + Date.now();
+        const toast = document.createElement('div');
+        toast.className = `toast align-items-center border-0 show`;
+        toast.setAttribute('role', 'alert');
+        toast.setAttribute('aria-live', 'assertive');
+        toast.setAttribute('aria-atomic', 'true');
+        toast.id = toastId;
+        
+        // 设置不同类型的背景色
+        let bgClass = 'bg-primary';
+        switch(type) {
+            case 'success': bgClass = 'bg-success'; break;
+            case 'error': bgClass = 'bg-danger'; break;
+            case 'warning': bgClass = 'bg-warning text-dark'; break;
+            case 'info': bgClass = 'bg-info text-dark'; break;
+        }
+        
+        toast.classList.add(bgClass);
+        
+        toast.innerHTML = `
+            <div class="d-flex">
+                <div class="toast-body">
+                    ${message}
+                </div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+            </div>
+        `;
+        
+        // 添加到容器
+        toastContainer.appendChild(toast);
+        
+        // 添加动画
+        toast.style.transform = 'translateY(100%)';
+        toast.style.opacity = '0';
+        toast.style.transition = 'all 0.3s ease-out';
+        
+        // 触发重排，然后应用动画
+        setTimeout(() => {
+            toast.style.transform = 'translateY(0)';
+            toast.style.opacity = '1';
+        }, 10);
+        
+        // 添加关闭按钮事件
+        const closeBtn = toast.querySelector('.btn-close');
+        closeBtn.addEventListener('click', () => {
+            closeToast(toastId);
+        });
+        
+        // 自动关闭
+        if (duration > 0) {
+            setTimeout(() => {
+                closeToast(toastId);
+            }, duration);
+        }
+        
+        return toastId;
+    };
+    
+    // 关闭Toast的函数
+    function closeToast(toastId) {
+        const toast = document.getElementById(toastId);
+        if (toast) {
+            toast.style.transform = 'translateY(100%)';
+            toast.style.opacity = '0';
+            
+            setTimeout(() => {
+                if (toast.parentNode) {
+                    toast.parentNode.removeChild(toast);
+                }
+            }, 300);
+        }
+    }
+    
+    // 添加全局closeToast函数
+    window.closeToast = closeToast;
+}
 
 // 图表初始化函数
 function initializeCharts() {
