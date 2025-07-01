@@ -15,10 +15,14 @@ from src.utils import get_compatible_paginate
 from sqlalchemy.orm import joinedload
 import pytz
 import os
+from flask_wtf.csrf import CSRFProtect
 
 logger = logging.getLogger(__name__)
 
 student_bp = Blueprint('student', __name__, url_prefix='/student')
+
+# 创建CSRF保护实例
+csrf = CSRFProtect()
 
 # 检查是否为学生的装饰器
 def student_required(func):
@@ -361,6 +365,7 @@ def my_activities():
         from src.utils.time_helpers import get_localized_now, display_datetime, safe_less_than, safe_greater_than, safe_compare
         now = get_localized_now()
         logger.info(f"my_activities - 当前UTC时间: {now}")
+        logger.info(f"my_activities - 用户ID: {current_user.id}, 状态筛选: {status}")
         
         # 使用别名避免表连接问题
         from sqlalchemy.orm import aliased
@@ -368,6 +373,10 @@ def my_activities():
         
         # 基本查询 - 获取用户的所有报名记录
         query = Registration.query.filter_by(user_id=current_user.id)
+        
+        # 记录查询到的报名记录数量
+        count = query.count()
+        logger.info(f"my_activities - 找到 {count} 条报名记录")
         
         # 根据状态筛选
         if status == 'active':
@@ -387,6 +396,16 @@ def my_activities():
             query = query.join(ActivityAlias, ActivityAlias.id == Registration.activity_id)
         
         registrations = query.order_by(ActivityAlias.start_time.desc()).paginate(page=page, per_page=10)
+        
+        # 记录分页后的记录数量
+        logger.info(f"my_activities - 分页后有 {len(registrations.items)} 条记录, 总页数: {registrations.pages}")
+        
+        # 记录每个活动的详细信息，方便调试
+        for reg in registrations.items:
+            activity = reg.activity
+            logger.info(f"my_activities - 报名记录: 活动ID={reg.activity_id}, 状态={reg.status}, 活动对象存在={activity is not None}")
+            if activity:
+                logger.info(f"my_activities - 活动信息: 标题={activity.title}, 状态={activity.status}")
 
         # 获取待评价的活动
         reviewed_activity_ids = db.session.execute(db.select(ActivityReview.activity_id).filter_by(user_id=current_user.id)).scalars().all()
@@ -741,6 +760,7 @@ def recommend():
 
 @student_bp.route('/api/attendance/checkin', methods=['POST'])
 @student_required
+@csrf.exempt  # 豁免CSRF保护
 def checkin():
     try:
         data = request.get_json()
@@ -815,17 +835,34 @@ def checkin():
         from src.utils.time_helpers import ensure_timezone_aware
         checkin_key_expires = ensure_timezone_aware(activity.checkin_key_expires)
         
-        if not (activity.checkin_key and activity.checkin_key == key and 
-                (not checkin_key_expires or now < checkin_key_expires)):
+        # 检查签到码是否有效
+        valid_key = False
+        if activity.checkin_key and key:
+            if activity.checkin_key == key:
+                valid_key = True
+            elif key.endswith(activity.checkin_key):
+                valid_key = True
+                logger.info(f"签到码包含在URL中，有效")
+            
+        # 检查签到码是否过期
+        if not valid_key:
             return jsonify({
                 'success': False,
-                'message': '签到码无效或已过期'
+                'message': '签到码无效'
+            })
+            
+        if checkin_key_expires and now > checkin_key_expires:
+            return jsonify({
+                'success': False,
+                'message': '签到码已过期'
             })
 
+        # 签到成功，更新记录
         registration.check_in_time = now
         registration.status = 'attended'
         db.session.commit()
 
+        # 添加积分
         try:
             points = activity.points if activity.points else 5
             points_reason = f"参加活动: {activity.title}"
