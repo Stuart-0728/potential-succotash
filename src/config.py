@@ -163,6 +163,7 @@ class Config:
     SESSION_FILE_DIR = SESSION_FILE_DIR
     SESSION_PERMANENT = True
     SESSION_USE_SIGNER = True
+    SESSION_COOKIE_NAME = 'cqnu_session'
     
     # Flask-Cache配置
     CACHE_TYPE = 'SimpleCache'
