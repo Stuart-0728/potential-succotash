@@ -268,7 +268,7 @@ def activities():
         # 基本查询
         query = db.select(Activity)
         
-        # 搜索功能
+        # 搜索功能 - 只有当搜索查询不为空时才过滤
         if search_query:
             query = query.filter(
                 or_(

@@ -1923,8 +1923,7 @@ def checkin_modal(activity_id):
             checkin_count=checkin_count,
             checkins=checkins,
             now=now,
-            display_datetime=display_datetime,
-            csrf_token=csrf_token
+            display_datetime=display_datetime
         )
         
     except Exception as e:

@@ -752,8 +752,8 @@ def get_recommended_activities(user_id, limit=6):
                     )
                 )
         
-        # 根据活动开始时间排序，优先推荐即将开始的活动
-        recommended = recommended.order_by(Activity.start_time.asc())
+        # 根据活动开始时间排序，优先推荐最近的活动
+        recommended = recommended.order_by(Activity.start_time.desc())
         
         return recommended.limit(limit).all()
     except Exception as e:
