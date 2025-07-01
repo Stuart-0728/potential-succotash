@@ -93,6 +93,8 @@ def handle_poster_upload(file_data, activity_id):
             
             unique_filename = f"activity_{str_activity_id}_{timestamp}{file_extension}"
         
+        logger.info(f"生成的唯一文件名: {unique_filename}")
+        
         # 保存到文件系统 (同时保留这部分，确保向后兼容)
         try:
             # 确保上传目录存在
@@ -113,11 +115,12 @@ def handle_poster_upload(file_data, activity_id):
             except Exception as e:
                 logger.warning(f"无法设置文件权限: {e}")
         except Exception as e:
-            logger.warning(f"保存文件到文件系统失败，但将继续保存到数据库: {e}")
+            logger.warning(f"保存文件到文件系统失败: {e}")
         
         # 读取二进制数据 (先保存文件再读取是为了确保文件指针位置正确)
         file_data.seek(0)
         binary_data = file_data.read()
+        logger.info(f"已读取二进制数据，大小: {len(binary_data)} 字节")
         
         # 返回文件信息 (包含文件名、二进制数据和MIME类型)
         logger.info(f"活动海报已处理: {unique_filename}")

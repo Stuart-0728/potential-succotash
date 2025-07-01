@@ -174,28 +174,54 @@ def process_activity_poster(activity, static_folder):
     try:
         # 检查是否有海报
         if activity.poster_image is None or str(activity.poster_image).strip() == '':
+            logger.info(f"活动ID={activity.id}没有海报图片，设置默认图片")
             setattr(activity, 'poster_image', "landscape.jpg")
+            return
+            
+        # 检查数据库中是否有二进制海报数据
+        if hasattr(activity, 'poster_data') and activity.poster_data:
+            logger.info(f"活动ID={activity.id}在数据库中有二进制海报数据，大小: {len(activity.poster_data)} 字节")
+            # 如果有二进制数据，优先使用数据库中的图片
+            # 确保poster_image字段与文件名一致
             return
             
         # 检查文件是否存在
         if static_folder:
             poster_dir = os.path.join(static_folder, 'uploads', 'posters')
+            logger.info(f"检查海报目录: {poster_dir}")
+            
             if os.path.exists(poster_dir):
                 # 查找以活动ID开头的任何海报文件
-                matching_files = [f for f in os.listdir(poster_dir) if f.startswith(f"activity_{activity.id}_")]
-                if matching_files:
-                    # 使用最新的匹配文件 - 按时间戳排序
-                    matching_files.sort(reverse=True)  # 按文件名降序排序，通常最新的时间戳在最前面
-                    new_poster = matching_files[0]
-                    # 检查是否需要更新活动的海报文件名
-                    if new_poster != activity.poster_image:
-                        logger.info(f"更新活动ID={activity.id}的海报: {activity.poster_image} -> {new_poster}")
-                        setattr(activity, 'poster_image', new_poster)
+                try:
+                    matching_files = [f for f in os.listdir(poster_dir) if f.startswith(f"activity_{activity.id}_")]
+                    logger.info(f"找到匹配活动ID={activity.id}的海报文件: {matching_files}")
                     
-                    poster_path = os.path.join(poster_dir, new_poster)
-                    if os.path.exists(poster_path):
-                        logger.info(f"使用最新海报文件: {new_poster}")
-                        return
+                    if matching_files:
+                        # 使用最新的匹配文件 - 按时间戳排序
+                        matching_files.sort(reverse=True)  # 按文件名降序排序，通常最新的时间戳在最前面
+                        new_poster = matching_files[0]
+                        logger.info(f"选择最新的海报文件: {new_poster}")
+                        
+                        # 检查是否需要更新活动的海报文件名
+                        if new_poster != activity.poster_image:
+                            logger.info(f"更新活动ID={activity.id}的海报: {activity.poster_image} -> {new_poster}")
+                            setattr(activity, 'poster_image', new_poster)
+                        
+                        poster_path = os.path.join(poster_dir, new_poster)
+                        if os.path.exists(poster_path):
+                            logger.info(f"海报文件存在: {poster_path}")
+                            # 尝试读取文件内容并更新数据库中的二进制数据
+                            try:
+                                if hasattr(activity, 'poster_data') and not activity.poster_data:
+                                    with open(poster_path, 'rb') as f:
+                                        binary_data = f.read()
+                                        setattr(activity, 'poster_data', binary_data)
+                                        logger.info(f"已从文件读取海报数据并更新到数据库，大小: {len(binary_data)} 字节")
+                            except Exception as e:
+                                logger.warning(f"读取海报文件失败: {e}")
+                            return
+                except Exception as e:
+                    logger.error(f"处理匹配海报文件时出错: {e}")
                 
                 # 如果没有找到匹配的文件或文件不存在，检查指定的海报是否存在
                 if activity.poster_image:
@@ -211,8 +237,13 @@ def process_activity_poster(activity, static_folder):
                     setattr(activity, 'poster_image', "landscape.jpg")
                     logger.info(f"设置活动详情页备用风景图: landscape.jpg")
             else:
+                logger.warning(f"海报目录不存在: {poster_dir}")
                 setattr(activity, 'poster_image', "landscape.jpg")
                 logger.info(f"海报目录不存在，设置备用风景图: landscape.jpg")
+        else:
+            logger.warning("静态文件目录未设置")
+            setattr(activity, 'poster_image', "landscape.jpg")
+            logger.info("静态文件目录未设置，使用备用风景图")
     except Exception as e:
         logger.error(f"处理活动海报出错: {e}")
         setattr(activity, 'poster_image', "landscape.jpg")
