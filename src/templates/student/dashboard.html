@@ -131,7 +131,7 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                {% for activity in registered_activities %}
+                                {% for activity in registered_activities[:5] %}
                                 <tr>
                                     <td class="ps-4 fw-medium">{{ activity.title }}</td>
                                     <td>

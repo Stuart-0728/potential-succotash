@@ -89,7 +89,10 @@ def dashboard():
         # 排序活动，按开始时间升序排列
         upcoming_activities.sort(key=lambda x: x.start_time)
         ongoing_activities.sort(key=lambda x: x.end_time)
-        past_activities.sort(key=lambda x: x.end_time, reverse=True)
+        past_activities.sort(key=lambda x: x.start_time) # 确保已结束活动也按开始时间升序
+
+        # 合并所有已报名的活动，用于在仪表盘中展示
+        registered_activities = sorted(upcoming_activities + ongoing_activities + past_activities, key=lambda x: x.start_time)
         
         logger.info(f"仪表盘活动分类: 即将开始={len(upcoming_activities)}, 进行中={len(ongoing_activities)}, 已结束={len(past_activities)}")
         
@@ -136,9 +139,7 @@ def dashboard():
         return render_template(
             'student/dashboard.html',
             student=student_info,
-            upcoming_activities=upcoming_activities,
-            ongoing_activities=ongoing_activities,
-            past_activities=past_activities,
+            registered_activities=registered_activities,
             notifications=notifications,
             points=points,
             display_datetime=display_datetime,
@@ -786,12 +787,35 @@ def recommend():
 @csrf.exempt  # 豁免CSRF保护
 def checkin():
     try:
-        data = request.get_json()
-        # 支持多种参数名称格式
+        # 从请求数据中获取 key 和 activity_id
         key = data.get('key') or data.get('checkin_key')
         activity_id = data.get('activity_id')
-        
-        logger.info(f"收到签到请求: activity_id={activity_id}, 请求数据={data}")
+
+        logger.info(f"收到签到请求: 原始key={key}, 原始activity_id={activity_id}, 请求数据={data}")
+
+        # 如果 key 看起来像一个 URL，尝试从 URL 中解析 activity_id 和 key
+        if key and ('http://' in key or 'https://' in key or '/checkin/scan/' in key):
+            try:
+                from urllib.parse import urlparse
+                parsed_url = urlparse(key)
+                path_parts = parsed_url.path.strip('/').split('/')
+                
+                if len(path_parts) >= 4 and path_parts[0] == 'checkin' and path_parts[1] == 'scan':
+                    # 提取 activity_id 和 checkin_key
+                    parsed_activity_id = int(path_parts[2])
+                    parsed_key = path_parts[3]
+                    
+                    # 如果原始请求中没有 activity_id，或者解析出的 activity_id 与原始请求不符，则使用解析出的
+                    if not activity_id or activity_id != parsed_activity_id:
+                        activity_id = parsed_activity_id
+                        logger.info(f"从URL中解析出 activity_id: {activity_id}")
+                    
+                    # 使用解析出的 key
+                    key = parsed_key
+                    logger.info(f"从URL中解析出签到码: {key}")
+            except Exception as e:
+                logger.error(f"从URL提取签到码失败: {e}", exc_info=True)
+                # 如果解析失败，继续使用原始 key 和 activity_id
 
         if not key or not activity_id:
             logger.warning(f"签到参数不完整: key={key}, activity_id={activity_id}")
@@ -834,23 +858,6 @@ def checkin():
 
         now = get_localized_now()
         
-        # 从URL中提取签到码
-        if key and ('/' in key or '?' in key):
-            try:
-                # 尝试从URL中提取签到码
-                from urllib.parse import urlparse, parse_qs
-                parsed_url = urlparse(key)
-                path_parts = parsed_url.path.strip('/').split('/')
-                
-                # 如果URL路径包含签到码
-                if len(path_parts) >= 4 and path_parts[0] == 'checkin' and path_parts[1] == 'scan':
-                    extracted_key = path_parts[-1]  # 取最后一个部分作为签到码
-                    logger.info(f"从URL中提取的签到码: {extracted_key}")
-                    key = extracted_key
-            except Exception as e:
-                logger.error(f"从URL提取签到码失败: {e}")
-                # 继续使用原始key
-        
         # 记录签到码和活动的签到码，方便调试
         logger.info(f"签到码比对: 提供的签到码={key}, 活动签到码={activity.checkin_key}, 过期时间={activity.checkin_key_expires}")
         
@@ -859,22 +866,15 @@ def checkin():
         checkin_key_expires = ensure_timezone_aware(activity.checkin_key_expires)
         
         # 检查签到码是否有效
-        valid_key = False
-        if activity.checkin_key and key:
-            if activity.checkin_key == key:
-                valid_key = True
-            elif key.endswith(activity.checkin_key):
-                valid_key = True
-                logger.info(f"签到码包含在URL中，有效")
-            
-        # 检查签到码是否过期
-        if not valid_key:
+        if not activity.checkin_key or activity.checkin_key != key:
+            logger.warning(f"签到码无效: 提供的={key}, 期望的={activity.checkin_key}")
             return jsonify({
                 'success': False,
                 'message': '签到码无效'
             })
             
         if checkin_key_expires and now > checkin_key_expires:
+            logger.warning(f"签到码已过期: 当前时间={now}, 过期时间={checkin_key_expires}")
             return jsonify({
                 'success': False,
                 'message': '签到码已过期'
