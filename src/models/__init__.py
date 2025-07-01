@@ -55,16 +55,16 @@ class User(db.Model, UserMixin):
     last_login = Column(DateTime)
     
     # 关系
-    student_info = relationship('StudentInfo', backref='user', uselist=False)
-    registrations = relationship('Registration', backref='user', lazy='dynamic')
-    reviews = relationship('ActivityReview', backref='user', lazy='dynamic')
-    checkins = relationship('ActivityCheckin', backref='user', lazy='dynamic')
-    messages_sent = relationship('Message', foreign_keys='Message.sender_id', backref='sender', lazy='dynamic')
-    messages_received = relationship('Message', foreign_keys='Message.receiver_id', backref='recipient', lazy='dynamic')
-    notifications = relationship('Notification', backref='user', lazy='dynamic')
-    notification_reads = relationship('NotificationRead', backref='user', lazy='dynamic')
-    ai_chat_sessions = relationship('AIChatSession', backref='user', lazy='dynamic')
-    ai_preferences = relationship('AIUserPreferences', backref='user', uselist=False)
+    student_info = relationship('StudentInfo', backref='user', uselist=False, cascade="all, delete-orphan")
+    registrations = relationship('Registration', backref='user', lazy='dynamic', cascade="all, delete-orphan")
+    reviews = relationship('ActivityReview', backref='user', lazy='dynamic', cascade="all, delete-orphan")
+    checkins = relationship('ActivityCheckin', backref='user', lazy='dynamic', cascade="all, delete-orphan")
+    messages_sent = relationship('Message', foreign_keys='Message.sender_id', backref='sender', lazy='dynamic', cascade="all, delete-orphan")
+    messages_received = relationship('Message', foreign_keys='Message.receiver_id', backref='recipient', lazy='dynamic', cascade="all, delete-orphan")
+    notifications = relationship('Notification', backref='user', lazy='dynamic', cascade="all, delete-orphan")
+    notification_reads = relationship('NotificationRead', backref='user', lazy='dynamic', cascade="all, delete-orphan")
+    ai_chat_sessions = relationship('AIChatSession', backref='user', lazy='dynamic', cascade="all, delete-orphan")
+    ai_preferences = relationship('AIUserPreferences', backref='user', uselist=False, cascade="all, delete-orphan")
     
     @property
     def password(self):

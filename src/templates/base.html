@@ -766,6 +766,13 @@
                 updateUnreadMessages();
                 setInterval(updateUnreadMessages, 60000); // 每分钟更新一次
             }
+
+            $(document).ajaxError(function(event, jqxhr, settings, thrownError) {
+                if (jqxhr.status == 401) {
+                    toastr.error('您的会话已过期，请重新登录。');
+                    setTimeout(() => window.location.href = "{{ url_for('auth.login') }}", 2000);
+                }
+            });
         });
     </script>
 </body>

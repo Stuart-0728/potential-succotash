@@ -32,7 +32,6 @@ app = create_app()
 logger.info("应用创建成功")
 
 # Render需要的WSGI应用对象
-# 腾讯云Serverless需要的处理函数
 def main_handler(event, context):
     return app
 

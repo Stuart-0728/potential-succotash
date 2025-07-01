@@ -45,49 +45,31 @@ def dashboard():
         if not student_info:
             return redirect(url_for('auth.register'))
         
-        # 获取学生已报名的活动（只包含已报名和已签到的，不包括已取消的）
+        # 获取学生已报名的活动，并预加载活动信息
         reg_stmt = db.select(Registration).filter(
             Registration.user_id == current_user.id,
-            Registration.status.in_(['registered', 'attended'])  # 排除已取消的报名
-        )
+            Registration.status.in_(['registered', 'attended'])
+        ).options(joinedload(Registration.activity))
         registrations = db.session.execute(reg_stmt).scalars().all()
-        
-        # 获取报名活动的ID列表
-        registered_activity_ids = [reg.activity_id for reg in registrations]
-        
-        # 查询所有已报名活动
-        registered_activities = []
-        if registered_activity_ids:  # 增加空列表检查
-            act_stmt = db.select(Activity).filter(
-                Activity.id.in_(registered_activity_ids),
-                Activity.status != 'cancelled'
-            ).order_by(Activity.start_time.desc())
-            registered_activities = db.session.execute(act_stmt).scalars().all()
-        
+
         # 将活动分类为未开始、进行中和已结束
         upcoming_activities = []
         ongoing_activities = []
         past_activities = []
-        
-        try:
-            for activity in registered_activities:
-                # 查找对应的报名记录
-                registration = next((reg for reg in registrations if reg.activity_id == activity.id), None)
-                
-                if registration:
-                    activity.registration_status = registration.status
-                    activity.check_in_time = registration.check_in_time
-                
-                # 根据活动时间分类
-                # 使用安全的时间比较函数来避免时区问题
-                if safe_greater_than(activity.start_time, now):
-                    upcoming_activities.append(activity)
-                elif safe_less_than(activity.end_time, now):
-                    past_activities.append(activity)
-                else:
-                    ongoing_activities.append(activity)
-        except Exception as e:
-            logger.error(f"分类活动时出错: {e}")
+        for reg in registrations:
+            activity = reg.activity
+            if not activity or activity.status == 'cancelled':
+                continue
+            
+            activity.registration_status = reg.status
+            activity.check_in_time = reg.check_in_time
+
+            if safe_greater_than(activity.start_time, now):
+                upcoming_activities.append(activity)
+            elif safe_less_than(activity.end_time, now):
+                past_activities.append(activity)
+            else:
+                ongoing_activities.append(activity)
         
         # 获取最近的通知
         notifications = []
@@ -393,27 +375,13 @@ def my_activities():
         elif status == 'cancelled':
             query = query.filter_by(status='cancelled')
         
-        # 获取报名记录，并按活动开始时间排序
-        registrations = query.join(Activity, Activity.id == Registration.activity_id).order_by(Activity.start_time.desc()).paginate(page=page, per_page=10)
-        
-        # 获取所有相关活动并创建字典
-        activity_ids = [reg.activity_id for reg in registrations.items]
-        activities_list = Activity.query.filter(Activity.id.in_(activity_ids)).all() if activity_ids else []
-        activities = {activity.id: activity for activity in activities_list}
-        
+        # 获取报名记录，并预加载活动信息
+        query = query.options(joinedload(Registration.activity))
+        registrations = query.order_by(desc(Activity.start_time)).paginate(page=page, per_page=10)
+
         # 获取待评价的活动
-        pending_reviews = []
-        for reg in registrations.items:
-            # 只检查已完成的活动
-            if reg.activity.status == 'completed':
-                # 检查用户是否已评价
-                review = db.session.execute(db.select(ActivityReview).filter_by(
-                    activity_id=reg.activity_id, 
-                    user_id=current_user.id
-                )).scalar_one_or_none()
-                
-                if not review:
-                    pending_reviews.append(reg.activity_id)
+        reviewed_activity_ids = db.session.execute(db.select(ActivityReview.activity_id).filter_by(user_id=current_user.id)).scalars().all()
+        pending_reviews = [reg.activity_id for reg in registrations.items if reg.activity.status == 'completed' and reg.activity_id not in reviewed_activity_ids]
         
         return render_template('student/my_activities.html', 
                               registrations=registrations,

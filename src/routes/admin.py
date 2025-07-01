@@ -186,19 +186,24 @@ def activities(status='all'):
         # 分页查询
         activities = db.paginate(query, page=page, per_page=10)
         
-        # 为每个活动提前统计报名人数，避免模板中重复查询
-        registration_counts = {}
-        for activity in activities.items:
-            # 报名人数计算，同时考虑'registered'和'attended'两种状态
-            reg_stmt = db.select(func.count()).select_from(Registration).filter(
-                Registration.activity_id == activity.id,
+        # 优化：使用子查询一次性获取所有活动的报名人数
+        activity_ids = [activity.id for activity in activities.items]
+        if activity_ids:
+            reg_counts_stmt = db.select(
+                Registration.activity_id,
+                func.count(Registration.id).label('count')
+            ).filter(
+                Registration.activity_id.in_(activity_ids),
                 or_(
                     Registration.status == 'registered',
                     Registration.status == 'attended'
                 )
-            )
-            count = db.session.execute(reg_stmt).scalar()
-            registration_counts[activity.id] = count
+            ).group_by(Registration.activity_id)
+            
+            reg_counts_result = db.session.execute(reg_counts_stmt).all()
+            registration_counts = {activity_id: count for activity_id, count in reg_counts_result}
+        else:
+            registration_counts = {}
         
         # 导入display_datetime函数供模板使用
         from src.utils.time_helpers import display_datetime
@@ -630,87 +635,15 @@ def students():
 def delete_student(id):
     try:
         user = db.get_or_404(User, id)
-        
-        # 确保是学生账号
-        if user.role_id != 2:
+        if user.role.name != 'Student':
             flash('只能删除学生账号', 'danger')
             return redirect(url_for('admin.students'))
-        
-        # 按照正确的顺序删除关联数据，避免外键约束错误
-        
-        # 1. 删除AI用户偏好设置
-        ai_preferences = db.session.execute(db.select(AIUserPreferences).filter_by(user_id=id)).scalar_one_or_none()
-        if ai_preferences:
-            logger.info(f"删除用户 {user.username} 的AI偏好设置")
-            db.session.delete(ai_preferences)
-            db.session.commit()
-        
-        # 2. 删除AI聊天历史记录
-        ai_chat_histories = db.session.execute(db.select(AIChatHistory).filter_by(user_id=id)).scalars().all()
-        if ai_chat_histories:
-            logger.info(f"删除用户 {user.username} 的AI聊天历史记录: {len(ai_chat_histories)}条")
-            for history in ai_chat_histories:
-                db.session.delete(history)
-            db.session.commit()
-        
-        # 3. 删除AI聊天会话
-        ai_chat_sessions = db.session.execute(db.select(AIChatSession).filter_by(user_id=id)).scalars().all()
-        if ai_chat_sessions:
-            logger.info(f"删除用户 {user.username} 的AI聊天会话: {len(ai_chat_sessions)}个")
-            for session in ai_chat_sessions:
-                db.session.delete(session)
-            db.session.commit()
-        
-        # 4. 删除积分历史记录
-        student_info = db.session.execute(db.select(StudentInfo).filter_by(user_id=id)).scalar_one_or_none()
-        if student_info:
-            points_history = db.session.execute(db.select(PointsHistory).filter_by(student_id=student_info.id)).scalars().all()
-            if points_history:
-                logger.info(f"删除用户 {user.username} 的积分历史记录: {len(points_history)}条")
-                for history in points_history:
-                    db.session.delete(history)
-                db.session.commit()
-        
-        # 5. 删除活动评价
-        activity_reviews = db.session.execute(db.select(ActivityReview).filter_by(user_id=id)).scalars().all()
-        if activity_reviews:
-            logger.info(f"删除用户 {user.username} 的活动评价: {len(activity_reviews)}条")
-            for review in activity_reviews:
-                db.session.delete(review)
-            db.session.commit()
-        
-        # 6. 删除签到记录
-        checkins = db.session.execute(db.select(ActivityCheckin).filter_by(user_id=id)).scalars().all()
-        if checkins:
-            logger.info(f"删除用户 {user.username} 的签到记录: {len(checkins)}条")
-            for checkin in checkins:
-                db.session.delete(checkin)
-            db.session.commit()
-        
-        # 7. 删除报名记录
-        registrations = db.session.execute(db.select(Registration).filter_by(user_id=id)).scalars().all()
-        if registrations:
-            logger.info(f"删除用户 {user.username} 的报名记录: {len(registrations)}条")
-            for reg in registrations:
-                db.session.delete(reg)
-            db.session.commit()
-        
-        # 8. 删除学生信息
-        if student_info:
-            logger.info(f"删除用户 {user.username} 的学生信息")
-            # 清除标签关联
-            student_info.tags = []
-            db.session.commit()
-            db.session.delete(student_info)
-            db.session.commit()
-        
-        # 9. 删除用户账号
-        logger.info(f"删除用户账号: {user.username}")
+
         db.session.delete(user)
         db.session.commit()
-        
+
         log_action('delete_student', f'删除学生账号: {user.username}')
-        flash('学生账号已删除', 'success')
+        flash('学生账号已成功删除', 'success')
         return redirect(url_for('admin.students'))
     except Exception as e:
         db.session.rollback()
@@ -731,16 +664,8 @@ def student_view(user_id):
     points_stmt = db.select(PointsHistory).filter_by(student_id=student.id).order_by(PointsHistory.created_at.desc())
     points_history = db.session.execute(points_stmt).scalars().all()
     
-    reg_stmt = db.select(Registration).filter_by(user_id=user.id)
+    reg_stmt = db.select(Registration).filter_by(user_id=user.id).options(joinedload(Registration.activity))
     registrations = db.session.execute(reg_stmt).scalars().all()
-    
-    # 处理注册信息，添加活动标题
-    for reg in registrations:
-        activity = db.get_or_404(Activity, reg.activity_id)
-        if activity:
-            reg.activity_title = activity.title
-        else:
-            reg.activity_title = "未知活动"
     
     # 获取学生的标签
     selected_tag_ids = [tag.id for tag in student.tags] if student.tags else []
@@ -1040,25 +965,9 @@ def activity_registrations(id):
         activity = db.get_or_404(Activity, id)
         
         # 获取报名学生列表 - 修复报名详情查看问题
-        registrations = Registration.query.filter_by(
-            activity_id=id
-        ).join(
-            User, Registration.user_id == User.id
-        ).join(
-            StudentInfo, User.id == StudentInfo.user_id
-        ).add_columns(
-            Registration.id.label('registration_id'),
-            Registration.register_time,
-            Registration.status,
-            StudentInfo.real_name,
-            StudentInfo.student_id,
-            StudentInfo.grade,
-            StudentInfo.college,
-            StudentInfo.major,
-            StudentInfo.phone,
-            StudentInfo.points,  # 新增积分
-            Registration.check_in_time  # 新增签到时间
-        ).all()
+        registrations = db.session.execute(db.select(Registration).filter_by(activity_id=id).options(
+            joinedload(Registration.user).joinedload(User.student_info)
+        )).scalars().all()
         
         # 统计报名状态
         registered_count = db.session.execute(db.select(func.count()).select_from(Registration).filter_by(activity_id=id, status='registered')).scalar()
@@ -1690,6 +1599,7 @@ def edit_tag(id):
 @admin_required
 def delete_tag(id):
     try:
+        validate_csrf(request.form.get('csrf_token'))
         tag = db.get_or_404(Tag, id)
         name = tag.name
         

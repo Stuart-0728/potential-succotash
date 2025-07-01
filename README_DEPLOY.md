@@ -1,11 +1,10 @@
 # 部署指南
 
-本文档提供了在不同云平台部署应用的详细指南。
+本文档提供了在云平台部署应用的详细指南。
 
 ## 目录
 
 - [Render部署](#render部署)
-- [腾讯云Serverless部署](#腾讯云serverless部署)
 - [数据库备份和恢复](#数据库备份和恢复)
 - [常见问题解决](#常见问题解决)
 
@@ -51,54 +50,9 @@ Render使用传统的Web服务方式部署应用。
 - 需要配置最小实例数
 - 冷启动时间较长
 
-## 腾讯云Serverless部署
-
-腾讯云Serverless采用函数计算(FaaS)模式部署应用。
-
-### 部署所需文件
-
-1. `app.py` - 腾讯云Serverless入口函数
-2. `bootstrap.sh` - 启动脚本
-3. `serverless.yml` - Serverless配置文件
-
-### 部署步骤
-
-1. 准备部署文件并将其推送到GitHub仓库
-2. 在腾讯云Serverless控制台创建新应用
-3. 配置应用参数：
-   - 应用名称：`cqnureg`
-   - 环境：开发环境
-   - 框架：Flask
-   - 地域：重庆/广州（根据需求）
-   - 运行环境：Python 3.6
-   - 代码来源：GitHub仓库
-   - 启动文件：bootstrap.sh
-   - 实例内存：512MB
-   - 超时时间：60秒
-   - 环境变量：
-     - `FLASK_CONFIG` = `production`
-     - `DATABASE_URL` = 您的PostgreSQL数据库连接URL
-     - `ARK_API_KEY` = 您的API密钥
-
-4. 部署应用
-
-### 优点和限制
-
-**优点：**
-- 按需付费，无流量无费用
-- 自动扩展能力强
-- 冷启动速度快
-- 维护成本低
-
-**限制：**
-- 依赖版本受Python 3.6限制
-- 无持久文件系统
-- 执行超时限制（最长60秒）
-- 需要单独配置数据库服务
-
 ## 数据库备份和恢复
 
-无论使用哪种部署方式，定期备份数据库都是必要的。
+定期备份数据库是必要的。
 
 ### PostgreSQL数据库备份
 
@@ -124,7 +78,7 @@ pg_restore -d "postgresql://username:password@host:port/database" backup.dump
 **问题：** `ERROR: No matching distribution found for Flask>=2.3.3`
 
 **解决方案：** 
-- 对于腾讯云Serverless (Python 3.6)，修改requirements.txt使用兼容的版本：
+- 修改requirements.txt使用兼容的版本：
   ```
   Flask>=2.0.0,<2.3.0
   ```
@@ -134,7 +88,6 @@ pg_restore -d "postgresql://username:password@host:port/database" backup.dump
 **问题：** 部署过程中出现超时错误
 
 **解决方案：**
-- 增加超时设置（腾讯云：`timeout: 60`）
 - 减少依赖包大小
 - 使用bootstrap脚本分阶段安装
 
