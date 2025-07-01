@@ -791,10 +791,32 @@ def checkin():
 
         now = get_localized_now()
         
+        # 从URL中提取签到码
+        if key and ('/' in key or '?' in key):
+            try:
+                # 尝试从URL中提取签到码
+                from urllib.parse import urlparse, parse_qs
+                parsed_url = urlparse(key)
+                path_parts = parsed_url.path.strip('/').split('/')
+                
+                # 如果URL路径包含签到码
+                if len(path_parts) >= 4 and path_parts[0] == 'checkin' and path_parts[1] == 'scan':
+                    extracted_key = path_parts[-1]  # 取最后一个部分作为签到码
+                    logger.info(f"从URL中提取的签到码: {extracted_key}")
+                    key = extracted_key
+            except Exception as e:
+                logger.error(f"从URL提取签到码失败: {e}")
+                # 继续使用原始key
+        
         # 记录签到码和活动的签到码，方便调试
         logger.info(f"签到码比对: 提供的签到码={key}, 活动签到码={activity.checkin_key}, 过期时间={activity.checkin_key_expires}")
         
-        if not (activity.checkin_key and activity.checkin_key == key and (not activity.checkin_key_expires or now < activity.checkin_key_expires)):
+        # 确保过期时间比较正确 - 将过期时间转换为带时区的时间
+        from src.utils.time_helpers import ensure_timezone_aware
+        checkin_key_expires = ensure_timezone_aware(activity.checkin_key_expires)
+        
+        if not (activity.checkin_key and activity.checkin_key == key and 
+                (not checkin_key_expires or now < checkin_key_expires)):
             return jsonify({
                 'success': False,
                 'message': '签到码无效或已过期'

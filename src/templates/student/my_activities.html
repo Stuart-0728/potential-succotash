@@ -24,7 +24,7 @@
             </ul>
         </div>
         <div class="card-body">
-            {% if registrations.items %}
+            {% if registrations and registrations.items %}
                 <div class="list-group">
                     {% for registration in registrations.items %}
                         {% set activity = registration.activity %}
@@ -110,7 +110,7 @@
             {% else %}
                 <div class="text-center py-5">
                     <i class="bi bi-calendar-x" style="font-size: 3rem;"></i>
-                    <p class="mt-3">暂无相关活动记录</p>
+                    <p class="mt-3">您还没有报名任何活动</p>
                     <a href="{{ url_for('student.activities') }}" class="btn btn-primary mt-2">浏览活动</a>
                 </div>
             {% endif %}

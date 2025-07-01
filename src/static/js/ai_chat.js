@@ -173,7 +173,6 @@ class AIChatSession {
                 'X-CSRFToken': csrfToken
             },
             body: JSON.stringify({
-                csrf_token: csrfToken,
                 session_id: this.sessionId
             }),
             credentials: 'same-origin' // 确保包含Cookie
@@ -765,7 +764,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     'X-CSRFToken': csrfToken
                 },
                 body: JSON.stringify({
-                    csrf_token: csrfToken,
                     session_id: chatSession.sessionId
                 }),
                 credentials: 'same-origin' // 确保包含Cookie

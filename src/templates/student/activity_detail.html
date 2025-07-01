@@ -158,253 +158,230 @@ function showQRScanner() {
                     </div>
                     <div class="modal-body">
                         <div id="qr-reader" style="width: 100%"></div>
-                        <div id="qr-reader-results" class="mt-3"></div>
-                        <div class="text-center mt-3">
-                            <button type="button" class="btn btn-primary" id="switchCameraBtn">
-                                <i class="fas fa-sync me-1"></i>切换摄像头
-                            </button>
+                        <div class="mt-3">
+                            <button id="switch-camera-btn" class="btn btn-sm btn-secondary">切换摄像头</button>
                         </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" onclick="closeQRScanner()">关闭</button>
                     </div>
                 </div>
             </div>
         `;
         document.body.appendChild(qrContainer);
         
-        // 初始化Bootstrap模态框
-        const qrModal = new bootstrap.Modal(qrContainer);
+        // 创建Bootstrap模态框
+        const qrModal = new bootstrap.Modal(document.getElementById('qr-reader-container'));
         qrModal.show();
         
-        // 初始化QR扫描器，使用中文提示
-        const config = { 
-            fps: 10, 
-            qrbox: 250,
-            rememberLastUsedCamera: true,
-            // 自定义字符串
-            formatsToSupport: [ Html5QrcodeSupportedFormats.QR_CODE ],
-            supportedScanTypes: [ Html5QrcodeScanType.SCAN_TYPE_CAMERA ],
-            aspectRatio: 1.0
-        };
+        // 创建QR扫描器
+        html5QrcodeScanner = new Html5Qrcode("qr-reader");
         
-        html5QrcodeScanner = new Html5QrcodeScanner(
-            "qr-reader", config
-        );
-        
-        // 自定义UI文本
-        setTimeout(() => {
-            // 修改扫描仪UI文本
-            const elements = document.querySelectorAll('#qr-reader__dashboard_section_csr span');
-            elements.forEach(el => {
-                if (el.innerText === 'Request Camera Permissions') {
-                    el.innerText = '请求摄像头权限';
+        // 获取可用摄像头
+        Html5Qrcode.getCameras().then(devices => {
+            if (devices && devices.length) {
+                let cameraId = devices[0].id;
+                
+                // 启动扫描器
+                startScanner(cameraId);
+                
+                // 设置切换摄像头按钮
+                const switchBtn = document.getElementById('switch-camera-btn');
+                let currentCameraIndex = 0;
+                
+                if (switchBtn && devices.length > 1) {
+                    switchBtn.addEventListener('click', () => {
+                        // 停止当前扫描
+                        html5QrcodeScanner.stop().then(() => {
+                            // 切换到下一个摄像头
+                            currentCameraIndex = (currentCameraIndex + 1) % devices.length;
+                            cameraId = devices[currentCameraIndex].id;
+                            
+                            // 更新按钮文本
+                            switchBtn.textContent = `切换摄像头 (${currentCameraIndex + 1}/${devices.length})`;
+                            
+                            // 启动新的扫描
+                            startScanner(cameraId);
+                        }).catch(err => {
+                            console.error('切换摄像头失败:', err);
+                            showToast('切换摄像头失败，请重试', 'danger');
+                        });
+                    });
+                    
+                    // 初始化按钮文本
+                    switchBtn.textContent = `切换摄像头 (1/${devices.length})`;
+                } else if (switchBtn) {
+                    // 如果只有一个摄像头，禁用按钮
+                    switchBtn.disabled = true;
+                    switchBtn.textContent = '没有其他摄像头';
                 }
-            });
-            
-            // 修改摄像头选择下拉框
-            const select = document.querySelector('#qr-reader__camera_selection');
-            if (select) {
-                const option = select.querySelector('option');
-                if (option && option.text === 'Select Camera') {
-                    option.text = '选择摄像头';
-                }
+            } else {
+                showToast('未检测到摄像头', 'danger');
             }
-            
-            // 修改开始扫描按钮
-            const startButton = document.querySelector('#qr-reader__camera_permission_button');
-            if (startButton) {
-                startButton.innerText = '开始扫描';
-            }
-            
-            // 添加切换摄像头功能
-            document.getElementById('switchCameraBtn').addEventListener('click', function() {
-                if (html5QrcodeScanner) {
-                    html5QrcodeScanner.clear();
-                    setTimeout(() => {
-                        html5QrcodeScanner.render(onScanSuccess);
-                    }, 500);
-                }
-            });
-        }, 500);
-        
-        html5QrcodeScanner.render(onScanSuccess, onScanFailure);
+        }).catch(err => {
+            console.error('获取摄像头列表失败:', err);
+            showToast('获取摄像头失败: ' + err.message, 'danger');
+        });
     } else {
+        // 如果已经存在，则显示模态框
         const qrModal = new bootstrap.Modal(document.getElementById('qr-reader-container'));
         qrModal.show();
     }
 }
 
+function startScanner(cameraId) {
+    const config = { 
+        fps: 10,
+        qrbox: { width: 250, height: 250 },
+        formatsToSupport: [ Html5QrcodeSupportedFormats.QR_CODE ]
+    };
+    
+    html5QrcodeScanner.start(
+        cameraId, 
+        config,
+        onScanSuccess,
+        onScanError
+    ).catch(err => {
+        console.error("启动扫描器失败:", err);
+        showToast('启动摄像头失败: ' + err.message, 'danger');
+    });
+}
+
 function closeQRScanner() {
     if (html5QrcodeScanner) {
-        html5QrcodeScanner.clear();
+        html5QrcodeScanner.stop().then(() => {
+            console.log('QR扫描器已关闭');
+            // 移除模态框
+            const container = document.getElementById('qr-reader-container');
+            if (container) {
+                container.remove();
+            }
+        }).catch(err => {
+            console.error('关闭QR扫描器失败:', err);
+        });
     }
 }
 
-function onScanFailure(error) {
-    // 可以选择不显示错误，或者显示友好的错误信息
-    console.log("扫描失败: " + error);
-}
-
-function onScanSuccess(decodedText) {
-    // 处理扫描结果
+function onScanSuccess(decodedText, decodedResult) {
+    console.log(`扫码成功: ${decodedText}`, decodedResult);
+    
+    // 停止扫描
+    html5QrcodeScanner.pause();
+    
+    // 提取活动ID和签到码
+    let activityId = {{ activity.id }};
+    let checkinKey = decodedText;
+    
+    // 尝试解析二维码内容
     try {
-        console.log("扫描成功，结果: " + decodedText);
-        let data;
-        try {
-            data = JSON.parse(decodedText);
-        } catch (e) {
-            // 如果不是JSON格式，尝试其他格式解析
-            const urlParams = new URLSearchParams(decodedText);
-            const key = urlParams.get('key');
-            const activityId = urlParams.get('activity_id') || {{ activity.id }};
-            
-            if (key) {
-                data = { key: key, activity_id: activityId };
-            } else {
-                // 如果是纯文本，假设它就是签到码
-                data = { key: decodedText, activity_id: {{ activity.id }} };
+        // 检查是否是JSON格式
+        if (decodedText.startsWith('{') && decodedText.endsWith('}')) {
+            const jsonData = JSON.parse(decodedText);
+            if (jsonData.activity_id) {
+                activityId = jsonData.activity_id;
+            }
+            if (jsonData.key) {
+                checkinKey = jsonData.key;
             }
         }
-        
-        if (data.key || data.checkin_key) {
-            document.getElementById('qr-reader-results').innerHTML = '<div class="alert alert-info">正在验证签到码...</div>';
-            
-            // 准备签到数据
-            const checkinData = {
-                activity_id: data.activity_id || {{ activity.id }},
-                checkin_key: data.key || data.checkin_key,
-                csrf_token: '{{ csrf_token() }}'
-            };
-            
-            console.log("发送签到请求:", checkinData);
-            
-            // 发送签到请求
-            fetch('{{ url_for("student.checkin") }}', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': '{{ csrf_token() }}'
-                },
-                body: JSON.stringify(checkinData)
-            })
-            .then(response => response.json())
-            .then(result => {
-                console.log("签到结果:", result);
-                if (result.success) {
-                    document.getElementById('qr-reader-results').innerHTML = 
-                        '<div class="alert alert-success"><i class="fas fa-check-circle me-2"></i>' + result.message + '</div>';
-                    
-                    // 关闭扫描器并刷新页面
-                    setTimeout(() => {
-                        closeQRScanner();
-                        window.location.reload();
-                    }, 2000);
-                } else {
-                    document.getElementById('qr-reader-results').innerHTML = 
-                        '<div class="alert alert-danger"><i class="fas fa-exclamation-circle me-2"></i>' + result.message + '</div>';
-                }
-            })
-            .catch(error => {
-                console.error('签到请求失败:', error);
-                document.getElementById('qr-reader-results').innerHTML = 
-                    '<div class="alert alert-danger"><i class="fas fa-exclamation-circle me-2"></i>签到请求失败，请重试</div>';
-            });
-        } else {
-            document.getElementById('qr-reader-results').innerHTML = 
-                '<div class="alert alert-warning"><i class="fas fa-exclamation-triangle me-2"></i>无效的二维码格式</div>';
+        // 检查是否是URL格式
+        else if (decodedText.startsWith('http')) {
+            // 继续使用原始文本作为签到码
         }
     } catch (e) {
-        console.error('处理二维码内容失败:', e);
-        document.getElementById('qr-reader-results').innerHTML = 
-            '<div class="alert alert-warning"><i class="fas fa-exclamation-triangle me-2"></i>无效的二维码内容</div>';
-    }
-}
-
-document.addEventListener('DOMContentLoaded', function() {
-    const registerBtn = document.getElementById('register-btn');
-    const cancelBtn = document.getElementById('cancel-btn');
-    const csrfToken = "{{ csrf_token() }}";
-
-    if (registerBtn) {
-        registerBtn.addEventListener('click', function() {
-            handleRegistration('{{ url_for("student.register_activity", id=activity.id) }}', '报名');
-        });
-    }
-
-    if (cancelBtn) {
-        cancelBtn.addEventListener('click', function() {
-            if (confirm('确定要取消报名吗？')) {
-                handleRegistration('{{ url_for("student.cancel_registration", id=activity.id) }}', '取消报名');
-            }
-        });
-    }
-
-    function handleRegistration(url, action) {
-        fetch(url, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': csrfToken
-            },
-            credentials: 'same-origin',
-            body: JSON.stringify({
-                csrf_token: csrfToken
-            })
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                showToast(data.message, 'success');
-                setTimeout(() => {
-                    window.location.reload();
-                }, 1500);
-            } else {
-                showToast(data.message, 'error');
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            showToast('发生错误，请稍后重试', 'error');
-        });
+        console.warn('解析二维码内容失败，使用原始文本:', e);
     }
     
-    // 添加Toast通知功能
-    if (!window.showToast) {
-        window.showToast = function(message, type) {
-            const toastContainer = document.getElementById('toast-container');
-            if (!toastContainer) {
-                const container = document.createElement('div');
-                container.id = 'toast-container';
-                container.className = 'position-fixed bottom-0 end-0 p-3';
-                container.style.zIndex = '5';
-                document.body.appendChild(container);
-            }
-            
-            const toastId = 'toast-' + Date.now();
-            const toastEl = document.createElement('div');
-            toastEl.id = toastId;
-            toastEl.className = `toast align-items-center text-white bg-${type === 'success' ? 'success' : 'danger'} border-0`;
-            toastEl.setAttribute('role', 'alert');
-            toastEl.setAttribute('aria-live', 'assertive');
-            toastEl.setAttribute('aria-atomic', 'true');
-            
-            toastEl.innerHTML = `
-                <div class="d-flex">
-                    <div class="toast-body">
-                        ${message}
-                    </div>
-                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
-                </div>
-            `;
-            
-            document.getElementById('toast-container').appendChild(toastEl);
-            const toast = new bootstrap.Toast(toastEl);
-            toast.show();
-            
-            // 自动删除
-            toastEl.addEventListener('hidden.bs.toast', function() {
-                toastEl.remove();
-            });
+    // 获取CSRF令牌
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || 
+                     document.querySelector('input[name="csrf_token"]')?.value;
+    
+    // 发送签到请求
+    fetch('/student/api/attendance/checkin', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken
+        },
+        body: JSON.stringify({
+            activity_id: activityId,
+            checkin_key: checkinKey,
+            csrf_token: csrfToken
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showToast('签到成功！' + (data.points ? `获得${data.points}积分` : ''), 'success');
+            // 关闭扫描器
+            closeQRScanner();
+            // 延迟1秒后刷新页面
+            setTimeout(() => {
+                location.reload();
+            }, 1000);
+        } else {
+            showToast(data.message || '签到失败', 'danger');
+            // 恢复扫描
+            html5QrcodeScanner.resume();
         }
+    })
+    .catch(error => {
+        console.error('签到请求失败:', error);
+        showToast('网络错误，请重试', 'danger');
+        // 恢复扫描
+        html5QrcodeScanner.resume();
+    });
+}
+
+function onScanError(err) {
+    // 不处理常规扫描错误
+    console.debug('扫码错误 (正常):', err);
+}
+
+// 显示Toast通知
+function showToast(message, type = 'info') {
+    // 检查是否已存在Toast容器
+    let toastContainer = document.querySelector('.toast-container');
+    if (!toastContainer) {
+        toastContainer = document.createElement('div');
+        toastContainer.className = 'toast-container position-fixed bottom-0 end-0 p-3';
+        document.body.appendChild(toastContainer);
     }
-});
+    
+    // 创建Toast元素
+    const toastId = 'toast-' + Date.now();
+    const toastEl = document.createElement('div');
+    toastEl.className = `toast align-items-center text-white bg-${type} border-0`;
+    toastEl.setAttribute('role', 'alert');
+    toastEl.setAttribute('aria-live', 'assertive');
+    toastEl.setAttribute('aria-atomic', 'true');
+    toastEl.setAttribute('id', toastId);
+    
+    toastEl.innerHTML = `
+        <div class="d-flex">
+            <div class="toast-body">
+                ${message}
+            </div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="关闭"></button>
+        </div>
+    `;
+    
+    // 添加到容器
+    toastContainer.appendChild(toastEl);
+    
+    // 初始化Toast
+    const toast = new bootstrap.Toast(toastEl, {
+        autohide: true,
+        delay: 3000
+    });
+    
+    // 显示Toast
+    toast.show();
+    
+    // 监听隐藏事件，移除元素
+    toastEl.addEventListener('hidden.bs.toast', () => {
+        toastEl.remove();
+    });
+}
 </script>
 {% endblock %}
