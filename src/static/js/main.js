@@ -213,7 +213,7 @@ function initToastSystem() {
     // 创建Toast容器
     const toastContainer = document.createElement('div');
     toastContainer.id = 'toast-container';
-    toastContainer.className = 'toast-container position-fixed bottom-0 start-0 p-3';
+    toastContainer.className = 'toast-container position-fixed bottom-0 end-0 p-3';
     toastContainer.style.zIndex = '1090';
     document.body.appendChild(toastContainer);
     
@@ -226,6 +226,8 @@ function initToastSystem() {
         toast.setAttribute('aria-live', 'assertive');
         toast.setAttribute('aria-atomic', 'true');
         toast.id = toastId;
+        toast.style.maxWidth = '300px';
+        toast.style.fontSize = '0.9rem';
         
         // 设置不同类型的背景色
         let bgClass = 'bg-primary';
@@ -240,7 +242,7 @@ function initToastSystem() {
         
         toast.innerHTML = `
             <div class="d-flex">
-                <div class="toast-body">
+                <div class="toast-body py-2">
                     ${message}
                 </div>
                 <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>

@@ -62,9 +62,9 @@ def index():
             
             # 检查文件是否存在
             if static_folder:
-                # 首先尝试查找以活动ID开头的任何海报文件
                 poster_dir = os.path.join(static_folder, 'uploads', 'posters')
                 if os.path.exists(poster_dir):
+                    # 首先尝试查找以活动ID开头的任何海报文件
                     matching_files = [f for f in os.listdir(poster_dir) if f.startswith(f"activity_{activity.id}_")]
                     if matching_files:
                         # 使用最新的匹配文件
@@ -77,15 +77,19 @@ def index():
                         if os.path.exists(poster_path):
                             logger.info(f"  海报文件存在: {poster_path}")
                             continue  # 跳过备用海报设置
-                
-                # 如果没有找到匹配的文件，检查指定的海报是否存在
-                poster_path = os.path.join(static_folder, 'uploads', 'posters', activity.poster_image)
-                if os.path.exists(poster_path):
-                    logger.info(f"  海报文件存在: {poster_path}")
+                    else:
+                        # 如果没有找到匹配的文件，检查指定的海报是否存在
+                        poster_path = os.path.join(static_folder, 'uploads', 'posters', activity.poster_image)
+                        if os.path.exists(poster_path):
+                            logger.info(f"  海报文件存在: {poster_path}")
+                        else:
+                            logger.warning(f"  海报文件不存在: {poster_path}")
+                            # 使用备用风景图
+                            activity.poster_image = "landscape.jpg"
+                            logger.info(f"设置活动详情页备用风景图: landscape.jpg")
                 else:
-                    logger.warning(f"  海报文件不存在: {poster_path}")
-                    # 使用备用风景图
-                    setattr(activity, 'poster_image', "landscape.jpg")
+                    logger.warning(f"海报目录不存在: {poster_dir}")
+                    activity.poster_image = "landscape.jpg"
                     logger.info(f"设置活动详情页备用风景图: landscape.jpg")
         
         # 获取即将开始的活动（未开始且报名截止日期在未来）
@@ -98,6 +102,10 @@ def index():
                 Activity.registration_deadline > now  # 使用直接比较而不是safe_greater_than函数
             )
         ).order_by(Activity.start_time.asc()).limit(3).all()
+        
+        # 为即将开始的活动处理海报
+        for activity in upcoming_activities:
+            process_activity_poster(activity, static_folder)
         
         # 获取热门活动（根据报名人数）
         popular_activities_subquery = db.session.query(
@@ -115,6 +123,10 @@ def index():
         ).order_by(
             popular_activities_subquery.c.registration_count.desc()
         ).limit(3).all()
+        
+        # 为热门活动处理海报
+        for activity in popular_activities:
+            process_activity_poster(activity, static_folder)
         
         # 获取公告
         announcements = Announcement.query.filter_by(
@@ -150,6 +162,48 @@ def index():
                                featured_activities=[],
                                announcements=[],
                                public_notifications=[])
+
+# 辅助函数：处理活动海报
+def process_activity_poster(activity, static_folder):
+    """处理活动海报，确保使用最新的海报文件
+    
+    Args:
+        activity: 活动对象
+        static_folder: 静态文件目录
+    """
+    try:
+        # 检查是否有海报
+        if activity.poster_image is None or str(activity.poster_image).strip() == '':
+            setattr(activity, 'poster_image', "landscape.jpg")
+            return
+            
+        # 检查文件是否存在
+        if static_folder:
+            poster_dir = os.path.join(static_folder, 'uploads', 'posters')
+            if os.path.exists(poster_dir):
+                # 查找以活动ID开头的任何海报文件
+                matching_files = [f for f in os.listdir(poster_dir) if f.startswith(f"activity_{activity.id}_")]
+                if matching_files:
+                    # 使用最新的匹配文件
+                    matching_files.sort(reverse=True)  # 按文件名降序排序，通常最新的时间戳在最前面
+                    new_poster = matching_files[0]
+                    setattr(activity, 'poster_image', new_poster)
+                    poster_path = os.path.join(poster_dir, new_poster)
+                    if os.path.exists(poster_path):
+                        return
+                
+                # 如果没有找到匹配的文件或文件不存在，检查指定的海报是否存在
+                if activity.poster_image:
+                    poster_path = os.path.join(poster_dir, str(activity.poster_image))
+                    if not os.path.exists(poster_path):
+                        setattr(activity, 'poster_image', "landscape.jpg")
+                else:
+                    setattr(activity, 'poster_image', "landscape.jpg")
+            else:
+                setattr(activity, 'poster_image', "landscape.jpg")
+    except Exception as e:
+        logger.error(f"处理活动海报出错: {e}")
+        setattr(activity, 'poster_image', "landscape.jpg")
 
 @main_bp.route('/activities')
 def activities():
@@ -238,34 +292,15 @@ def activity_detail(activity_id):
         
         # 检查海报文件是否存在，如果不存在则设置备用海报
         try:
-            poster_filename = str(activity.poster_image) if activity.poster_image else None
-            if poster_filename:
-                static_folder = current_app.static_folder
-                if static_folder:
-                    poster_path = os.path.join(static_folder, 'uploads', 'posters', poster_filename)
-                    logger.info(f"检查活动海报路径: {poster_path}")
-                    if not os.path.exists(poster_path):
-                        # 尝试查找匹配的海报文件（只匹配活动ID部分）
-                        poster_dir = os.path.join(static_folder, 'uploads', 'posters')
-                        if os.path.exists(poster_dir):
-                            matching_files = [f for f in os.listdir(poster_dir) if f.startswith(f"activity_{activity_id}_")]
-                            if matching_files:
-                                # 使用最新的匹配文件
-                                matching_files.sort(reverse=True)  # 按文件名降序排序，通常最新的时间戳在最前面
-                                new_poster = matching_files[0]
-                                setattr(activity, 'poster_image', new_poster)
-                                logger.info(f"找到匹配的海报文件: {new_poster}")
-                                # 继续处理，不要提前返回
-                            else:
-                                # 如果没有找到匹配的文件，使用备用海报
-                                logger.warning(f"海报文件不存在: {poster_path}")
-                                # 使用备用风景图
-                                setattr(activity, 'poster_image', "landscape.jpg")
-                                logger.info(f"设置活动详情页备用风景图: landscape.jpg")
-                        else:
-                            logger.warning(f"海报目录不存在: {poster_dir}")
+            static_folder = current_app.static_folder
+            process_activity_poster(activity, static_folder)
+            poster_image = str(activity.poster_image) if activity.poster_image else "landscape.jpg"
+            if static_folder:
+                logger.info(f"检查活动海报路径: {os.path.join(static_folder, 'uploads', 'posters', poster_image)}")
         except Exception as e:
             logger.error(f"处理活动海报时出错: {e}")
+            setattr(activity, 'poster_image', "landscape.jpg")
+            logger.info(f"设置活动详情页备用风景图: landscape.jpg")
         
         # 创建空表单对象用于CSRF保护
         form = FlaskForm()
