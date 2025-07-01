@@ -788,6 +788,7 @@ def recommend():
 def checkin():
     try:
         # 从请求数据中获取 key 和 activity_id
+        data = request.get_json()
         key = data.get('key') or data.get('checkin_key')
         activity_id = data.get('activity_id')
 
