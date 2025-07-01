@@ -45,38 +45,44 @@
 
                     <div id="action-buttons" class="d-flex justify-content-between align-items-center flex-wrap">
                         <div class="mb-3 mb-md-0">
-                            {% if has_registered %}
-                                <span class="badge bg-success rounded-pill px-3 py-2 me-2">
-                                    <i class="fas fa-check-circle me-1"></i>已报名
-                                </span>
-                                {% if can_cancel %}
+                            {% if registration %}
+                                {% if registration.status == 'attended' %}
+                                    <div class="alert alert-info d-inline-block p-2">
+                                        <i class="fas fa-check-circle me-2"></i>您已于 {{ display_datetime(registration.check_in_time) }} 签到
+                                    </div>
+                                {% elif registration.status == 'registered' %}
+                                    <span class="badge bg-success rounded-pill px-3 py-2 me-2">
+                                        <i class="fas fa-check-circle me-1"></i>已报名
+                                    </span>
+                                    {% if can_cancel %}
                                     <button id="cancel-btn" class="btn btn-outline-danger">
                                         <i class="fas fa-times-circle me-1"></i>取消报名
                                     </button>
-                                {% endif %}
-                                {% if can_checkin %}
+                                    {% endif %}
+                                    {% if can_checkin %}
                                     <button type="button" class="btn btn-success" onclick="showQRScanner()">
                                         <i class="fas fa-qrcode me-1"></i>扫码签到
                                     </button>
-                                {% elif has_checked_in %}
-                                    <span class="badge bg-info rounded-pill px-3 py-2">
-                                        <i class="fas fa-clipboard-check me-1"></i>已签到
-                                    </span>
-                                {% endif %}
-                            {% elif can_register %}
-                                <button id="register-btn" class="btn btn-primary">
-                                    <i class="fas fa-user-plus me-1"></i>立即报名
-                                </button>
-                            {% elif activity.status == 'active' and (activity.registration_deadline and safe_greater_than_equal(activity.registration_deadline, now)) %}
-                                {% if activity.max_participants > 0 and registered_count >= activity.max_participants %}
-                                    <button class="btn btn-secondary" disabled>
-                                        <i class="fas fa-users-slash me-1"></i>名额已满
-                                    </button>
+                                    {% endif %}
+                                {% elif registration.status == 'cancelled' %}
+                                     <div class="alert alert-warning d-inline-block p-2">您已取消报名</div>
                                 {% endif %}
                             {% else %}
-                                <button class="btn btn-secondary" disabled>
-                                    <i class="fas fa-hourglass-end me-1"></i>报名已截止
-                                </button>
+                                {% if can_register %}
+                                    <button id="register-btn" class="btn btn-primary">
+                                        <i class="fas fa-user-plus me-1"></i>立即报名
+                                    </button>
+                                {% elif activity.status == 'active' and (activity.registration_deadline and safe_greater_than_equal(activity.registration_deadline, now)) %}
+                                    {% if activity.max_participants > 0 and registered_count >= activity.max_participants %}
+                                        <button class="btn btn-secondary" disabled>
+                                            <i class="fas fa-users-slash me-1"></i>名额已满
+                                        </button>
+                                    {% endif %}
+                                {% else %}
+                                    <button class="btn btn-secondary" disabled>
+                                        <i class="fas fa-hourglass-end me-1"></i>报名已截止
+                                    </button>
+                                {% endif %}
                             {% endif %}
                         </div>
                         <a href="{{ url_for('student.activities') }}" class="btn btn-outline-secondary">
