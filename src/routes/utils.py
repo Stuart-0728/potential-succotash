@@ -645,7 +645,6 @@ def ai_chat_clear_history():
 # 添加utils前缀路由
 @utils_bp.route('/utils/ai_chat/clear_history', methods=['POST'])
 @login_required
-@csrf.protect
 def utils_ai_chat_clear_history():
     """清除用户所有AI聊天历史记录 - 带utils前缀的版本"""
     try:
