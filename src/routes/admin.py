@@ -2938,10 +2938,6 @@ def change_activity_status(id):
         
         old_status = activity.status
         activity.status = new_status
-        
-        # 如果状态变为已完成，记录完成时间
-        if new_status == 'completed' and not activity.completed_at:
-            activity.completed_at = datetime.now()
             
         db.session.commit()
         

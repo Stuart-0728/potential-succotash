@@ -159,6 +159,7 @@ class Activity(db.Model):
     start_time = Column(DateTime)
     end_time = Column(DateTime)
     registration_deadline = Column(DateTime)
+    completed_at = Column(DateTime)  # 活动完成时间
     
     # 参与人数
     max_participants = Column(Integer, default=0)  # 0表示不限制

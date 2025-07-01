@@ -300,27 +300,16 @@ def activities():
             registered = db.session.execute(reg_stmt).all()
             registered_activity_ids = [r[0] for r in registered]
         
-        return render_template('main/search.html',
-                               activities=activities_list,
-                               search_query=search_query,
-                               current_status=status,
-                               registered_activity_ids=registered_activity_ids,
-                               now=now,
-                               display_datetime=display_datetime,
-                               safe_less_than=safe_less_than,
-                               safe_greater_than=safe_greater_than,
-                               safe_compare=safe_compare)
-        
+        return render_template('main/search.html', 
+                              activities=activities_list, 
+                              search_query=search_query,
+                              current_status=status,
+                              registered_activity_ids=registered_activity_ids,
+                              display_datetime=display_datetime)
     except Exception as e:
         logger.error(f"Error in activities page: {e}")
-        flash('加载活动列表时发生错误', 'danger')
-        return render_template('main/search.html', 
-                               activities=None,
-                               search_query='',
-                               current_status='active',
-                               safe_less_than=lambda x, y: False,
-                               safe_greater_than=lambda x, y: False,
-                               safe_compare=lambda x, y, op: False)
+        flash('加载活动列表时出错', 'danger')
+        return redirect(url_for('main.index'))
 
 @main_bp.route('/activity/<int:activity_id>')
 def activity_detail(activity_id):

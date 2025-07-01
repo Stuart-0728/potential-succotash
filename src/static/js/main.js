@@ -74,6 +74,9 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // 为所有表单添加加载动画
     setupFormLoading();
+
+    // 为所有按钮添加加载状态
+    setupLoadingButtons();
 });
 
 // 初始化全局加载动画
@@ -972,4 +975,58 @@ function startCountdown(elementId, targetDateStr) {
     // 每分钟更新一次
     setInterval(update, 60000);
 }
+
+// 为所有按钮添加加载状态
+function setupLoadingButtons() {
+    const actionButtons = document.querySelectorAll('.btn-primary, .btn-outline-primary, .btn-success, .btn-outline-success, .btn-info, .btn-outline-info');
+    
+    actionButtons.forEach(button => {
+        // 跳过已经设置过的按钮
+        if (button.hasAttribute('data-loading-setup')) {
+            return;
+        }
+        
+        button.setAttribute('data-loading-setup', 'true');
+        
+        button.addEventListener('click', function(e) {
+            // 如果是分页按钮、模态框按钮或带有特定属性的按钮，不添加加载状态
+            if (this.closest('.pagination') || 
+                this.getAttribute('data-bs-toggle') === 'modal' || 
+                this.hasAttribute('data-no-loading') ||
+                this.type === 'button') {
+                return;
+            }
+            
+            // 添加加载状态
+            const originalText = this.innerHTML;
+            this.classList.add('btn-loading');
+            this.setAttribute('data-original-text', originalText);
+            
+            // 恢复按钮状态（如果页面加载时间过长）
+            setTimeout(() => {
+                if (this.classList.contains('btn-loading')) {
+                    this.classList.remove('btn-loading');
+                    this.innerHTML = originalText;
+                }
+            }, 5000);
+        });
+    });
+}
+
+// 在页面加载完成后执行
+document.addEventListener('DOMContentLoaded', function() {
+    setupLoadingButtons();
+    
+    // 为动态加载的内容设置MutationObserver
+    const observer = new MutationObserver(function(mutations) {
+        mutations.forEach(function(mutation) {
+            if (mutation.addedNodes && mutation.addedNodes.length > 0) {
+                setupLoadingButtons();
+            }
+        });
+    });
+    
+    // 开始观察文档的变化
+    observer.observe(document.body, { childList: true, subtree: true });
+});
 
