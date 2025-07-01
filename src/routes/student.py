@@ -410,17 +410,17 @@ def my_activities():
         if not any(status == s for s in ['active', 'completed']):
             query = query.join(ActivityAlias, ActivityAlias.id == Registration.activity_id)
         
-        # 执行查询并分页 - 按开始时间排序（升序，最近的活动在前面）
+                    # 执行查询并分页 - 按开始时间排序（降序，最近的活动在前面）
         try:
-            order_by_clause = ActivityAlias.start_time.asc()
-            logger.info(f"my_activities - 按照活动开始时间升序排序")
+            order_by_clause = ActivityAlias.start_time.desc()
+            logger.info(f"my_activities - 按照活动开始时间降序排序")
             registrations = query.order_by(order_by_clause).paginate(page=page, per_page=10)
             logger.info(f"my_activities - 分页后有 {len(registrations.items)} 条记录, 总页数: {registrations.pages}")
         except Exception as e:
             logger.error(f"分页查询出错: {e}")
             # 尝试使用兼容方法
             from src.utils import get_compatible_paginate
-            registrations = get_compatible_paginate(db, query.order_by(ActivityAlias.start_time.asc()), page=page, per_page=10, error_out=False)
+            registrations = get_compatible_paginate(db, query.order_by(ActivityAlias.start_time.desc()), page=page, per_page=10, error_out=False)
             logger.info(f"使用兼容分页方法后有 {len(registrations.items)} 条记录")
         
         # 记录每个活动的详细信息，方便调试
