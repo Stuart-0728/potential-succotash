@@ -176,7 +176,7 @@ class Activity(db.Model):
     
     # 签到相关
     checkin_key = Column(String(32))  # 签到密钥
-    checkin_key_expires = Column(DateTime)  # 签到密钥过期时间
+    checkin_key_expires = Column(DateTime(timezone=True))  # 签到密钥过期时间
     checkin_enabled = Column(Boolean, default=False)  # 是否启用签到
     
     # 创建者和时间戳
