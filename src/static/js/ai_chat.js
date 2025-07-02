@@ -684,7 +684,11 @@ document.addEventListener('DOMContentLoaded', () => {
             
             // 检查用户是否已登录
             if (!AI_CHAT_CONFIG.isUserLoggedIn) {
-                alert('请先登录后再清除对话历史');
+                if (window.showToast) {
+                    window.showToast('请先登录后再清除对话历史', 'warning');
+                } else {
+                    alert('请先登录后再清除对话历史');
+                }
                 return;
             }
             
@@ -720,11 +724,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 chatUI.addMessageToUI(AI_CHAT_CONFIG.initialBotMessage, 'bot');
                 // 清除cookie中的消息
                 chatSession.deleteCookie('messages');
-                alert('当前对话历史已清除！');
+                if (window.showToast) {
+                    window.showToast('当前对话历史已清除！', 'success');
+                } else {
+                    alert('当前对话历史已清除！');
+                }
             })
             .catch(error => {
                 console.error('清除历史记录失败:', error);
-                alert('清除历史记录失败: ' + error.message);
+                if (window.showToast) {
+                    window.showToast('清除历史记录失败: ' + error.message, 'danger');
+                } else {
+                    alert('清除历史记录失败: ' + error.message);
+                }
                 
                 // 如果API失败，尝试直接清除前端消息
                 try {
@@ -745,7 +757,11 @@ document.addEventListener('DOMContentLoaded', () => {
             
             // 检查用户是否已登录
             if (!AI_CHAT_CONFIG.isUserLoggedIn) {
-                alert('请先登录后再清除对话历史');
+                if (window.showToast) {
+                    window.showToast('请先登录后再清除对话历史', 'warning');
+                } else {
+                    alert('请先登录后再清除对话历史');
+                }
                 return;
             }
             
@@ -755,7 +771,11 @@ document.addEventListener('DOMContentLoaded', () => {
             
             if (!csrfToken) {
                 console.error("无法获取CSRF令牌");
-                alert("无法获取安全令牌，请刷新页面后重试");
+                if (window.showToast) {
+                    window.showToast("无法获取安全令牌，请刷新页面后重试", "danger");
+                } else {
+                    alert("无法获取安全令牌，请刷新页面后重试");
+                }
                 return;
             }
             
@@ -798,11 +818,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 chatUI.addMessageToUI(AI_CHAT_CONFIG.initialBotMessage, 'bot');
                 // 清除cookie中的消息
                 chatSession.deleteCookie('messages');
-                alert('历史记录已清除！');
+                if (window.showToast) {
+                    window.showToast('历史记录已清除！', 'success');
+                } else {
+                    alert('历史记录已清除！');
+                }
             })
             .catch(error => {
                 console.error('清除所有历史记录失败:', error);
-                alert('清除历史记录失败: ' + error.message);
+                if (window.showToast) {
+                    window.showToast('清除历史记录失败: ' + error.message, 'danger');
+                } else {
+                    alert('清除历史记录失败: ' + error.message);
+                }
                 
                 // 如果API失败，尝试直接清除前端消息
                 try {
