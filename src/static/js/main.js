@@ -126,26 +126,51 @@ function setupFormLoading() {
         const submitBtn = form.querySelector('button[type="submit"], input[type="submit"]');
         if (submitBtn) {
             // 保存原始内容
-            const originalContent = submitBtn.innerHTML;
+            const originalContent = submitBtn.innerHTML || submitBtn.value;
+            
+            // 检查是否为登录表单
+            const isLoginForm = form.action && (
+                form.action.includes('/login') || 
+                form.querySelector('input[name="username"]') && form.querySelector('input[name="password"]')
+            );
+            
+            // 检查是否为注册表单
+            const isRegisterForm = form.action && form.action.includes('/register');
+            
+            // 根据表单类型设置不同的加载文本
+            let loadingText = '处理中...';
+            if (isLoginForm) {
+                loadingText = '登录中...';
+            } else if (isRegisterForm) {
+                loadingText = '注册中...';
+            }
             
             // 替换为加载图标
-            submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> 处理中...';
+            if (submitBtn.tagName === 'INPUT') {
+                submitBtn.value = loadingText;
+            } else {
+                submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span> ' + loadingText;
+            }
             submitBtn.disabled = true;
             
             // 提交完成后恢复按钮状态
             setTimeout(function() {
-                // 如果5秒后表单还在页面上，恢复按钮状态
+                // 如果10秒后表单还在页面上，恢复按钮状态
                 if (document.body.contains(submitBtn)) {
-                    submitBtn.innerHTML = originalContent;
+                    if (submitBtn.tagName === 'INPUT') {
+                        submitBtn.value = originalContent;
+                    } else {
+                        submitBtn.innerHTML = originalContent;
+                    }
                     submitBtn.disabled = false;
                 }
-            }, 5000);
+            }, 10000);
         } else {
             // 如果没有找到提交按钮，显示全局加载动画
             showLoading('提交中...');
             
-            // 5秒后自动隐藏
-            setTimeout(hideLoading, 5000);
+            // 10秒后自动隐藏
+            setTimeout(hideLoading, 10000);
         }
     });
     
@@ -989,6 +1014,59 @@ function setupLoadingButtons() {
         
         button.setAttribute('data-loading-setup', 'true');
         
+        // 特殊处理链接按钮
+        if (button.tagName === 'A' && button.getAttribute('href')) {
+            button.addEventListener('click', function(e) {
+                // 排除某些不需要加载状态的链接
+                if (this.getAttribute('data-no-loading') || 
+                    this.getAttribute('data-bs-toggle') === 'modal' ||
+                    this.getAttribute('href').startsWith('#') ||
+                    this.getAttribute('target') === '_blank') {
+                    return;
+                }
+                
+                // 添加加载状态
+                const originalText = this.innerHTML;
+                
+                // 检查是否为特定按钮
+                const isViewAllBtn = this.textContent.includes('查看全部') || 
+                                     this.textContent.includes('浏览活动') || 
+                                     this.getAttribute('href').includes('/activities');
+                const isLoginBtn = this.textContent.includes('登录') || 
+                                   this.getAttribute('href').includes('/login');
+                
+                // 对特定按钮使用更明显的加载状态
+                if (isViewAllBtn || isLoginBtn || this.classList.contains('btn-lg')) {
+                    this.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span> ' + 
+                                     (isViewAllBtn ? '加载活动...' : 
+                                      isLoginBtn ? '正在登录...' : '加载中...');
+                    this.classList.add('disabled');
+                } else {
+                    this.classList.add('btn-loading');
+                    this.setAttribute('data-original-text', originalText);
+                }
+                
+                // 存储原始文本，以便在页面卸载时恢复
+                this.setAttribute('data-original-text', originalText);
+                
+                // 如果5秒后页面还没有跳转，恢复按钮状态
+                setTimeout(() => {
+                    if (document.body.contains(this)) {
+                        if (this.classList.contains('disabled')) {
+                            this.classList.remove('disabled');
+                            this.innerHTML = originalText;
+                        }
+                        if (this.classList.contains('btn-loading')) {
+                            this.classList.remove('btn-loading');
+                            this.innerHTML = originalText;
+                        }
+                    }
+                }, 8000);
+            });
+            
+            return;
+        }
+        
         button.addEventListener('click', function(e) {
             // 如果是分页按钮、模态框按钮或带有特定属性的按钮，不添加加载状态
             if (this.closest('.pagination') || 
@@ -1006,7 +1084,7 @@ function setupLoadingButtons() {
             if (isExportButton || this.getAttribute('href')?.includes('export')) {
                 // 添加加载状态
                 const originalText = this.innerHTML;
-                this.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> 处理中...';
+                this.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span> 处理中...';
                 this.classList.add('disabled');
                 
                 // 恢复按钮状态（如果页面加载时间过长）
@@ -1051,5 +1129,13 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // 开始观察文档的变化
     observer.observe(document.body, { childList: true, subtree: true });
+    
+    // 处理页面卸载前的状态
+    window.addEventListener('beforeunload', function() {
+        // 显示全局加载状态
+        if (window.showLoading) {
+            window.showLoading('页面加载中...');
+        }
+    });
 });
 

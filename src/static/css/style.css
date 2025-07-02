@@ -1178,6 +1178,7 @@ footer {
 .btn-loading {
     position: relative;
     color: transparent !important;
+    pointer-events: none;
 }
 
 .btn-loading:after {
@@ -1190,5 +1191,57 @@ footer {
     border: 2px solid rgba(255, 255, 255, 0.5);
     border-radius: 50%;
     border-top-color: white;
-    animation: spin 0.6s linear infinite;
+    animation: spin 0.8s linear infinite;
+}
+
+/* 为不同颜色的按钮设置不同的加载动画颜色 */
+.btn-outline-primary.btn-loading:after,
+.btn-outline-success.btn-loading:after,
+.btn-outline-info.btn-loading:after,
+.btn-outline-secondary.btn-loading:after {
+    border: 2px solid rgba(0, 0, 0, 0.1);
+    border-top-color: var(--primary-color);
+}
+
+/* 按钮禁用状态 */
+.btn.disabled, 
+.btn:disabled {
+    cursor: not-allowed;
+    opacity: 0.65;
+    pointer-events: none;
+}
+
+/* 按钮加载状态的过渡效果 */
+.btn {
+    transition: all 0.3s ease;
+}
+
+/* 链接按钮加载状态 */
+a.btn.disabled {
+    pointer-events: none;
+    opacity: 0.8;
+    position: relative;
+    overflow: hidden;
+}
+
+a.btn.disabled::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(
+        90deg,
+        rgba(255, 255, 255, 0) 0%,
+        rgba(255, 255, 255, 0.2) 50%,
+        rgba(255, 255, 255, 0) 100%
+    );
+    animation: shimmer 1.5s infinite;
+}
+
+@keyframes shimmer {
+    to {
+        left: 100%;
+    }
 }
