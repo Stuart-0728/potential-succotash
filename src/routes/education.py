@@ -106,6 +106,12 @@ def resources():
                 "url": url_for('education.magnetic_coupler'),
                 "icon": "fa-sync",
                 "description": "通过交互式3D模型探究磁力耦合器的工作原理与应用"
+            },
+            {
+                "name": "多普勒效应演示",
+                "url": url_for('education.doppler_effect'),
+                "icon": "fa-wave-square",
+                "description": "通过麦克风实时分析声波频率变化来测量速度，理解多普勒效应原理"
             }
         ]
         
@@ -149,6 +155,17 @@ def magnetic_coupler():
     except Exception as e:
         logger.error(f"加载磁力耦合器探究页面出错: {e}", exc_info=True)
         flash('加载磁力耦合器探究页面时出错，请稍后再试', 'danger')
+        return redirect(url_for('education.resources'))
+
+@education_bp.route('/doppler-effect')
+def doppler_effect():
+    """多普勒效应演示页面"""
+    try:
+        logger.info("正在加载多普勒效应演示页面")
+        return render_template('education/doppler_effect.html')
+    except Exception as e:
+        logger.error(f"加载多普勒效应演示页面出错: {e}", exc_info=True)
+        flash('加载多普勒效应演示页面时出错，请稍后再试', 'danger')
         return redirect(url_for('education.resources'))
 
 @education_bp.route('/api/gemini', methods=['POST'])
