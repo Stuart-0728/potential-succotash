@@ -218,7 +218,7 @@ def gemini_api():
         payload = {
             "model": "deepseek-v3-250324",  # 使用官方推荐模型
             "messages": [
-                {"role": "system", "content": "你是一名教育专家，精通物理学、数学等自然科学领域的知识。你正在为重庆师范大学师能素质协会的学生提供教育资源和答疑解惑。你的回答应该简洁、准确、有教育意义。"},
+                {"role": "system", "content": "请直接回答用户的问题，不要自称是任何角色。回答应该简洁、准确、有教育意义。"},
                 {"role": "user", "content": prompt}
             ],
             "temperature": 0.7
