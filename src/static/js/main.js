@@ -205,6 +205,15 @@ function setupAjaxLoading() {
             
             xhr.showLoading = !excludedUrls.some(excluded => url.includes(excluded));
             
+            // 检查是否是由带有data-no-global-loading属性的元素触发的请求
+            const activeElement = document.activeElement;
+            if (activeElement && (
+                activeElement.hasAttribute('data-no-global-loading') || 
+                activeElement.closest('[data-no-global-loading="true"]')
+            )) {
+                xhr.showLoading = false;
+            }
+            
             return originalOpen.apply(this, arguments);
         };
         

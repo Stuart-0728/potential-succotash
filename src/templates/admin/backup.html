@@ -27,7 +27,8 @@
                             <h6 class="mb-0">创建新备份</h6>
                         </div>
                         <div class="card-body">
-                            <form method="post" action="{{ url_for('admin.create_backup') }}">
+                            <form method="post" action="{{ url_for('admin.create_backup') }}" id="createBackupForm">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                 <div class="mb-3">
                                     <label for="backup_name" class="form-label">备份名称</label>
                                     <input type="text" class="form-control" id="backup_name" name="backup_name" 
@@ -68,7 +69,7 @@
                                         </label>
                                     </div>
                                 </div>
-                                <button type="submit" class="btn btn-primary">
+                                <button type="submit" class="btn btn-primary" id="createBackupBtn">
                                     <i class="fas fa-save me-1"></i>创建备份
                                 </button>
                             </form>
@@ -82,7 +83,8 @@
                             <h6 class="mb-0">导入备份</h6>
                         </div>
                         <div class="card-body">
-                            <form method="post" action="{{ url_for('admin.import_backup') }}" enctype="multipart/form-data">
+                            <form method="post" action="{{ url_for('admin.import_backup') }}" enctype="multipart/form-data" id="importBackupForm">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                 <div class="mb-3">
                                     <label for="backup_file" class="form-label">选择备份文件</label>
                                     <input type="file" class="form-control" id="backup_file" name="backup_file" accept=".zip,.sql,.json" required>
@@ -90,7 +92,7 @@
                                 <div class="alert alert-warning">
                                     <i class="fas fa-exclamation-triangle me-2"></i>导入备份将覆盖当前数据，请谨慎操作！
                                 </div>
-                                <button type="submit" class="btn btn-warning" onclick="return confirm('确定要导入备份吗？这将覆盖当前数据！');">
+                                <button type="submit" class="btn btn-warning" id="importBackupBtn" onclick="return confirm('确定要导入备份吗？这将覆盖当前数据！');">
                                     <i class="fas fa-upload me-1"></i>导入备份
                                 </button>
                             </form>
@@ -102,12 +104,12 @@
             <div class="card">
                 <div class="card-header bg-light d-flex justify-content-between align-items-center">
                     <h6 class="mb-0">备份历史</h6>
-                    <button class="btn btn-sm btn-outline-secondary" onclick="refreshBackupList()">
+                    <button class="btn btn-sm btn-outline-secondary" onclick="refreshBackupList()" id="refreshBtn">
                         <i class="fas fa-sync-alt"></i>
                     </button>
                 </div>
                 <div class="card-body">
-                    <div class="table-responsive">
+                    <div class="table-responsive" id="backupListContainer">
                         <table class="table table-hover">
                             <thead>
                                 <tr>
@@ -128,11 +130,11 @@
                                             <td>{{ backup.content }}</td>
                                             <td>
                                                 <div class="btn-group btn-group-sm">
-                                                    <a href="{{ url_for('admin.download_backup', filename=backup.name) }}" class="btn btn-outline-primary" title="下载备份">
+                                                    <a href="{{ url_for('admin.download_backup', filename=backup.name) }}" class="btn btn-outline-primary download-backup-btn" title="下载备份" data-filename="{{ backup.name }}">
                                                         <i class="fas fa-download"></i>
                                                     </a>
-                                                    <a href="{{ url_for('admin.delete_backup', filename=backup.name) }}" class="btn btn-outline-danger" 
-                                                       onclick="return confirm('确定要删除此备份吗？此操作不可撤销！');" title="删除备份">
+                                                    <a href="{{ url_for('admin.delete_backup', filename=backup.name) }}" class="btn btn-outline-danger delete-backup-btn" 
+                                                       onclick="return confirm('确定要删除此备份吗？此操作不可撤销！');" title="删除备份" data-filename="{{ backup.name }}">
                                                         <i class="fas fa-trash-alt"></i>
                                                     </a>
                                                 </div>
@@ -155,8 +157,94 @@
 {% endblock %}
 
 {% block scripts %}
+{{ super() }}
 <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // 创建备份表单提交事件
+        const createBackupForm = document.getElementById('createBackupForm');
+        const createBackupBtn = document.getElementById('createBackupBtn');
+        
+        if (createBackupForm) {
+            createBackupForm.addEventListener('submit', function(e) {
+                // 显示加载状态
+                createBackupBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>创建备份中...';
+                createBackupBtn.disabled = true;
+                
+                // 不阻止表单提交
+                // 但添加超时恢复按钮状态
+                setTimeout(function() {
+                    if (document.body.contains(createBackupBtn)) {
+                        createBackupBtn.innerHTML = '<i class="fas fa-save me-1"></i>创建备份';
+                        createBackupBtn.disabled = false;
+                    }
+                }, 15000); // 15秒后恢复按钮状态
+            });
+        }
+        
+        // 导入备份表单提交事件
+        const importBackupForm = document.getElementById('importBackupForm');
+        const importBackupBtn = document.getElementById('importBackupBtn');
+        
+        if (importBackupForm) {
+            importBackupForm.addEventListener('submit', function(e) {
+                if (confirm('确定要导入备份吗？这将覆盖当前数据！')) {
+                    // 显示加载状态
+                    importBackupBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>导入备份中...';
+                    importBackupBtn.disabled = true;
+                } else {
+                    e.preventDefault();
+                }
+            });
+        }
+        
+        // 下载备份按钮点击事件
+        const downloadButtons = document.querySelectorAll('.download-backup-btn');
+        downloadButtons.forEach(button => {
+            button.addEventListener('click', function() {
+                const filename = this.getAttribute('data-filename');
+                const originalHtml = this.innerHTML;
+                
+                // 显示加载状态
+                this.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>';
+                this.disabled = true;
+                
+                // 5秒后恢复按钮状态
+                setTimeout(() => {
+                    if (document.body.contains(this)) {
+                        this.innerHTML = originalHtml;
+                        this.disabled = false;
+                    }
+                }, 5000);
+            });
+        });
+        
+        // 删除备份按钮点击事件
+        const deleteButtons = document.querySelectorAll('.delete-backup-btn');
+        deleteButtons.forEach(button => {
+            button.addEventListener('click', function(e) {
+                if (confirm('确定要删除此备份吗？此操作不可撤销！')) {
+                    const filename = this.getAttribute('data-filename');
+                    const originalHtml = this.innerHTML;
+                    
+                    // 显示加载状态
+                    this.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>';
+                    this.disabled = true;
+                } else {
+                    e.preventDefault();
+                }
+            });
+        });
+    });
+    
     function refreshBackupList() {
+        const refreshBtn = document.getElementById('refreshBtn');
+        const originalHtml = refreshBtn.innerHTML;
+        
+        // 显示加载状态
+        refreshBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>';
+        refreshBtn.disabled = true;
+        
+        // 重新加载页面
         window.location.reload();
     }
 </script>

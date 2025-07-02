@@ -10,7 +10,7 @@
             <p class="text-muted">管理系统中注册的学生用户</p>
         </div>
         <div class="col-md-4 text-end">
-            <a href="{{ url_for('admin.export_students') }}" class="btn btn-success">
+            <a href="{{ url_for('admin.export_students') }}" class="btn btn-success" id="exportBtn" data-no-global-loading="true">
                 <i class="fas fa-file-excel me-2"></i>导出学生信息
             </a>
         </div>
@@ -19,7 +19,7 @@
     <!-- 搜索框 -->
     <div class="card border-0 shadow-sm mb-4">
         <div class="card-body">
-            <form method="get" action="{{ url_for('admin.students') }}" class="row g-3 align-items-center">
+            <form method="get" action="{{ url_for('admin.students') }}" class="row g-3 align-items-center" data-no-loading="true">
                 <div class="col-md-8">
                     <div class="input-group">
                         <span class="input-group-text bg-white">
@@ -222,6 +222,27 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     `;
     document.head.appendChild(style);
+    
+    // 导出按钮点击事件
+    const exportBtn = document.getElementById('exportBtn');
+    if (exportBtn) {
+        exportBtn.addEventListener('click', function(e) {
+            // 保存原始内容
+            const originalHtml = this.innerHTML;
+            
+            // 显示加载状态
+            this.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>导出中...';
+            this.classList.add('disabled');
+            
+            // 10秒后恢复按钮状态（如果页面没有刷新）
+            setTimeout(() => {
+                if (document.body.contains(this)) {
+                    this.innerHTML = originalHtml;
+                    this.classList.remove('disabled');
+                }
+            }, 10000);
+        });
+    }
 });
 </script>
 {% endblock %}
