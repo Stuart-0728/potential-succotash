@@ -118,7 +118,8 @@ function setupFormLoading() {
         // 排除特定表单（如搜索表单）
         if (form.classList.contains('no-loading') || 
             form.id === 'search-form' || 
-            form.getAttribute('data-no-loading') === 'true') {
+            form.getAttribute('data-no-loading') === 'true' ||
+            form.id === 'tagsForm') { // 排除标签选择表单
             return;
         }
         
@@ -160,7 +161,7 @@ function setupFormLoading() {
                     if (submitBtn.tagName === 'INPUT') {
                         submitBtn.value = originalContent;
                     } else {
-                        submitBtn.innerHTML = originalContent;
+                    submitBtn.innerHTML = originalContent;
                     }
                     submitBtn.disabled = false;
                 }
@@ -1014,6 +1015,11 @@ function setupLoadingButtons() {
         
         button.setAttribute('data-loading-setup', 'true');
         
+        // 跳过标签选择页面的按钮
+        if (button.closest('#tagsForm')) {
+            return;
+        }
+        
         // 特殊处理链接按钮
         if (button.tagName === 'A' && button.getAttribute('href')) {
             button.addEventListener('click', function(e) {
@@ -1137,5 +1143,20 @@ document.addEventListener('DOMContentLoaded', function() {
             window.showLoading('页面加载中...');
         }
     });
+    
+    // 处理页面可见性变化，解决浏览器返回时"页面加载中"一直存在的问题
+    document.addEventListener('visibilitychange', function() {
+        if (document.visibilityState === 'visible') {
+            // 页面变为可见时，隐藏加载动画
+            if (window.hideLoading) {
+                window.hideLoading();
+            }
+        }
+    });
+    
+    // 页面加载完成后，确保隐藏加载动画
+    if (window.hideLoading) {
+        window.hideLoading();
+    }
 });
 

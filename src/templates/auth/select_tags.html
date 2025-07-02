@@ -11,7 +11,7 @@
                     <h4 class="mb-0">请选择你的兴趣标签</h4>
                 </div>
                 <div class="card-body">
-                    <form id="tagsForm" method="post">
+                    <form id="tagsForm" method="post" class="no-loading" data-no-loading="true">
                         <!-- 添加CSRF令牌 -->
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                         
@@ -50,12 +50,17 @@
 document.addEventListener('DOMContentLoaded', function() {
     const checkboxes = document.querySelectorAll('input[name="tags"]');
     const submitBtn = document.getElementById('submitBtn');
-    function updateBtn() {
-        let checked = Array.from(checkboxes).some(cb => cb.checked);
-        submitBtn.disabled = !checked;
+    
+    function updateSubmitButton() {
+        const checked = document.querySelectorAll('input[name="tags"]:checked').length;
+        submitBtn.disabled = checked === 0;
     }
-    checkboxes.forEach(cb => cb.addEventListener('change', updateBtn));
-    updateBtn();
+    
+    checkboxes.forEach(checkbox => {
+        checkbox.addEventListener('change', updateSubmitButton);
+    });
+    
+    updateSubmitButton();
 });
 </script>
 {% endblock %} 
