@@ -92,7 +92,7 @@
                             </td>
                             <td>
                                 <div class="dropdown position-static">
-                                    <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" id="actionMenu{{ activity.id }}" data-bs-toggle="dropdown" aria-expanded="false" data-no-global-loading="true">
+                                    <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" id="actionMenu{{ activity.id }}" data-bs-toggle="dropdown" aria-expanded="false" data-no-global-loading="true" style="position: relative; z-index: 1;">
                                         操作
                                     </button>
                                     <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="actionMenu{{ activity.id }}" style="min-width: 220px; z-index: 1050;">
@@ -349,12 +349,45 @@ document.addEventListener('DOMContentLoaded', function() {
                 max-width: 300px;
             }
         }
+        
+        /* 修复操作按钮的悬停效果 */
+        .btn-outline-secondary {
+            transition: all 0.2s ease-in-out;
+            border-color: #ced4da;
+        }
+        
+        .btn-outline-secondary:hover, 
+        .btn-outline-secondary:focus, 
+        .btn-outline-secondary:active,
+        .btn-outline-secondary[aria-expanded="true"] {
+            background-color: #6c757d;
+            color: white;
+            border-color: #6c757d;
+            box-shadow: 0 0 0 0.25rem rgba(108, 117, 125, 0.25);
+            z-index: 1051 !important;
+        }
+        
+        /* 确保按钮点击后保持高亮状态 */
+        .dropdown.show .btn-outline-secondary {
+            background-color: #6c757d;
+            color: white;
+            border-color: #6c757d;
+            z-index: 1051 !important;
+        }
+        
+        /* 修复按钮和下拉菜单的层级关系 */
+        .dropdown-toggle::after {
+            vertical-align: middle;
+        }
     `;
     document.head.appendChild(style);
     
     // 修复下拉菜单位置
     document.querySelectorAll('.dropdown-toggle').forEach(button => {
         button.addEventListener('click', function() {
+            // 添加高亮效果
+            this.classList.add('active');
+            
             setTimeout(() => {
                 const menu = this.nextElementSibling;
                 if (menu && menu.classList.contains('dropdown-menu')) {
@@ -371,6 +404,13 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
                 }
             }, 10);
+        });
+        
+        // 监听下拉菜单关闭事件
+        document.addEventListener('click', function(e) {
+            if (!button.contains(e.target) && !button.nextElementSibling.contains(e.target)) {
+                button.classList.remove('active');
+            }
         });
     });
 });

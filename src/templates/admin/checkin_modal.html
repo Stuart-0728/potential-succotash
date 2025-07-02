@@ -95,14 +95,14 @@
                                 <div class="card-footer bg-white border-0 pt-0">
                                     <!-- 检查是否已经开启签到，并显示相应的按钮 -->
                                     {% if activity.checkin_enabled %}
-                                    <form id="toggle-checkin-form" class="mb-4">
-                                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                                        <button type="button" id="toggle-checkin-btn" class="btn btn-danger">关闭签到</button>
+                                    <form action="{{ url_for('admin.toggle_checkin', id=activity.id) }}" method="POST" class="mb-4">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                        <button type="submit" class="btn btn-danger">关闭签到</button>
                                     </form>
                                     {% else %}
-                                    <form id="toggle-checkin-form" class="mb-4">
-                                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                                        <button type="button" id="toggle-checkin-btn" class="btn btn-success">开启签到</button>
+                                    <form action="{{ url_for('admin.toggle_checkin', id=activity.id) }}" method="POST" class="mb-4">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                        <button type="submit" class="btn btn-success">开启签到</button>
                                     </form>
                                     {% endif %}
                                 </div>
@@ -209,34 +209,6 @@
         // 定时刷新二维码（每5分钟）
         setInterval(loadQRCode, 5 * 60 * 1000);
         {% endif %}
-        
-        // 添加签到状态切换处理
-        const toggleBtn = document.getElementById('toggle-checkin-btn');
-        if (toggleBtn) {
-            toggleBtn.addEventListener('click', function() {
-                if (confirm('确定要切换签到状态吗?')) {
-                    fetch('{{ url_for('admin.toggle_checkin', id=activity.id) }}', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/x-www-form-urlencoded',
-                            'X-CSRFToken': '{{ csrf_token }}'
-                        },
-                        body: 'csrf_token={{ csrf_token }}'
-                    })
-                    .then(response => {
-                        if (response.ok) {
-                            window.location.reload();
-                        } else {
-                            alert('操作失败，请重试');
-                        }
-                    })
-                    .catch(error => {
-                        console.error('错误:', error);
-                        alert('发生错误，请重试');
-                    });
-                }
-            });
-        }
     });
     
     function loadQRCode() {
