@@ -1869,14 +1869,14 @@ def generate_checkin_qrcode(id):
         logger.error(f"生成签到二维码时出错: {e}")
         return jsonify({'success': False, 'message': '生成二维码失败'}), 500
 
-@admin_bp.route('/checkin-modal/<int:activity_id>')
+@admin_bp.route('/checkin-modal/<int:id>')
 @login_required
 @admin_required
-def checkin_modal(activity_id):
+def checkin_modal(id):
     """签到管理界面"""
     try:
         # 记录开始调试信息
-        logger.info(f"进入checkin_modal函数: activity_id={activity_id}")
+        logger.info(f"进入checkin_modal函数: activity_id={id}")
         
         # 生成CSRF令牌
         from flask_wtf.csrf import generate_csrf
@@ -1891,7 +1891,7 @@ def checkin_modal(activity_id):
         logger.info(f"display_datetime类型: {type(display_datetime)}, 值: {display_datetime}")
         
         # 获取活动信息
-        activity = db.get_or_404(Activity, activity_id)
+        activity = db.get_or_404(Activity, id)
         logger.info(f"获取活动信息: id={activity.id}, 标题={activity.title}")
         
         # 获取当前时间
@@ -1900,7 +1900,7 @@ def checkin_modal(activity_id):
         
         # 获取报名人数
         registration_count = Registration.query.filter(
-            Registration.activity_id == activity_id,
+            Registration.activity_id == id,
             db.or_(
                 Registration.status == 'registered',
                 Registration.status == 'attended'
@@ -1910,7 +1910,7 @@ def checkin_modal(activity_id):
         
         # 获取签到人数
         checkin_count = Registration.query.filter(
-            Registration.activity_id == activity_id,
+            Registration.activity_id == id,
             Registration.check_in_time.isnot(None)
         ).count()
         logger.info(f"获取签到人数: {checkin_count}")
@@ -1926,13 +1926,13 @@ def checkin_modal(activity_id):
         ).join(
             StudentInfo, Registration.user_id == StudentInfo.user_id
         ).filter(
-            Registration.activity_id == activity_id,
+            Registration.activity_id == id,
             Registration.check_in_time.isnot(None)
         ).all()
         logger.info(f"获取签到记录: {len(checkins)}条")
         
         # 日志记录
-        logger.info(f"管理员访问签到模态框: 活动ID={activity_id}, 报名人数={registration_count}, 签到人数={checkin_count}")
+        logger.info(f"管理员访问签到模态框: 活动ID={id}, 报名人数={registration_count}, 签到人数={checkin_count}")
         
         
         return render_template(
@@ -1950,19 +1950,12 @@ def checkin_modal(activity_id):
         flash('加载签到管理界面失败', 'danger')
         return redirect(url_for('admin.activities'))
 
-@admin_bp.route('/checkin-modal/<int:id>')
-@login_required
-@admin_required
-def checkin_modal_id(id):
-    """兼容旧版路由，重定向到新版签到模态框"""
-    return redirect(url_for('admin.checkin_modal', activity_id=id))
-
 @admin_bp.route('/admin/checkin-modal/<int:id>')
 @login_required
 @admin_required
 def checkin_modal_admin(id):
     """兼容带admin前缀的路由，重定向到新版签到模态框"""
-    return redirect(url_for('admin.checkin_modal', activity_id=id))
+    return redirect(url_for('admin.checkin_modal', id=id))
 
 # 切换活动签到状态
 @admin_bp.route('/activity/<int:id>/toggle-checkin', methods=['POST'])
