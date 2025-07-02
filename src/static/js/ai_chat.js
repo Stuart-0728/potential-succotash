@@ -682,6 +682,12 @@ document.addEventListener('DOMContentLoaded', () => {
         clearHistory: () => {
             console.log("开始清除当前对话历史记录");
             
+            // 检查用户是否已登录
+            if (!AI_CHAT_CONFIG.isUserLoggedIn) {
+                alert('请先登录后再清除对话历史');
+                return;
+            }
+            
             // 获取CSRF令牌
             const csrfToken = chatSession.getCsrfToken();
             console.log("当前CSRF令牌:", csrfToken);
@@ -736,6 +742,12 @@ document.addEventListener('DOMContentLoaded', () => {
         // 清除所有会话历史
         clearAllHistory: () => {
             console.log("开始清除所有历史记录");
+            
+            // 检查用户是否已登录
+            if (!AI_CHAT_CONFIG.isUserLoggedIn) {
+                alert('请先登录后再清除对话历史');
+                return;
+            }
             
             // 获取CSRF令牌
             const csrfToken = chatSession.getCsrfToken();

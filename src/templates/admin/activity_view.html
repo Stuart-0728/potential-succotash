@@ -111,9 +111,9 @@
                                         </td>
                                         <td>
                                             {% if reg.check_in_time %}
-                                            <button class="btn btn-sm btn-outline-danger" onclick="cancelCheckin({{ reg.id }})">取消签到</button>
+                                            <button class="btn btn-sm btn-outline-danger checkin-btn" onclick="cancelCheckin({{ reg.id }})" data-no-global-loading="true">取消签到</button>
                                             {% else %}
-                                            <button class="btn btn-sm btn-outline-success" onclick="manualCheckin({{ reg.id }})">签到</button>
+                                            <button class="btn btn-sm btn-outline-success checkin-btn" onclick="manualCheckin({{ reg.id }})" data-no-global-loading="true">签到</button>
                                             {% endif %}
                                         </td>
                                     </tr>
@@ -406,7 +406,7 @@
                     
                     // 2秒后刷新页面以更新按钮状态
                     setTimeout(() => {
-                        window.location.reload();
+                    window.location.reload();
                     }, 2000);
                 } else {
                     if (window.showToast) {
@@ -421,7 +421,7 @@
                 if (window.showToast) {
                     window.showToast('发生错误，请重试', 'error');
                 } else {
-                    alert('发生错误，请重试');
+                alert('发生错误，请重试');
                 }
             });
         }
@@ -429,6 +429,12 @@
     
     function manualCheckin(registrationId) {
         if (confirm('确定为该学生手动签到?')) {
+            // 找到对应的按钮并显示加载状态
+            const btn = document.querySelector(`button.checkin-btn[onclick="manualCheckin(${registrationId})"]`);
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>';
+            btn.disabled = true;
+            
             fetch('{{ url_for('admin.manual_checkin', activity_id=activity.id) }}', {
                 method: 'POST',
                 headers: {
@@ -441,11 +447,17 @@
                 if (response.ok) {
                     window.location.reload();
                 } else {
+                    // 恢复按钮状态
+                    btn.innerHTML = originalText;
+                    btn.disabled = false;
                     alert('签到失败，请重试');
                 }
             })
             .catch(error => {
                 console.error('Error:', error);
+                // 恢复按钮状态
+                btn.innerHTML = originalText;
+                btn.disabled = false;
                 alert('发生错误，请重试');
             });
         }
@@ -453,6 +465,12 @@
     
     function cancelCheckin(registrationId) {
         if (confirm('确定要取消该学生的签到状态?')) {
+            // 找到对应的按钮并显示加载状态
+            const btn = document.querySelector(`button.checkin-btn[onclick="cancelCheckin(${registrationId})"]`);
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>';
+            btn.disabled = true;
+            
             fetch('{{ url_for('admin.cancel_checkin', activity_id=activity.id) }}', {
                 method: 'POST',
                 headers: {
@@ -465,11 +483,17 @@
                 if (response.ok) {
                     window.location.reload();
                 } else {
+                    // 恢复按钮状态
+                    btn.innerHTML = originalText;
+                    btn.disabled = false;
                     alert('取消签到失败，请重试');
                 }
             })
             .catch(error => {
                 console.error('Error:', error);
+                // 恢复按钮状态
+                btn.innerHTML = originalText;
+                btn.disabled = false;
                 alert('发生错误，请重试');
             });
         }

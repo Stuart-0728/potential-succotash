@@ -2982,19 +2982,43 @@ def manual_checkin(activity_id):
         if registration.activity_id != activity_id:
             return jsonify({'success': False, 'message': '登记记录与活动不匹配'}), 400
         
+        # 获取活动和学生信息
+        activity = db.session.get(Activity, activity_id)
+        student_info = StudentInfo.query.join(User).filter(User.id == registration.user_id).first()
+        
+        # 检查是否之前已经签到过（可能是被取消的签到）
+        was_previously_checked_in = False
+        
+        # 查询积分历史记录，检查是否有取消参与的记录
+        if student_info and activity:
+            points = activity.points or (20 if activity.is_featured else 10)
+            
+            # 查找是否有取消参与该活动的积分记录
+            cancel_record = PointsHistory.query.filter(
+                PointsHistory.student_id == student_info.id,
+                PointsHistory.activity_id == activity_id,
+                PointsHistory.points == -points,
+                PointsHistory.reason.like(f"取消参与活动：{activity.title}")
+            ).first()
+            
+            was_previously_checked_in = cancel_record is not None
+        
         # 设置签到时间
         registration.check_in_time = get_beijing_time()
         
         # 更新状态为已参加
         registration.status = 'attended'
         
-        # 检查是否需要添加积分
-        activity = db.session.get(Activity, activity_id)
-        student_info = StudentInfo.query.join(User).filter(User.id == registration.user_id).first()
-        
-        if student_info and activity and registration.status != 'attended':
+        # 添加积分
+        if student_info and activity:
             points = activity.points or (20 if activity.is_featured else 10)
-            add_points(student_info.id, points, f"参与活动：{activity.title}", activity.id)
+            
+            # 如果之前取消过签到并扣除了积分，则需要加回积分
+            if was_previously_checked_in:
+                add_points(student_info.id, points, f"重新参与活动：{activity.title}", activity.id)
+            # 如果是首次签到，也添加积分
+            elif registration.status != 'attended':
+                add_points(student_info.id, points, f"参与活动：{activity.title}", activity.id)
         
         db.session.commit()
         
