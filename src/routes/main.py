@@ -20,148 +20,79 @@ main_bp = Blueprint('main', __name__)
 
 @main_bp.route('/')
 def index():
-    """渲染首页"""
     try:
         # 获取当前北京时间
-        beijing_time = get_beijing_time()
-        logger.info(f"当前北京时间: {beijing_time}")
+        now = get_beijing_time()
+        logger.info(f"当前北京时间: {now}")
         
-        # 获取特色活动
-        featured_activities = Activity.query.filter_by(
-            is_featured=True, 
-            status='active'
-        ).order_by(Activity.created_at.desc()).limit(3).all()
-        
-        # 调试：检查static_folder路径
+        # 获取静态文件目录
         static_folder = current_app.static_folder
         logger.info(f"静态文件目录: {static_folder}")
         
-        # 添加调试信息，检查活动和海报信息
-        for i, activity in enumerate(featured_activities):
-            logger.info(f"特色活动 {i+1}: ID={activity.id}, 标题={activity.title}, 海报={activity.poster_image}")
+        # 获取特色活动
+        try:
+            featured_activities = Activity.query.filter(
+                Activity.is_featured == True,
+                Activity.status == 'active'
+            ).order_by(Activity.created_at.desc()).limit(3).all()
+        except Exception as e:
+            logger.error(f"获取特色活动出错: {e}")
+            featured_activities = []
+        
+        # 记录特色活动信息
+        for i, activity in enumerate(featured_activities, 1):
+            logger.info(f"特色活动 {i}: ID={activity.id}, 标题={activity.title}, 海报={activity.poster_image}")
             
-            # 检查是否有海报
-            if activity.poster_image is None or str(activity.poster_image).strip() == '':
-                # 如果没有设置海报，使用备用风景图
-                activity.poster_image = "landscape.jpg"
-                logger.info(f"  未设置海报，使用备用风景图: landscape.jpg")
-                continue
-            
-            # 检查并修复可能包含"None"的海报路径
-            if "None" in str(activity.poster_image):
-                # 从文件名中提取时间戳部分
-                try:
-                    parts = activity.poster_image.split('_')
-                    if len(parts) >= 3:
-                        # 替换None为实际活动ID
-                        fixed_name = f"activity_{activity.id}_{parts[2]}"
-                        activity.poster_image = fixed_name
-                        logger.info(f"  修复海报文件名: {activity.poster_image}")
-                except Exception as e:
-                    logger.error(f"  修复海报文件名出错: {e}")
-            
-            # 检查文件是否存在
-            if static_folder:
-                poster_dir = os.path.join(static_folder, 'uploads', 'posters')
-                if os.path.exists(poster_dir):
-                    # 首先尝试查找以活动ID开头的任何海报文件
-                    matching_files = [f for f in os.listdir(poster_dir) if f.startswith(f"activity_{activity.id}_")]
-                    if matching_files:
-                        # 使用最新的匹配文件
-                        matching_files.sort(reverse=True)  # 按文件名降序排序，通常最新的时间戳在最前面
-                        new_poster = matching_files[0]
-                        activity.poster_image = new_poster
-                        logger.info(f"  找到匹配的海报文件: {new_poster}")
-                        # 检查文件是否确实存在
-                        poster_path = os.path.join(poster_dir, new_poster)
-                        if os.path.exists(poster_path):
-                            logger.info(f"  海报文件存在: {poster_path}")
-                            continue  # 跳过备用海报设置
-                    else:
-                        # 如果没有找到匹配的文件，检查指定的海报是否存在
-                        poster_path = os.path.join(static_folder, 'uploads', 'posters', activity.poster_image)
-                        if os.path.exists(poster_path):
-                            logger.info(f"  海报文件存在: {poster_path}")
-                        else:
-                            logger.warning(f"  海报文件不存在: {poster_path}")
-                            # 使用备用风景图
-                            activity.poster_image = "landscape.jpg"
-                            logger.info(f"设置活动详情页备用风景图: landscape.jpg")
+            # 检查海报文件是否存在
+            if activity.poster_image:
+                poster_path = os.path.join(static_folder, 'uploads', 'posters', activity.poster_image)
+                if os.path.exists(poster_path):
+                    logger.info(f"  海报文件存在: {poster_path}")
                 else:
-                    logger.warning(f"海报目录不存在: {poster_dir}")
-                    activity.poster_image = "landscape.jpg"
-                    logger.info(f"设置活动详情页备用风景图: landscape.jpg")
+                    logger.info(f"  海报文件不存在: {poster_path}")
+                    
+                    # 尝试查找匹配的海报文件
+                    if static_folder:  # 确保static_folder不为None
+                        poster_dir = os.path.join(static_folder, 'uploads', 'posters')
+                        if os.path.exists(poster_dir):
+                            matching_files = [f for f in os.listdir(poster_dir) if f.startswith(f"activity_{activity.id}_")]
+                            if matching_files:
+                                logger.info(f"  找到匹配的海报文件: {matching_files[0]}")
+                                activity.poster_image = matching_files[0]
+                    
+                    # 如果仍然没有找到海报，设置默认图片
+                    poster_path = os.path.join(static_folder, 'uploads', 'posters', activity.poster_image) if static_folder and activity.poster_image else ""
+                    if not os.path.exists(poster_path):
+                        logger.info(f"设置活动详情页备用风景图: landscape.jpg")
         
-        # 获取即将开始的活动（未开始且报名截止日期在未来）
-        now = datetime.utcnow().replace(tzinfo=pytz.UTC)
-        upcoming_activities = Activity.query.filter(
-            Activity.status == 'active',
-            Activity.start_time > now,  # 使用直接比较而不是safe_greater_than函数
-            db.or_(
-                Activity.registration_deadline.is_(None),
-                Activity.registration_deadline > now  # 使用直接比较而不是safe_greater_than函数
-            )
-        ).order_by(Activity.start_time.asc()).limit(3).all()
+        # 获取最新活动
+        try:
+            latest_activities = Activity.query.filter_by(
+                status='active'
+            ).order_by(Activity.created_at.desc()).limit(6).all()
+        except Exception as e:
+            logger.error(f"获取最新活动出错: {e}")
+            latest_activities = []
         
-        # 为即将开始的活动处理海报
-        for activity in upcoming_activities:
-            process_activity_poster(activity, static_folder)
+        # 检查活动是否有二进制海报数据
+        for activity in featured_activities + latest_activities:
+            if hasattr(activity, 'poster_data') and activity.poster_data:
+                logger.info(f"活动ID={activity.id}在数据库中有二进制海报数据，大小: {len(activity.poster_data)} 字节")
         
-        # 获取热门活动（根据报名人数）
-        popular_activities_subquery = db.session.query(
-            Registration.activity_id,
-            db.func.count(Registration.id).label('registration_count')
-        ).filter(
-            Registration.status.in_(['registered', 'attended'])
-        ).group_by(Registration.activity_id).subquery()
-        
-        popular_activities = Activity.query.join(
-            popular_activities_subquery,
-            Activity.id == popular_activities_subquery.c.activity_id
-        ).filter(
-            Activity.status.in_(['active', 'completed'])
-        ).order_by(
-            popular_activities_subquery.c.registration_count.desc()
-        ).limit(3).all()
-        
-        # 为热门活动处理海报
-        for activity in popular_activities:
-            process_activity_poster(activity, static_folder)
-        
-        # 获取公告
-        announcements = Announcement.query.filter_by(
-            status='published'
-        ).order_by(Announcement.created_at.desc()).limit(3).all()
-        
-        # 获取公共通知
-        public_notifications = Notification.query.filter_by(
-            is_public=True
-        ).filter(
-            db.or_(
-                Notification.expiry_date.is_(None),
-                Notification.expiry_date > datetime.utcnow()
-            )
-        ).order_by(Notification.created_at.desc()).limit(3).all()
-        
-        # 确保模板可以使用时间处理函数
-        from src.utils.time_helpers import display_datetime
-        
-        return render_template('main/index.html',
-                            featured_activities=featured_activities,
-                            upcoming_activities=upcoming_activities,
-                            popular_activities=popular_activities,
-                            announcements=announcements,
-                            public_notifications=public_notifications,
-                            display_datetime=display_datetime)
-    except Exception as e:
-        logger.error(f"Error in index: {e}", exc_info=True)
-        flash("加载首页时发生错误，请稍后再试", "danger")
+        # 渲染模板
         return render_template('main/index.html', 
-                               upcoming_activities=[],
-                               popular_activities=[],
-                               featured_activities=[],
-                               announcements=[],
-                               public_notifications=[])
+                              featured_activities=featured_activities,
+                              latest_activities=latest_activities,
+                              now=now,
+                              display_datetime=display_datetime)
+    except Exception as e:
+        logger.error(f"Error in index: {e}")
+        # 在出错时返回一个简化的页面
+        return render_template('main/index.html', 
+                              featured_activities=[],
+                              latest_activities=[],
+                              now=datetime.now(pytz.timezone('Asia/Shanghai')),
+                              display_datetime=display_datetime)
 
 # 辅助函数：处理活动海报
 def process_activity_poster(activity, static_folder):
