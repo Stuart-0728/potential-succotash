@@ -197,21 +197,25 @@ function setupAjaxLoading() {
             // 检查是否需要显示加载动画
             const url = arguments[1];
             
-            // 排除某些不需要显示加载的请求
-            const excludedUrls = [
-                '/api/notifications/unread',
-                '/student/api/messages/unread_count'
+            // 默认不显示全局加载动画，除非特别指定
+            xhr.showLoading = false;
+            
+            // 只有特定请求才显示全局加载动画
+            const includeUrls = [
+                '/admin/backup',
+                '/admin/reset',
+                '/admin/export'
             ];
             
-            xhr.showLoading = !excludedUrls.some(excluded => url.includes(excluded));
+            // 检查是否是需要显示全局加载的请求
+            if (includeUrls.some(included => url.includes(included))) {
+                xhr.showLoading = true;
+            }
             
-            // 检查是否是由带有data-no-global-loading属性的元素触发的请求
+            // 检查是否有data-show-global-loading属性
             const activeElement = document.activeElement;
-            if (activeElement && (
-                activeElement.hasAttribute('data-no-global-loading') || 
-                activeElement.closest('[data-no-global-loading="true"]')
-            )) {
-                xhr.showLoading = false;
+            if (activeElement && activeElement.hasAttribute('data-show-global-loading')) {
+                xhr.showLoading = true;
             }
             
             return originalOpen.apply(this, arguments);
@@ -1056,9 +1060,15 @@ function setupLoadingButtons() {
                                      (isViewAllBtn ? '加载活动...' : 
                                       isLoginBtn ? '正在登录...' : '加载中...');
                     this.classList.add('disabled');
+                    
+                    // 添加属性防止全局加载动画
+                    this.setAttribute('data-no-global-loading', 'true');
                 } else {
                     this.classList.add('btn-loading');
                     this.setAttribute('data-original-text', originalText);
+                    
+                    // 添加属性防止全局加载动画
+                    this.setAttribute('data-no-global-loading', 'true');
                 }
                 
                 // 存储原始文本，以便在页面卸载时恢复
@@ -1102,6 +1112,9 @@ function setupLoadingButtons() {
                 this.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span> 处理中...';
                 this.classList.add('disabled');
                 
+                // 添加属性防止全局加载动画
+                this.setAttribute('data-no-global-loading', 'true');
+                
                 // 恢复按钮状态（如果页面加载时间过长）
                 setTimeout(() => {
                     if (this.classList.contains('disabled')) {
@@ -1117,6 +1130,9 @@ function setupLoadingButtons() {
             const originalText = this.innerHTML;
             this.classList.add('btn-loading');
             this.setAttribute('data-original-text', originalText);
+            
+            // 添加属性防止全局加载动画
+            this.setAttribute('data-no-global-loading', 'true');
             
             // 恢复按钮状态（如果页面加载时间过长）
             setTimeout(() => {

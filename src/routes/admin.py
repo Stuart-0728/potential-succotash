@@ -1010,9 +1010,28 @@ def activity_registrations(id):
         activity = db.get_or_404(Activity, id)
         
         # 获取报名学生列表 - 修复报名详情查看问题
-        registrations = db.session.execute(db.select(Registration).filter_by(activity_id=id).options(
-            joinedload(Registration.user).joinedload(User.student_info)
-        )).scalars().all()
+        registrations = db.session.execute(
+            db.select(
+                Registration,
+                User,
+                StudentInfo
+            ).filter_by(activity_id=id)
+            .join(User, Registration.user_id == User.id)
+            .join(StudentInfo, User.id == StudentInfo.user_id)
+            .add_columns(
+                Registration.id.label('registration_id'),
+                Registration.register_time,
+                Registration.check_in_time,
+                Registration.status,
+                StudentInfo.real_name,
+                StudentInfo.student_id,
+                StudentInfo.grade,
+                StudentInfo.college,
+                StudentInfo.major,
+                StudentInfo.phone,
+                StudentInfo.points
+            )
+        ).all()
         
         # 统计报名状态
         registered_count = db.session.execute(db.select(func.count()).select_from(Registration).filter_by(activity_id=id, status='registered')).scalar()
