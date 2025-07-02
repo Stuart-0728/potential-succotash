@@ -15,34 +15,43 @@
             <div class="card border-0 shadow-sm mb-4">
                 <div class="card-body p-4">
                     <h2 class="fw-bold mb-3">{{ activity.title }}</h2>
-                    <div class="d-flex align-items-center mb-4">
-                        <span class="badge {% if activity.status == 'active' %}bg-success{% elif activity.status == 'completed' %}bg-secondary{% else %}bg-danger{% endif %} rounded-pill px-3 py-2 me-3">
-                            {% if activity.status == 'active' %}进行中{% elif activity.status == 'completed' %}已结束{% else %}已取消{% endif %}
+                    <div class="d-flex flex-wrap align-items-center mb-3">
+                        <span class="badge bg-primary me-2">{{ activity.type }}</span>
+                        <span class="text-muted small">
+                            <i class="fas fa-calendar-alt me-1"></i> 发布于 {{ display_datetime(activity.created_at) }}
                         </span>
-                        <div class="text-muted">
-                            <i class="fas fa-user me-1"></i> 发布者: 管理员
+                    </div>
+                    
+                    {% if activity.poster_image %}
+                    <div class="activity-poster mb-4">
+                        <img src="{{ url_for('static', filename='uploads/posters/' + activity.poster_image) }}" class="img-fluid rounded" alt="{{ activity.title }}">
+                    </div>
+                    {% endif %}
+                    
+                    <div class="activity-description mb-4">
+                        <h5 class="fw-bold mb-3">活动介绍</h5>
+                        <div class="formatted-content">
+                            {{ activity.description|safe }}
                         </div>
                     </div>
-
-                    {% if activity.poster_image or poster_url or activity.poster_data %}
-                        <div class="mb-4 text-center">
-                            {% if activity.poster_data %}
-                            <img src="{{ url_for('main.poster_image', activity_id=activity.id) }}" alt="活动海报" class="img-fluid rounded shadow-sm" style="max-height: 400px;">
-                            {% elif poster_url %}
-                            <img src="{{ poster_url }}" alt="活动海报" class="img-fluid rounded shadow-sm" style="max-height: 400px;">
-                            {% elif 'banner' in activity.poster_image %}
-                            <img src="{{ url_for('static', filename='img/' + activity.poster_image) }}" alt="活动海报" class="img-fluid rounded shadow-sm" style="max-height: 400px;">
-                            {% else %}
-                            <img src="{{ url_for('static', filename='img/landscape.jpg') }}" alt="活动海报" class="img-fluid rounded shadow-sm" style="max-height: 400px;">
+                    
+                    <div class="activity-requirements mb-4">
+                        <h5 class="fw-bold mb-3">活动要求</h5>
+                        <div class="formatted-content">
+                            {{ activity.requirements|safe }}
+                        </div>
+                    </div>
+                    
+                    <div class="activity-rewards mb-4">
+                        <h5 class="fw-bold mb-3">活动奖励</h5>
+                        <div class="d-flex align-items-center">
+                            <span class="badge bg-success me-2">{{ activity.points }} 积分</span>
+                            {% if activity.reward_description %}
+                            <span>{{ activity.reward_description }}</span>
                             {% endif %}
                         </div>
-                    {% endif %}
-
-                    <h5 class="fw-bold mb-3">活动描述</h5>
-                    <div class="activity-description mb-4">
-                        {{ activity.description|safe }}
                     </div>
-
+                    
                     <div id="action-buttons" class="d-flex justify-content-between align-items-center flex-wrap">
                         <div class="mb-3 mb-md-0">
                             {% if registration %}
@@ -51,15 +60,15 @@
                                         <i class="fas fa-check-circle me-2"></i>您已于 {{ display_datetime(registration.check_in_time) }} 签到
                                     </div>
                                 {% elif registration.status == 'registered' %}
-                                    <span class="badge bg-success rounded-pill px-3 py-2 me-2">
-                                        <i class="fas fa-check-circle me-1"></i>已报名
-                                    </span>
-                                    {% if can_cancel %}
+                                <span class="badge bg-success rounded-pill px-3 py-2 me-2">
+                                    <i class="fas fa-check-circle me-1"></i>已报名
+                                </span>
+                                {% if can_cancel %}
                                     <button id="cancel-btn" class="btn btn-outline-danger">
                                         <i class="fas fa-times-circle me-1"></i>取消报名
                                     </button>
-                                    {% endif %}
-                                    {% if can_checkin %}
+                                {% endif %}
+                                {% if can_checkin %}
                                     <button type="button" class="btn btn-success" onclick="showQRScanner()">
                                         <i class="fas fa-qrcode me-1"></i>扫码签到
                                     </button>
@@ -69,9 +78,9 @@
                                 {% endif %}
                             {% else %}
                                 {% if can_register %}
-                                    <button id="register-btn" class="btn btn-primary">
-                                        <i class="fas fa-user-plus me-1"></i>立即报名
-                                    </button>
+                                <button id="register-btn" class="btn btn-primary">
+                                    <i class="fas fa-user-plus me-1"></i>立即报名
+                                </button>
                                 {% elif activity.status == 'active' and (activity.registration_deadline and safe_greater_than_equal(activity.registration_deadline, now)) %}
                                     {% if activity.max_participants > 0 and registered_count >= activity.max_participants %}
                                         <button class="btn btn-secondary" disabled>
@@ -110,36 +119,32 @@
                     </ul>
                 </div>
             </div>
+            
+            {% if activity.tags %}
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-body p-4">
+                    <h5 class="fw-bold mb-3">活动标签</h5>
+                    <div class="d-flex flex-wrap gap-2">
+                        {% for tag in activity.tags %}
+                        <span class="badge bg-{{ tag.color }}">{{ tag.name }}</span>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+            
             <div class="card border-0 shadow-sm">
                 <div class="card-body p-4">
-                    <h5 class="fw-bold mb-3">活动评价</h5>
-                    {% if reviews %}
-                        <div class="text-center mb-3">
-                            <h2 class="display-4 text-primary mb-0 fw-bold">{{ average_rating|round(1) }}</h2>
-                            <div class="text-warning">
-                                {% for i in range(5) %}
-                                    {% if i < average_rating|round(0, 'floor') %}
-                                        <i class="fas fa-star"></i>
-                                    {% elif i < average_rating %}
-                                        <i class="fas fa-star-half-alt"></i>
-                                    {% else %}
-                                        <i class="far fa-star"></i>
-                                    {% endif %}
-                                {% endfor %}
-                            </div>
-                            <small class="text-muted">{{ reviews|length }} 条评价</small>
+                    <h5 class="fw-bold mb-3">组织者</h5>
+                    <div class="d-flex align-items-center">
+                        <div class="flex-shrink-0">
+                            <i class="fas fa-user-tie fa-2x text-primary"></i>
                         </div>
-                    {% else %}
-                        <div class="text-center text-muted py-3">
-                            <i class="fas fa-comment-slash fs-2 mb-2"></i>
-                            <p>暂无评价</p>
+                        <div class="flex-grow-1 ms-3">
+                            <h6 class="mb-0">重庆师范大学师能素质协会</h6>
+                            <p class="text-muted mb-0 small">致力于提升师范生专业素养和教学能力</p>
                         </div>
-                    {% endif %}
-                    {% if activity.status == 'completed' and has_attended and not current_user_review %}
-                        <a href="{{ url_for('student.review_activity', activity_id=activity.id) }}" class="btn btn-outline-primary w-100 mt-3">
-                            <i class="fas fa-star me-1"></i>写评价
-                        </a>
-                    {% endif %}
+                    </div>
                 </div>
             </div>
         </div>
@@ -400,6 +405,205 @@ function showToast(message, type = 'info') {
         toastEl.remove();
     });
 }
+
+document.addEventListener('DOMContentLoaded', function() {
+    // 获取按钮元素
+    const registerBtn = document.getElementById('register-btn');
+    const cancelBtn = document.getElementById('cancel-btn');
+    // 获取CSRF令牌
+    const csrfToken = "{{ csrf_token() }}";
+
+    // 为报名按钮添加事件监听器
+    if (registerBtn) {
+        registerBtn.addEventListener('click', function() {
+            // 显示加载状态
+            const originalText = registerBtn.innerHTML;
+            registerBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>处理中...';
+            registerBtn.disabled = true;
+
+            // 发送AJAX请求
+            fetch('{{ url_for("student.register_activity", id=activity.id) }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken
+                },
+                credentials: 'same-origin'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // 更新UI显示已报名状态
+                    const actionButtons = document.getElementById('action-buttons');
+                    actionButtons.innerHTML = `
+                        <div class="mb-3 mb-md-0">
+                            <span class="badge bg-success rounded-pill px-3 py-2 me-2">
+                                <i class="fas fa-check-circle me-1"></i>已报名
+                            </span>
+                            <button id="cancel-btn" class="btn btn-outline-danger">
+                                <i class="fas fa-times-circle me-1"></i>取消报名
+                            </button>
+                        </div>
+                        <a href="{{ url_for('student.activities') }}" class="btn btn-outline-secondary">
+                            <i class="fas fa-arrow-left me-1"></i>返回活动列表
+                        </a>
+                    `;
+                    
+                    // 更新报名人数
+                    const countElement = document.getElementById('registration-count');
+                    if (countElement) {
+                        countElement.textContent = (parseInt(countElement.textContent) + 1).toString();
+                    }
+                    
+                    // 添加取消按钮的事件监听
+                    const newCancelBtn = document.getElementById('cancel-btn');
+                    if (newCancelBtn) {
+                        newCancelBtn.addEventListener('click', function() {
+                            if (confirm('确定要取消报名吗？')) {
+                                // 显示加载状态
+                                const originalText = newCancelBtn.innerHTML;
+                                newCancelBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>处理中...';
+                                newCancelBtn.disabled = true;
+
+                                // 发送AJAX请求
+                                fetch('{{ url_for("student.cancel_registration", id=activity.id) }}', {
+                                    method: 'POST',
+                                    headers: {
+                                        'Content-Type': 'application/json',
+                                        'X-CSRFToken': csrfToken
+                                    },
+                                    credentials: 'same-origin'
+                                })
+                                .then(response => response.json())
+                                .then(data => {
+                                    if (data.success) {
+                                        // 更新UI显示可报名状态
+                                        const actionButtons = document.getElementById('action-buttons');
+                                        actionButtons.innerHTML = `
+                                            <div class="mb-3 mb-md-0">
+                                                <button id="register-btn" class="btn btn-primary">
+                                                    <i class="fas fa-user-plus me-1"></i>立即报名
+                                                </button>
+                                            </div>
+                                            <a href="{{ url_for('student.activities') }}" class="btn btn-outline-secondary">
+                                                <i class="fas fa-arrow-left me-1"></i>返回活动列表
+                                            </a>
+                                        `;
+                                        
+                                        // 更新报名人数
+                                        const countElement = document.getElementById('registration-count');
+                                        if (countElement) {
+                                            countElement.textContent = (parseInt(countElement.textContent) - 1).toString();
+                                        }
+                                        
+                                        // 添加报名按钮的事件监听
+                                        const newRegisterBtn = document.getElementById('register-btn');
+                                        if (newRegisterBtn) {
+                                            newRegisterBtn.addEventListener('click', registerBtn.onclick);
+                                        }
+                                        
+                                        // 显示成功消息
+                                        alert(data.message);
+                                    } else {
+                                        // 恢复按钮状态
+                                        newCancelBtn.innerHTML = originalText;
+                                        newCancelBtn.disabled = false;
+                                        alert(data.message || '取消报名失败，请稍后再试');
+                                    }
+                                })
+                                .catch(error => {
+                                    console.error('Error:', error);
+                                    newCancelBtn.innerHTML = originalText;
+                                    newCancelBtn.disabled = false;
+                                    alert('取消报名请求失败，请检查网络连接');
+                                });
+                            }
+                        });
+                    }
+                    
+                    // 显示成功消息
+                    alert(data.message);
+                } else {
+                    // 恢复按钮状态
+                    registerBtn.innerHTML = originalText;
+                    registerBtn.disabled = false;
+                    alert(data.message || '报名失败，请稍后再试');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                registerBtn.innerHTML = originalText;
+                registerBtn.disabled = false;
+                alert('报名请求失败，请检查网络连接');
+            });
+        });
+    }
+
+    // 为取消按钮添加事件监听器
+    if (cancelBtn) {
+        cancelBtn.addEventListener('click', function() {
+            if (confirm('确定要取消报名吗？')) {
+                // 显示加载状态
+                const originalText = cancelBtn.innerHTML;
+                cancelBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>处理中...';
+                cancelBtn.disabled = true;
+
+                // 发送AJAX请求
+                fetch('{{ url_for("student.cancel_registration", id=activity.id) }}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': csrfToken
+                    },
+                    credentials: 'same-origin'
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        // 更新UI显示可报名状态
+                        const actionButtons = document.getElementById('action-buttons');
+                        actionButtons.innerHTML = `
+                            <div class="mb-3 mb-md-0">
+                                <button id="register-btn" class="btn btn-primary">
+                                    <i class="fas fa-user-plus me-1"></i>立即报名
+                                </button>
+                            </div>
+                            <a href="{{ url_for('student.activities') }}" class="btn btn-outline-secondary">
+                                <i class="fas fa-arrow-left me-1"></i>返回活动列表
+                            </a>
+                        `;
+                        
+                        // 更新报名人数
+                        const countElement = document.getElementById('registration-count');
+                        if (countElement) {
+                            countElement.textContent = (parseInt(countElement.textContent) - 1).toString();
+                        }
+                        
+                        // 添加报名按钮的事件监听
+                        const newRegisterBtn = document.getElementById('register-btn');
+                        if (newRegisterBtn) {
+                            newRegisterBtn.addEventListener('click', registerBtn.onclick);
+                        }
+                        
+                        // 显示成功消息
+                        alert(data.message);
+                    } else {
+                        // 恢复按钮状态
+                        cancelBtn.innerHTML = originalText;
+                        cancelBtn.disabled = false;
+                        alert(data.message || '取消报名失败，请稍后再试');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    cancelBtn.innerHTML = originalText;
+                    cancelBtn.disabled = false;
+                    alert('取消报名请求失败，请检查网络连接');
+                });
+            }
+        });
+    }
+});
 </script>
 {% endblock %}
 
