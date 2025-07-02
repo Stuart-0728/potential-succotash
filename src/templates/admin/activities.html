@@ -49,7 +49,7 @@
             </ul>
         </div>
         <div class="card-body p-0">
-            <div class="table-responsive">
+            <div class="table-responsive position-relative" style="overflow-x: auto; overflow-y: visible;">
                 <table class="table table-hover align-middle mb-0">
                     <thead class="table-light">
                         <tr>
@@ -91,11 +91,11 @@
                                 {% endif %}
                             </td>
                             <td>
-                                <div class="dropdown">
+                                <div class="dropdown position-static">
                                     <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" id="actionMenu{{ activity.id }}" data-bs-toggle="dropdown" aria-expanded="false" data-no-global-loading="true">
                                         操作
                                     </button>
-                                    <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="actionMenu{{ activity.id }}">
+                                    <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="actionMenu{{ activity.id }}" style="min-width: 220px; z-index: 1050;">
                                         <li>
                                             <a class="dropdown-item" href="{{ url_for('admin.edit_activity', id=activity.id) }}" data-no-global-loading="true">
                                                 <i class="fas fa-edit text-primary me-2"></i>编辑活动
@@ -318,8 +318,61 @@ document.addEventListener('DOMContentLoaded', function() {
         .btn-close:focus {
             box-shadow: none;
         }
+        
+        /* 修复下拉菜单样式 */
+        .dropdown-menu {
+            max-height: 80vh;
+            overflow-y: auto;
+            min-width: 220px;
+            z-index: 1050;
+            position: absolute;
+        }
+        
+        /* 确保菜单不会被截断 */
+        .table-responsive {
+            overflow: visible;
+        }
+        
+        /* 确保按钮和菜单对齐 */
+        .dropdown {
+            position: relative;
+        }
+        
+        /* 修复在移动设备上的显示 */
+        @media (max-width: 768px) {
+            .dropdown-menu {
+                position: fixed;
+                left: 50% !important;
+                transform: translateX(-50%);
+                top: 30% !important;
+                width: 90%;
+                max-width: 300px;
+            }
+        }
     `;
     document.head.appendChild(style);
+    
+    // 修复下拉菜单位置
+    document.querySelectorAll('.dropdown-toggle').forEach(button => {
+        button.addEventListener('click', function() {
+            setTimeout(() => {
+                const menu = this.nextElementSibling;
+                if (menu && menu.classList.contains('dropdown-menu')) {
+                    // 确保菜单在视口内
+                    const rect = menu.getBoundingClientRect();
+                    if (rect.right > window.innerWidth) {
+                        menu.style.right = '0';
+                        menu.style.left = 'auto';
+                    }
+                    
+                    // 确保菜单不会被截断
+                    if (rect.bottom > window.innerHeight) {
+                        menu.style.maxHeight = (window.innerHeight - rect.top - 20) + 'px';
+                    }
+                }
+            }, 10);
+        });
+    });
 });
 
 // 添加更新活动状态的函数
