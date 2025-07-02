@@ -29,6 +29,20 @@ def index():
         static_folder = current_app.static_folder
         logger.info(f"静态文件目录: {static_folder}")
         
+        # 获取公共通知
+        try:
+            public_notifications = Notification.query.filter(
+                Notification.is_public == True,
+                or_(
+                    Notification.expiry_date == None,
+                    Notification.expiry_date > now
+                )
+            ).order_by(Notification.is_important.desc(), Notification.created_at.desc()).limit(3).all()
+            logger.info(f"获取到{len(public_notifications)}条公共通知")
+        except Exception as e:
+            logger.error(f"获取公共通知出错: {e}")
+            public_notifications = []
+        
         # 获取特色活动
         try:
             featured_activities = Activity.query.filter(
@@ -119,6 +133,7 @@ def index():
                               latest_activities=latest_activities,
                               upcoming_activities=upcoming_activities,
                               popular_activities=popular_activities,
+                              public_notifications=public_notifications,
                               now=now,
                               display_datetime=display_datetime)
     except Exception as e:
@@ -129,6 +144,7 @@ def index():
                               latest_activities=[],
                               upcoming_activities=[],
                               popular_activities=[],
+                              public_notifications=[],
                               now=datetime.now(pytz.timezone('Asia/Shanghai')),
                               display_datetime=display_datetime)
 
