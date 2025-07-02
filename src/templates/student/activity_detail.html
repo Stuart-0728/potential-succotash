@@ -485,8 +485,12 @@ document.addEventListener('DOMContentLoaded', function() {
                                         const actionButtons = document.getElementById('action-buttons');
                                         actionButtons.innerHTML = `
                                             <div class="mb-3 mb-md-0">
+                                                <div class="alert alert-warning d-inline-block p-2 mb-2">
+                                                    <i class="fas fa-exclamation-triangle me-1"></i>您已取消报名
+                                                </div>
+                                                <br>
                                                 <button id="register-btn" class="btn btn-primary">
-                                                    <i class="fas fa-user-plus me-1"></i>立即报名
+                                                    <i class="fas fa-user-plus me-1"></i>重新报名
                                                 </button>
                                             </div>
                                             <a href="{{ url_for('student.activities') }}" class="btn btn-outline-secondary">
@@ -503,7 +507,48 @@ document.addEventListener('DOMContentLoaded', function() {
                                         // 添加报名按钮的事件监听
                                         const newRegisterBtn = document.getElementById('register-btn');
                                         if (newRegisterBtn) {
-                                            newRegisterBtn.addEventListener('click', registerBtn.onclick);
+                                            newRegisterBtn.addEventListener('click', function() {
+                                                // 显示加载状态
+                                                const originalText = newRegisterBtn.innerHTML;
+                                                newRegisterBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>处理中...';
+                                                newRegisterBtn.disabled = true;
+
+                                                // 发送AJAX请求
+                                                fetch('{{ url_for("student.register_activity", id=activity.id) }}', {
+                                                    method: 'POST',
+                                                    headers: {
+                                                        'Content-Type': 'application/json',
+                                                        'X-CSRFToken': csrfToken
+                                                    },
+                                                    credentials: 'same-origin'
+                                                })
+                                                .then(response => response.json())
+                                                .then(data => {
+                                                    if (data.success) {
+                                                        // 更新UI显示已报名状态
+                                                        location.reload(); // 重新加载页面以显示正确的状态
+                                                    } else {
+                                                        // 恢复按钮状态
+                                                        newRegisterBtn.innerHTML = originalText;
+                                                        newRegisterBtn.disabled = false;
+                                                        if (window.showToast) {
+                                                            window.showToast(data.message || '重新报名失败，请稍后再试', 'error');
+                                                        } else {
+                                                            alert(data.message || '重新报名失败，请稍后再试');
+                                                        }
+                                                    }
+                                                })
+                                                .catch(error => {
+                                                    console.error('Error:', error);
+                                                    newRegisterBtn.innerHTML = originalText;
+                                                    newRegisterBtn.disabled = false;
+                                                    if (window.showToast) {
+                                                        window.showToast('重新报名请求失败，请检查网络连接', 'error');
+                                                    } else {
+                                                        alert('重新报名请求失败，请检查网络连接');
+                                                    }
+                                                });
+                                            });
                                         }
                                         
                                         // 显示成功消息
@@ -511,15 +556,6 @@ document.addEventListener('DOMContentLoaded', function() {
                                             window.showToast(data.message, 'success');
                                         } else {
                                             alert(data.message);
-                                        }
-                                    } else {
-                                        // 恢复按钮状态
-                                        newCancelBtn.innerHTML = originalText;
-                                        newCancelBtn.disabled = false;
-                                        if (window.showToast) {
-                                            window.showToast(data.message || '取消报名失败，请稍后再试', 'error');
-                                        } else {
-                                            alert(data.message || '取消报名失败，请稍后再试');
                                         }
                                     }
                                 })
@@ -592,8 +628,12 @@ document.addEventListener('DOMContentLoaded', function() {
                         const actionButtons = document.getElementById('action-buttons');
                         actionButtons.innerHTML = `
                             <div class="mb-3 mb-md-0">
+                                <div class="alert alert-warning d-inline-block p-2 mb-2">
+                                    <i class="fas fa-exclamation-triangle me-1"></i>您已取消报名
+                                </div>
+                                <br>
                                 <button id="register-btn" class="btn btn-primary">
-                                    <i class="fas fa-user-plus me-1"></i>立即报名
+                                    <i class="fas fa-user-plus me-1"></i>重新报名
                                 </button>
                             </div>
                             <a href="{{ url_for('student.activities') }}" class="btn btn-outline-secondary">
@@ -610,7 +650,48 @@ document.addEventListener('DOMContentLoaded', function() {
                         // 添加报名按钮的事件监听
                         const newRegisterBtn = document.getElementById('register-btn');
                         if (newRegisterBtn) {
-                            newRegisterBtn.addEventListener('click', registerBtn.onclick);
+                            newRegisterBtn.addEventListener('click', function() {
+                                // 显示加载状态
+                                const originalText = newRegisterBtn.innerHTML;
+                                newRegisterBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>处理中...';
+                                newRegisterBtn.disabled = true;
+
+                                // 发送AJAX请求
+                                fetch('{{ url_for("student.register_activity", id=activity.id) }}', {
+                                    method: 'POST',
+                                    headers: {
+                                        'Content-Type': 'application/json',
+                                        'X-CSRFToken': csrfToken
+                                    },
+                                    credentials: 'same-origin'
+                                })
+                                .then(response => response.json())
+                                .then(data => {
+                                    if (data.success) {
+                                        // 更新UI显示已报名状态
+                                        location.reload(); // 重新加载页面以显示正确的状态
+                                    } else {
+                                        // 恢复按钮状态
+                                        newRegisterBtn.innerHTML = originalText;
+                                        newRegisterBtn.disabled = false;
+                                        if (window.showToast) {
+                                            window.showToast(data.message || '重新报名失败，请稍后再试', 'error');
+                                        } else {
+                                            alert(data.message || '重新报名失败，请稍后再试');
+                                        }
+                                    }
+                                })
+                                .catch(error => {
+                                    console.error('Error:', error);
+                                    newRegisterBtn.innerHTML = originalText;
+                                    newRegisterBtn.disabled = false;
+                                    if (window.showToast) {
+                                        window.showToast('重新报名请求失败，请检查网络连接', 'error');
+                                    } else {
+                                        alert('重新报名请求失败，请检查网络连接');
+                                    }
+                                });
+                            });
                         }
                         
                         // 显示成功消息
