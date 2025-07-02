@@ -24,7 +24,11 @@
                     
                     {% if activity.poster_image %}
                     <div class="activity-poster mb-4">
-                        <img src="{{ url_for('static', filename='uploads/posters/' + activity.poster_image) }}" class="img-fluid rounded" alt="{{ activity.title }}">
+                        {% if 'banner' in activity.poster_image %}
+                        <img src="{{ url_for('static', filename='img/' + activity.poster_image) }}" class="img-fluid rounded" alt="{{ activity.title }}">
+                        {% else %}
+                        <img src="{{ url_for('main.poster_image', activity_id=activity.id) }}" class="img-fluid rounded" alt="{{ activity.title }}">
+                        {% endif %}
                     </div>
                     {% endif %}
                     
@@ -67,8 +71,8 @@
                                     <button id="cancel-btn" class="btn btn-outline-danger">
                                         <i class="fas fa-times-circle me-1"></i>取消报名
                                     </button>
-                                {% endif %}
-                                {% if can_checkin %}
+                                    {% endif %}
+                                    {% if can_checkin %}
                                     <button type="button" class="btn btn-success" onclick="showQRScanner()">
                                         <i class="fas fa-qrcode me-1"></i>扫码签到
                                     </button>
@@ -503,38 +507,62 @@ document.addEventListener('DOMContentLoaded', function() {
                                         }
                                         
                                         // 显示成功消息
-                                        alert(data.message);
+                                        if (window.showToast) {
+                                            window.showToast(data.message, 'success');
+                                        } else {
+                                            alert(data.message);
+                                        }
                                     } else {
                                         // 恢复按钮状态
                                         newCancelBtn.innerHTML = originalText;
                                         newCancelBtn.disabled = false;
-                                        alert(data.message || '取消报名失败，请稍后再试');
+                                        if (window.showToast) {
+                                            window.showToast(data.message || '取消报名失败，请稍后再试', 'error');
+                                        } else {
+                                            alert(data.message || '取消报名失败，请稍后再试');
+                                        }
                                     }
                                 })
                                 .catch(error => {
                                     console.error('Error:', error);
                                     newCancelBtn.innerHTML = originalText;
                                     newCancelBtn.disabled = false;
-                                    alert('取消报名请求失败，请检查网络连接');
+                                    if (window.showToast) {
+                                        window.showToast('取消报名请求失败，请检查网络连接', 'error');
+                                    } else {
+                                        alert('取消报名请求失败，请检查网络连接');
+                                    }
                                 });
                             }
                         });
                     }
                     
                     // 显示成功消息
-                    alert(data.message);
+                    if (window.showToast) {
+                        window.showToast(data.message, 'success');
+                    } else {
+                        alert(data.message);
+                    }
                 } else {
                     // 恢复按钮状态
                     registerBtn.innerHTML = originalText;
                     registerBtn.disabled = false;
-                    alert(data.message || '报名失败，请稍后再试');
+                    if (window.showToast) {
+                        window.showToast(data.message || '报名失败，请稍后再试', 'error');
+                    } else {
+                        alert(data.message || '报名失败，请稍后再试');
+                    }
                 }
             })
             .catch(error => {
                 console.error('Error:', error);
                 registerBtn.innerHTML = originalText;
                 registerBtn.disabled = false;
-                alert('报名请求失败，请检查网络连接');
+                if (window.showToast) {
+                    window.showToast('报名请求失败，请检查网络连接', 'error');
+                } else {
+                    alert('报名请求失败，请检查网络连接');
+                }
             });
         });
     }
@@ -586,19 +614,31 @@ document.addEventListener('DOMContentLoaded', function() {
                         }
                         
                         // 显示成功消息
-                        alert(data.message);
+                        if (window.showToast) {
+                            window.showToast(data.message, 'success');
+                        } else {
+                            alert(data.message);
+                        }
                     } else {
                         // 恢复按钮状态
                         cancelBtn.innerHTML = originalText;
                         cancelBtn.disabled = false;
-                        alert(data.message || '取消报名失败，请稍后再试');
+                        if (window.showToast) {
+                            window.showToast(data.message || '取消报名失败，请稍后再试', 'error');
+                        } else {
+                            alert(data.message || '取消报名失败，请稍后再试');
+                        }
                     }
                 })
                 .catch(error => {
                     console.error('Error:', error);
                     cancelBtn.innerHTML = originalText;
                     cancelBtn.disabled = false;
-                    alert('取消报名请求失败，请检查网络连接');
+                    if (window.showToast) {
+                        window.showToast('取消报名请求失败，请检查网络连接', 'error');
+                    } else {
+                        alert('取消报名请求失败，请检查网络连接');
+                    }
                 });
             }
         });
