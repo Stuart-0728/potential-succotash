@@ -1777,15 +1777,16 @@ def activity_reviews(id):
         else:
             average_rating = 0
         
-        # 生成CSRF令牌
-        csrf_token = generate_csrf()
+        # 创建CSRF表单对象
+        from flask_wtf import FlaskForm
+        form = FlaskForm()
         
         return render_template('admin/activity_reviews.html', 
                             activity=activity, 
                             reviews=reviews, 
                             average_rating=average_rating,
                             display_datetime=display_datetime,
-                            csrf_token=csrf_token)
+                            form=form)
     except Exception as e:
         logger.error(f"Error in activity_reviews: {str(e)}")
         flash('查看活动评价时出错', 'danger')

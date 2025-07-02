@@ -73,6 +73,40 @@ def index():
         except Exception as e:
             logger.error(f"获取最新活动出错: {e}")
             latest_activities = []
+            
+        # 获取即将开始的活动
+        try:
+            upcoming_activities = Activity.query.filter(
+                Activity.status == 'active',
+                Activity.start_time > now
+            ).order_by(Activity.start_time.asc()).limit(3).all()
+        except Exception as e:
+            logger.error(f"获取即将开始的活动出错: {e}")
+            upcoming_activities = []
+            
+        # 获取热门活动（按报名人数排序）
+        try:
+            # 使用子查询计算每个活动的报名人数
+            reg_count_subq = db.session.query(
+                Registration.activity_id,
+                func.count(Registration.id).label('reg_count')
+            ).filter(
+                Registration.status.in_(['registered', 'attended'])
+            ).group_by(Registration.activity_id).subquery()
+            
+            # 查询活动并按报名人数排序
+            popular_activities = db.session.query(Activity).join(
+                reg_count_subq,
+                Activity.id == reg_count_subq.c.activity_id,
+                isouter=True
+            ).filter(
+                Activity.status == 'active'
+            ).order_by(
+                reg_count_subq.c.reg_count.desc().nullslast()
+            ).limit(3).all()
+        except Exception as e:
+            logger.error(f"获取热门活动出错: {e}")
+            popular_activities = []
         
         # 检查活动是否有二进制海报数据
         for activity in featured_activities + latest_activities:
@@ -83,6 +117,8 @@ def index():
         return render_template('main/index.html', 
                               featured_activities=featured_activities,
                               latest_activities=latest_activities,
+                              upcoming_activities=upcoming_activities,
+                              popular_activities=popular_activities,
                               now=now,
                               display_datetime=display_datetime)
     except Exception as e:
@@ -91,6 +127,8 @@ def index():
         return render_template('main/index.html', 
                               featured_activities=[],
                               latest_activities=[],
+                              upcoming_activities=[],
+                              popular_activities=[],
                               now=datetime.now(pytz.timezone('Asia/Shanghai')),
                               display_datetime=display_datetime)
 
@@ -218,29 +256,46 @@ def activities():
         # 排序
         query = query.order_by(Activity.created_at.desc())
         
-        # 分页
-        activities_list = get_compatible_paginate(db, query, page=page, per_page=9, error_out=False)
-        
-        # 获取用户已报名的活动ID列表
-        registered_activity_ids = []
-        if current_user.is_authenticated:
-            reg_stmt = db.select(Registration.activity_id).filter(
-                Registration.user_id == current_user.id,
-                Registration.status == 'registered'
-            )
-            registered = db.session.execute(reg_stmt).all()
-            registered_activity_ids = [r[0] for r in registered]
-        
-        return render_template('main/search.html', 
-                              activities=activities_list, 
-                              search_query=search_query,
-                              current_status=status,
-                              registered_activity_ids=registered_activity_ids,
-                              display_datetime=display_datetime)
+        try:
+            # 分页
+            activities_list = get_compatible_paginate(db, query, page=page, per_page=9, error_out=False)
+            
+            # 获取用户已报名的活动ID列表
+            registered_activity_ids = []
+            if current_user.is_authenticated:
+                reg_stmt = db.select(Registration.activity_id).filter(
+                    Registration.user_id == current_user.id,
+                    Registration.status.in_(['registered', 'attended'])
+                )
+                registered = db.session.execute(reg_stmt).all()
+                registered_activity_ids = [r[0] for r in registered]
+            
+            return render_template('main/search.html', 
+                                activities=activities_list, 
+                                search_query=search_query,
+                                current_status=status,
+                                registered_activity_ids=registered_activity_ids,
+                                display_datetime=display_datetime)
+        except Exception as e:
+            logger.error(f"分页或获取已报名活动出错: {e}")
+            # 尝试不使用分页获取活动列表
+            activities_query = db.session.execute(query).scalars().all()
+            return render_template('main/search.html', 
+                                activities=activities_query,
+                                search_query=search_query,
+                                current_status=status,
+                                registered_activity_ids=[],
+                                display_datetime=display_datetime)
     except Exception as e:
         logger.error(f"Error in activities page: {e}")
         flash('加载活动列表时出错', 'danger')
-        return redirect(url_for('main.index'))
+        # 返回一个空的活动列表页面而不是重定向
+        return render_template('main/search.html',
+                             activities=[],
+                             search_query=search_query if 'search_query' in locals() else '',
+                             current_status=status if 'status' in locals() else 'active',
+                             registered_activity_ids=[],
+                             display_datetime=display_datetime)
 
 @main_bp.route('/activity/<int:activity_id>')
 def activity_detail(activity_id):
