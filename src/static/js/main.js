@@ -978,7 +978,8 @@ function startCountdown(elementId, targetDateStr) {
 
 // 为所有按钮添加加载状态
 function setupLoadingButtons() {
-    const actionButtons = document.querySelectorAll('.btn-primary, .btn-outline-primary, .btn-success, .btn-outline-success, .btn-info, .btn-outline-info');
+    // 选择所有可能需要加载状态的按钮
+    const actionButtons = document.querySelectorAll('.btn-primary, .btn-outline-primary, .btn-success, .btn-outline-success, .btn-info, .btn-outline-info, .btn-secondary, .btn-outline-secondary');
     
     actionButtons.forEach(button => {
         // 跳过已经设置过的按钮
@@ -993,7 +994,29 @@ function setupLoadingButtons() {
             if (this.closest('.pagination') || 
                 this.getAttribute('data-bs-toggle') === 'modal' || 
                 this.hasAttribute('data-no-loading') ||
-                this.type === 'button') {
+                (this.type === 'button' && !this.classList.contains('btn-export'))) {
+                return;
+            }
+            
+            // 特殊处理导出按钮
+            const isExportButton = this.textContent.includes('导出') || 
+                                  this.innerHTML.includes('fa-download') ||
+                                  this.classList.contains('btn-export');
+            
+            if (isExportButton || this.getAttribute('href')?.includes('export')) {
+                // 添加加载状态
+                const originalText = this.innerHTML;
+                this.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> 处理中...';
+                this.classList.add('disabled');
+                
+                // 恢复按钮状态（如果页面加载时间过长）
+                setTimeout(() => {
+                    if (this.classList.contains('disabled')) {
+                        this.classList.remove('disabled');
+                        this.innerHTML = originalText;
+                    }
+                }, 10000); // 导出操作可能需要更长时间
+                
                 return;
             }
             

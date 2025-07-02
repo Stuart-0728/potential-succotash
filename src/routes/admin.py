@@ -2939,11 +2939,33 @@ def change_activity_status(id):
         
         old_status = activity.status
         activity.status = new_status
+        
+        # 如果状态变为已完成，记录完成时间
+        if new_status == 'completed' and not activity.completed_at:
+            activity.completed_at = datetime.now(pytz.utc)
             
         db.session.commit()
         
-        log_action('change_activity_status', f'更改活动状态: {activity.title}, 从 {old_status} 到 {new_status}')
-        return jsonify({'success': True, 'message': '活动状态已更新'})
+        # 获取状态的中文名称
+        status_names = {
+            'draft': '草稿',
+            'pending': '待审核',
+            'approved': '已批准',
+            'active': '进行中',
+            'completed': '已完成',
+            'cancelled': '已取消'
+        }
+        
+        old_status_name = status_names.get(old_status, old_status)
+        new_status_name = status_names.get(new_status, new_status)
+        
+        log_action('change_activity_status', f'更改活动状态: {activity.title}, 从 {old_status_name} 到 {new_status_name}')
+        return jsonify({
+            'success': True, 
+            'message': f'活动状态已从"{old_status_name}"更新为"{new_status_name}"',
+            'old_status': old_status,
+            'new_status': new_status
+        })
     except Exception as e:
         db.session.rollback()
         logger.error(f"更改活动状态出错: {e}")

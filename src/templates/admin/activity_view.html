@@ -227,19 +227,19 @@
                             <p class="text-muted mb-0 small">活动状态</p>
                             <p class="mb-0">
                                 {% if activity.status == 'draft' %}
-                                <span class="badge bg-secondary">草稿</span>
+                                <span class="badge bg-secondary activity-status-badge">草稿</span>
                                 {% elif activity.status == 'pending' %}
-                                <span class="badge bg-warning">待审核</span>
+                                <span class="badge bg-warning activity-status-badge">待审核</span>
                                 {% elif activity.status == 'approved' %}
-                                <span class="badge bg-success">已批准</span>
+                                <span class="badge bg-success activity-status-badge">已批准</span>
                                 {% elif activity.status == 'active' %}
-                                <span class="badge bg-primary">进行中</span>
+                                <span class="badge bg-primary activity-status-badge">进行中</span>
                                 {% elif activity.status == 'completed' %}
-                                <span class="badge bg-info">已完成</span>
+                                <span class="badge bg-info activity-status-badge">已完成</span>
                                 {% elif activity.status == 'cancelled' %}
-                                <span class="badge bg-danger">已取消</span>
+                                <span class="badge bg-danger activity-status-badge">已取消</span>
                                 {% else %}
-                                <span class="badge bg-secondary">{{ activity.status }}</span>
+                                <span class="badge bg-secondary activity-status-badge">{{ activity.status }}</span>
                                 {% endif %}
                             </p>
                         </div>
@@ -359,16 +359,70 @@
                 },
                 body: 'status=' + status + '&csrf_token={{ csrf_token() }}'
             })
-            .then(response => {
-                if (response.ok) {
-                    window.location.reload();
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // 显示Toast提示
+                    if (window.showToast) {
+                        window.showToast(data.message || '活动状态已更新', 'success');
+                    }
+                    
+                    // 更新页面上的状态标签
+                    const statusBadge = document.querySelector('.activity-status-badge');
+                    if (statusBadge) {
+                        let badgeClass = 'bg-secondary';
+                        let statusText = status;
+                        
+                        switch(status) {
+                            case 'draft':
+                                badgeClass = 'bg-secondary';
+                                statusText = '草稿';
+                                break;
+                            case 'pending':
+                                badgeClass = 'bg-warning';
+                                statusText = '待审核';
+                                break;
+                            case 'approved':
+                                badgeClass = 'bg-success';
+                                statusText = '已批准';
+                                break;
+                            case 'active':
+                                badgeClass = 'bg-primary';
+                                statusText = '进行中';
+                                break;
+                            case 'completed':
+                                badgeClass = 'bg-info';
+                                statusText = '已完成';
+                                break;
+                            case 'cancelled':
+                                badgeClass = 'bg-danger';
+                                statusText = '已取消';
+                                break;
+                        }
+                        
+                        statusBadge.className = `badge ${badgeClass} activity-status-badge`;
+                        statusBadge.textContent = statusText;
+                    }
+                    
+                    // 2秒后刷新页面以更新按钮状态
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 2000);
                 } else {
-                    alert('操作失败，请重试');
+                    if (window.showToast) {
+                        window.showToast(data.message || '操作失败，请重试', 'error');
+                    } else {
+                        alert(data.message || '操作失败，请重试');
+                    }
                 }
             })
             .catch(error => {
                 console.error('Error:', error);
-                alert('发生错误，请重试');
+                if (window.showToast) {
+                    window.showToast('发生错误，请重试', 'error');
+                } else {
+                    alert('发生错误，请重试');
+                }
             });
         }
     }
