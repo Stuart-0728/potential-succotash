@@ -321,5 +321,34 @@ document.addEventListener('DOMContentLoaded', function() {
     `;
     document.head.appendChild(style);
 });
+
+// 添加更新活动状态的函数
+function updateActivityStatus(activityId, status) {
+    if (confirm(`确定要将活动状态更改为"${status === 'active' ? '进行中' : status === 'completed' ? '已结束' : '已取消'}"吗？`)) {
+        // 创建表单
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = "{{ url_for('admin.change_activity_status', id=0) }}".replace('0', activityId);
+        form.style.display = 'none';
+        
+        // 添加CSRF令牌
+        const csrfInput = document.createElement('input');
+        csrfInput.type = 'hidden';
+        csrfInput.name = 'csrf_token';
+        csrfInput.value = "{{ csrf_token() }}";
+        form.appendChild(csrfInput);
+        
+        // 添加状态参数
+        const statusInput = document.createElement('input');
+        statusInput.type = 'hidden';
+        statusInput.name = 'status';
+        statusInput.value = status;
+        form.appendChild(statusInput);
+        
+        // 添加表单到文档并提交
+        document.body.appendChild(form);
+        form.submit();
+    }
+}
 </script>
 {% endblock %}
