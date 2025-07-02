@@ -29,6 +29,40 @@
     .settings-panel.show { max-height: 500px; padding-top: 1rem; padding-bottom: 1rem; margin-bottom: 1.5rem; }
     .modal-content { transform: scale(0.95) translateY(20px); opacity: 0; transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); }
     .modal-content.show { transform: scale(1) translateY(0); opacity: 1; }
+    
+    /* 新增样式 */
+    .freq-up, .freq-down {
+        animation: pulse 1s infinite alternate;
+        font-weight: bold;
+    }
+    
+    @keyframes pulse {
+        0% { opacity: 0.7; transform: scale(1); }
+        100% { opacity: 1; transform: scale(1.1); }
+    }
+    
+    #motionStatusText {
+        transition: all 0.3s ease;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    #motionStatusText.bg-red-100 {
+        animation: approach 1.5s infinite alternate;
+    }
+    
+    #motionStatusText.bg-green-100 {
+        animation: retreat 1.5s infinite alternate;
+    }
+    
+    @keyframes approach {
+        0% { transform: translateX(-2px); }
+        100% { transform: translateX(2px); }
+    }
+    
+    @keyframes retreat {
+        0% { transform: translateX(2px); }
+        100% { transform: translateX(-2px); }
+    }
 </style>
 {% endblock %}
 
@@ -80,9 +114,24 @@
                 </div>
             </div>
 
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6 text-center">
-                <div class="display-card p-4 rounded-xl shadow-md"><h3 class="text-sm font-medium text-gray-500">当前检测频率</h3><p id="currentFreqText" class="text-3xl font-semibold text-blue-600 mt-1">-- Hz</p></div>
-                <div class="display-card p-4 rounded-xl shadow-md"><h3 class="text-sm font-medium text-gray-500">当前相对速度</h3><p id="currentSpeedText" class="text-3xl font-semibold text-green-600 mt-1">-- m/s</p></div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                <div class="display-card p-5 rounded-xl shadow-md flex flex-col items-center justify-center h-full">
+                    <h3 class="text-sm font-medium text-gray-500 mb-2">当前检测频率</h3>
+                    <div class="flex items-center justify-center">
+                        <p id="currentFreqText" class="text-4xl font-semibold text-blue-600">-- Hz</p>
+                        <span id="freqTrendArrow" class="ml-3 text-4xl hidden">
+                            <span class="freq-up hidden text-red-500">↑</span>
+                            <span class="freq-down hidden text-green-500">↓</span>
+                        </span>
+                    </div>
+                </div>
+                <div class="display-card p-5 rounded-xl shadow-md flex flex-col items-center justify-center h-full">
+                    <h3 class="text-sm font-medium text-gray-500 mb-2">当前相对速度</h3>
+                    <div class="flex flex-col items-center">
+                        <p id="currentSpeedText" class="text-4xl font-semibold text-green-600">-- m/s</p>
+                        <span id="motionStatusText" class="mt-2 px-4 py-1 text-sm font-bold rounded-full hidden"></span>
+                    </div>
+                </div>
             </div>
 
             <div class="bg-white p-4 rounded-lg shadow-inner relative">
@@ -189,7 +238,7 @@
             microphoneStream: null, oscillator: null, animationFrameId: null,
             dataHistory: [], lastSmoothedFreq: null, startTime: 0,
             finalFilteredData: [], lastUiUpdateTime: 0, noSignalCounter: 0,
-            isStabilizing: false,
+            isStabilizing: false, previousFreq: null, freqTrendThreshold: 1.0,
         };
         let charts = { realtimeChart: null, finalFreqChart: null, finalSpeedChart: null };
 
@@ -402,9 +451,48 @@
         
         function updateLiveUI(freq, speed, time) {
             if (state.appStatus === 'RECORDING') {
-                dom.currentFreqText.textContent = `${freq.toFixed(2)} Hz`;
+                dom.currentFreqText.textContent = `${freq.toFixed(1)} Hz`;
                 dom.currentSpeedText.textContent = `${speed.toFixed(2)} m/s`;
+                
+                // 更新频率趋势箭头
+                const freqTrendArrow = document.getElementById('freqTrendArrow');
+                const freqUpArrow = freqTrendArrow.querySelector('.freq-up');
+                const freqDownArrow = freqTrendArrow.querySelector('.freq-down');
+                
+                if (state.previousFreq !== null) {
+                    const freqDiff = freq - state.previousFreq;
+                    if (Math.abs(freqDiff) >= state.freqTrendThreshold) {
+                        freqTrendArrow.classList.remove('hidden');
+                        if (freqDiff > 0) {
+                            freqUpArrow.classList.remove('hidden');
+                            freqDownArrow.classList.add('hidden');
+                        } else {
+                            freqUpArrow.classList.add('hidden');
+                            freqDownArrow.classList.remove('hidden');
+                        }
+                    } else {
+                        freqTrendArrow.classList.add('hidden');
+                    }
+                }
+                state.previousFreq = freq;
+                
+                // 更新运动状态指示
+                const motionStatusText = document.getElementById('motionStatusText');
+                if (Math.abs(speed) < 0.2) {
+                    motionStatusText.textContent = '静止';
+                    motionStatusText.classList.remove('hidden', 'bg-red-100', 'text-red-800', 'bg-green-100', 'text-green-800');
+                    motionStatusText.classList.add('bg-gray-100', 'text-gray-800');
+                } else if (speed > 0) {
+                    motionStatusText.textContent = '靠近中';
+                    motionStatusText.classList.remove('hidden', 'bg-gray-100', 'text-gray-800', 'bg-green-100', 'text-green-800');
+                    motionStatusText.classList.add('bg-red-100', 'text-red-800');
+                } else {
+                    motionStatusText.textContent = '远离中';
+                    motionStatusText.classList.remove('hidden', 'bg-gray-100', 'text-gray-800', 'bg-red-100', 'text-red-800');
+                    motionStatusText.classList.add('bg-green-100', 'text-green-800');
+                }
             }
+            
             const chart = charts.realtimeChart;
             if (!chart) return;
             const freqData = chart.data.datasets[0].data;
