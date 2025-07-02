@@ -683,9 +683,10 @@ document.addEventListener('DOMContentLoaded', () => {
             console.log("开始清除当前对话历史记录");
             
             // 检查用户是否已登录
-            if (!AI_CHAT_CONFIG.isUserLoggedIn) {
-                if (window.showToast) {
-                    window.showToast('请先登录后再清除对话历史', 'warning');
+            const isLoggedIn = document.body.getAttribute('data-user-logged-in') === 'true';
+            if (!isLoggedIn) {
+                if (typeof showToast === 'function') {
+                    showToast('请先登录后再清除对话历史', 'warning');
                 } else {
                     alert('请先登录后再清除对话历史');
                 }
@@ -724,16 +725,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 chatUI.addMessageToUI(AI_CHAT_CONFIG.initialBotMessage, 'bot');
                 // 清除cookie中的消息
                 chatSession.deleteCookie('messages');
-                if (window.showToast) {
-                    window.showToast('当前对话历史已清除！', 'success');
+                if (typeof showToast === 'function') {
+                    showToast('当前对话历史已清除！', 'success');
                 } else {
                     alert('当前对话历史已清除！');
                 }
             })
             .catch(error => {
                 console.error('清除历史记录失败:', error);
-                if (window.showToast) {
-                    window.showToast('清除历史记录失败: ' + error.message, 'danger');
+                if (typeof showToast === 'function') {
+                    showToast('清除历史记录失败: ' + error.message, 'error');
                 } else {
                     alert('清除历史记录失败: ' + error.message);
                 }
@@ -756,9 +757,10 @@ document.addEventListener('DOMContentLoaded', () => {
             console.log("开始清除所有历史记录");
             
             // 检查用户是否已登录
-            if (!AI_CHAT_CONFIG.isUserLoggedIn) {
-                if (window.showToast) {
-                    window.showToast('请先登录后再清除对话历史', 'warning');
+            const isLoggedIn = document.body.getAttribute('data-user-logged-in') === 'true';
+            if (!isLoggedIn) {
+                if (typeof showToast === 'function') {
+                    showToast('请先登录后再清除对话历史', 'warning');
                 } else {
                     alert('请先登录后再清除对话历史');
                 }
@@ -771,8 +773,8 @@ document.addEventListener('DOMContentLoaded', () => {
             
             if (!csrfToken) {
                 console.error("无法获取CSRF令牌");
-                if (window.showToast) {
-                    window.showToast("无法获取安全令牌，请刷新页面后重试", "danger");
+                if (typeof showToast === 'function') {
+                    showToast("无法获取安全令牌，请刷新页面后重试", "error");
                 } else {
                     alert("无法获取安全令牌，请刷新页面后重试");
                 }
@@ -818,16 +820,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 chatUI.addMessageToUI(AI_CHAT_CONFIG.initialBotMessage, 'bot');
                 // 清除cookie中的消息
                 chatSession.deleteCookie('messages');
-                if (window.showToast) {
-                    window.showToast('历史记录已清除！', 'success');
+                if (typeof showToast === 'function') {
+                    showToast('历史记录已清除！', 'success');
                 } else {
                     alert('历史记录已清除！');
                 }
             })
             .catch(error => {
                 console.error('清除所有历史记录失败:', error);
-                if (window.showToast) {
-                    window.showToast('清除历史记录失败: ' + error.message, 'danger');
+                if (typeof showToast === 'function') {
+                    showToast('清除历史记录失败: ' + error.message, 'error');
                 } else {
                     alert('清除历史记录失败: ' + error.message);
                 }
