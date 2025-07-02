@@ -568,3 +568,118 @@ for tag_id in new_tag_ids:
 1. 为多对多关系操作添加更多的单元测试
 2. 考虑在模型层添加辅助方法，简化多对多关系的处理
 3. 进一步优化标签选择和管理界面，提高用户体验 
+
+# 修复问题总结
+
+## 1. 活动报名详情页面错误
+
+**问题描述**: 在管理员面板中查看活动报名情况时出现错误 `'src.models.Registration object' has no attribute 'registration_id'`
+
+**原因分析**: 在 `activity_registrations` 路由中，直接使用 `Registration` 对象，但模板期望对象有 `registration_id` 属性。
+
+**解决方案**: 修改 `activity_registrations` 路由，使用 `add_columns` 方法并将 `Registration.id` 标记为 `registration_id`：
+
+```python
+registrations = Registration.query.filter_by(
+    activity_id=id
+).join(
+    User, Registration.user_id == User.id
+).join(
+    StudentInfo, User.id == StudentInfo.user_id
+).add_columns(
+    Registration.id.label('registration_id'),
+    Registration.register_time,
+    Registration.check_in_time,
+    Registration.status,
+    StudentInfo.real_name,
+    StudentInfo.student_id,
+    StudentInfo.grade,
+    StudentInfo.college,
+    StudentInfo.major,
+    StudentInfo.phone,
+    StudentInfo.points
+).all()
+```
+
+## 2. 签到密钥过期时间的时区问题
+
+**问题描述**: 签到码过期错误，可能是由于时区问题导致。
+
+**原因分析**: `Activity` 模型中的 `checkin_key_expires` 字段没有正确处理时区信息。
+
+**解决方案**:
+
+1. 确保 `Activity` 模型中的 `checkin_key_expires` 字段定义为带时区的 DateTime 类型：
+
+```python
+checkin_key_expires = Column(DateTime(timezone=True))
+```
+
+2. 创建 SQL 脚本 `scripts/update_checkin_key_expires.sql` 来更新数据库架构：
+
+```sql
+-- 更新 activities 表中的 checkin_key_expires 列为 timestamptz 类型
+ALTER TABLE activities 
+ALTER COLUMN checkin_key_expires TYPE timestamptz 
+USING checkin_key_expires AT TIME ZONE 'UTC';
+
+-- 确保所有时间字段都使用 timestamptz
+COMMENT ON COLUMN activities.checkin_key_expires IS '签到密钥过期时间 (带时区)';
+```
+
+3. 创建 Python 脚本 `scripts/fix_checkin_key_expires.py` 来修复现有数据：
+
+```python
+# 更新每个活动的签到密钥过期时间
+for activity in activities:
+    if activity.checkin_key_expires:
+        # 如果原来的时间没有时区信息，添加 UTC 时区
+        if activity.checkin_key_expires.tzinfo is None:
+            activity.checkin_key_expires = activity.checkin_key_expires.replace(tzinfo=timezone.utc)
+```
+
+## 3. 管理员面板中的报名人数统计问题
+
+**问题描述**: 管理员面板中的"最近活动"列表报名人数统计不准确。
+
+**原因分析**: 在 `dashboard.html` 模板中，报名人数统计只计算了 `'registered'` 状态的学生，没有包括 `'attended'` 状态的学生。
+
+**解决方案**: 修改模板中的报名人数统计逻辑，同时统计 `'registered'` 和 `'attended'` 状态的学生：
+
+```html
+{{ activity.registrations.filter(Registration.status.in_(['registered', 'attended'])).count() if activity.registrations else 0 }}
+```
+
+## 4. 学生活动详情页面的按钮显示问题
+
+**问题描述**: 在学生活动详情页面，"取消报名"和"扫码签到"按钮在签到成功后依然显示。
+
+**原因分析**: 模板中的条件判断基于 `has_registered` 变量，而不是更精确的 `registration.status` 状态。
+
+**解决方案**: 修改模板中的条件判断，基于 `registration.status` 来显示不同的界面元素：
+
+```html
+{% if registration %}
+    {% if registration.status == 'attended' or registration.check_in_time %}
+        <div class="alert alert-info d-inline-block p-2">
+            <i class="fas fa-check-circle me-2"></i>您已于 {{ display_datetime(registration.check_in_time) }} 签到
+        </div>
+    {% elif registration.status == 'registered' %}
+        <!-- 显示已报名状态和相关按钮 -->
+    {% elif registration.status == 'cancelled' %}
+        <div class="alert alert-warning d-inline-block p-2">您已取消报名</div>
+    {% endif %}
+{% endif %}
+```
+
+## 5. 数据库连接问题
+
+**问题描述**: 在本地开发环境中无法连接到 PostgreSQL 数据库。
+
+**解决方案**: 临时修改配置，使用 SQLite 数据库进行开发和测试：
+
+```python
+# 优先使用环境变量中的数据库URL，默认为SQLite数据库
+SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or \
+    f'sqlite:///{DB_PATH}'
+```

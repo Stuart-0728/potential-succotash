@@ -115,21 +115,9 @@ class Config:
     INSTANCE_PATH = INSTANCE_PATH
     DB_PATH = DB_PATH
     
-    # 优先使用环境变量中的数据库URL，默认为本地PostgreSQL数据库
+    # 优先使用环境变量中的数据库URL，默认为SQLite数据库
     SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or \
-        'postgresql://localhost/cqnu_local'
-    
-    # 如果数据库URL是以postgres://开头，则替换为postgresql://
-    # 这是因为SQLAlchemy 1.4+要求PostgreSQL连接URL使用postgresql://前缀
-    if SQLALCHEMY_DATABASE_URI and SQLALCHEMY_DATABASE_URI.startswith('postgres://'):
-        SQLALCHEMY_DATABASE_URI = SQLALCHEMY_DATABASE_URI.replace('postgres://', 'postgresql://', 1)
-        
-    # 如果是SQLite数据库，设置路径为项目根目录下的instance文件夹
-    if SQLALCHEMY_DATABASE_URI and SQLALCHEMY_DATABASE_URI.startswith('sqlite:'):
-        db_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'instance')
-        if not os.path.exists(db_path):
-            os.makedirs(db_path)
-        SQLALCHEMY_DATABASE_URI = SQLALCHEMY_DATABASE_URI.replace('////', f'////{db_path}/')
+        f'sqlite:///{DB_PATH}'
     
     # 打印当前使用的数据库URL（隐藏敏感信息）
     logger.info(f"使用数据库: {SQLALCHEMY_DATABASE_URI[:50] + '...' if len(SQLALCHEMY_DATABASE_URI) > 50 else SQLALCHEMY_DATABASE_URI}")
