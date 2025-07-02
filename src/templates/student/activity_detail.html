@@ -525,14 +525,23 @@ document.addEventListener('DOMContentLoaded', function() {
                                                 .then(response => response.json())
                                                 .then(data => {
                                                     if (data.success) {
-                                                        // 更新UI显示已报名状态
-                                                        location.reload(); // 重新加载页面以显示正确的状态
+                                                        // 显示成功消息
+                                                        if (window.showToast) {
+                                                            window.showToast(data.message || '重新报名成功！', 'success');
+                                                        } else {
+                                                            alert(data.message || '重新报名成功！');
+                                                        }
+                                                        
+                                                        // 重新加载页面以显示正确的状态
+                                                        setTimeout(() => {
+                                                            location.reload();
+                                                        }, 1000);
                                                     } else {
                                                         // 恢复按钮状态
                                                         newRegisterBtn.innerHTML = originalText;
                                                         newRegisterBtn.disabled = false;
                                                         if (window.showToast) {
-                                                            window.showToast(data.message || '重新报名失败，请稍后再试', 'error');
+                                                            window.showToast(data.message || '重新报名失败，请稍后再试', 'danger');
                                                         } else {
                                                             alert(data.message || '重新报名失败，请稍后再试');
                                                         }
@@ -543,7 +552,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                                     newRegisterBtn.innerHTML = originalText;
                                                     newRegisterBtn.disabled = false;
                                                     if (window.showToast) {
-                                                        window.showToast('重新报名请求失败，请检查网络连接', 'error');
+                                                        window.showToast('重新报名请求失败，请检查网络连接', 'danger');
                                                     } else {
                                                         alert('重新报名请求失败，请检查网络连接');
                                                     }
@@ -557,6 +566,15 @@ document.addEventListener('DOMContentLoaded', function() {
                                         } else {
                                             alert(data.message);
                                         }
+                                    } else {
+                                        // 恢复按钮状态
+                                        newCancelBtn.innerHTML = originalText;
+                                        newCancelBtn.disabled = false;
+                                        if (window.showToast) {
+                                            window.showToast(data.message || '取消报名失败，请稍后再试', 'danger');
+                                        } else {
+                                            alert(data.message || '取消报名失败，请稍后再试');
+                                        }
                                     }
                                 })
                                 .catch(error => {
@@ -564,7 +582,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                     newCancelBtn.innerHTML = originalText;
                                     newCancelBtn.disabled = false;
                                     if (window.showToast) {
-                                        window.showToast('取消报名请求失败，请检查网络连接', 'error');
+                                        window.showToast('取消报名请求失败，请检查网络连接', 'danger');
                                     } else {
                                         alert('取消报名请求失败，请检查网络连接');
                                     }
@@ -584,7 +602,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     registerBtn.innerHTML = originalText;
                     registerBtn.disabled = false;
                     if (window.showToast) {
-                        window.showToast(data.message || '报名失败，请稍后再试', 'error');
+                        window.showToast(data.message || '报名失败，请稍后再试', 'danger');
                     } else {
                         alert(data.message || '报名失败，请稍后再试');
                     }
@@ -595,7 +613,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 registerBtn.innerHTML = originalText;
                 registerBtn.disabled = false;
                 if (window.showToast) {
-                    window.showToast('报名请求失败，请检查网络连接', 'error');
+                    window.showToast('报名请求失败，请检查网络连接', 'danger');
                 } else {
                     alert('报名请求失败，请检查网络连接');
                 }
@@ -668,14 +686,23 @@ document.addEventListener('DOMContentLoaded', function() {
                                 .then(response => response.json())
                                 .then(data => {
                                     if (data.success) {
-                                        // 更新UI显示已报名状态
-                                        location.reload(); // 重新加载页面以显示正确的状态
+                                        // 显示成功消息
+                                        if (window.showToast) {
+                                            window.showToast(data.message || '重新报名成功！', 'success');
+                                        } else {
+                                            alert(data.message || '重新报名成功！');
+                                        }
+                                        
+                                        // 重新加载页面以显示正确的状态
+                                        setTimeout(() => {
+                                            location.reload();
+                                        }, 1000);
                                     } else {
                                         // 恢复按钮状态
                                         newRegisterBtn.innerHTML = originalText;
                                         newRegisterBtn.disabled = false;
                                         if (window.showToast) {
-                                            window.showToast(data.message || '重新报名失败，请稍后再试', 'error');
+                                            window.showToast(data.message || '重新报名失败，请稍后再试', 'danger');
                                         } else {
                                             alert(data.message || '重新报名失败，请稍后再试');
                                         }
@@ -686,7 +713,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                     newRegisterBtn.innerHTML = originalText;
                                     newRegisterBtn.disabled = false;
                                     if (window.showToast) {
-                                        window.showToast('重新报名请求失败，请检查网络连接', 'error');
+                                        window.showToast('重新报名请求失败，请检查网络连接', 'danger');
                                     } else {
                                         alert('重新报名请求失败，请检查网络连接');
                                     }
@@ -705,7 +732,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         cancelBtn.innerHTML = originalText;
                         cancelBtn.disabled = false;
                         if (window.showToast) {
-                            window.showToast(data.message || '取消报名失败，请稍后再试', 'error');
+                            window.showToast(data.message || '取消报名失败，请稍后再试', 'danger');
                         } else {
                             alert(data.message || '取消报名失败，请稍后再试');
                         }
@@ -716,7 +743,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     cancelBtn.innerHTML = originalText;
                     cancelBtn.disabled = false;
                     if (window.showToast) {
-                        window.showToast('取消报名请求失败，请检查网络连接', 'error');
+                        window.showToast('取消报名请求失败，请检查网络连接', 'danger');
                     } else {
                         alert('取消报名请求失败，请检查网络连接');
                     }
