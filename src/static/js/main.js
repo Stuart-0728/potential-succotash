@@ -220,6 +220,9 @@ function setupAjaxLoading() {
                 xhr.showLoading = true;
             }
             
+            // 标记特殊请求，避免处理302重定向错误
+            xhr.isSpecialRequest = url.includes('/student/api/messages/unread_count');
+            
             return originalOpen.apply(this, arguments);
         };
         
@@ -246,6 +249,21 @@ function setupAjaxLoading() {
             });
             
             return originalSend.apply(this, arguments);
+        };
+        
+        // 覆盖原始的onreadystatechange
+        const originalOnReadyStateChange = xhr.onreadystatechange;
+        xhr.onreadystatechange = function(e) {
+            // 如果是特殊请求且返回302，不做任何处理
+            if (xhr.isSpecialRequest && xhr.status === 302) {
+                // 不处理重定向错误
+                return;
+            }
+            
+            // 调用原始的onreadystatechange
+            if (originalOnReadyStateChange) {
+                originalOnReadyStateChange.call(this, e);
+            }
         };
         
         return xhr;
@@ -1055,6 +1073,21 @@ function setupLoadingButtons() {
                     return;
                 }
                 
+                // 检查是否是下载链接
+                const isDownloadLink = this.getAttribute('href').includes('/download') || 
+                                      this.getAttribute('href').includes('/export');
+                
+                // 如果是下载链接，不添加加载状态，因为浏览器会自动处理下载
+                if (isDownloadLink) {
+                    // 为下载链接添加特殊处理，确保3秒后自动隐藏全局加载状态
+                    setTimeout(() => {
+                        if (window.hideLoading) {
+                            window.hideLoading();
+                        }
+                    }, 3000);
+                    return;
+                }
+                
                 // 添加加载状态
                 const originalText = this.innerHTML;
                 
@@ -1132,7 +1165,11 @@ function setupLoadingButtons() {
                         this.classList.remove('disabled');
                         this.innerHTML = originalText;
                     }
-                }, 10000); // 导出操作可能需要更长时间
+                    // 确保隐藏全局加载状态
+                    if (window.hideLoading) {
+                        window.hideLoading();
+                    }
+                }, 5000); // 导出操作可能需要更长时间
                 
                 return;
             }

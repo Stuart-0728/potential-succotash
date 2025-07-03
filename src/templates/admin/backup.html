@@ -130,7 +130,7 @@
                                             <td>{{ backup.content }}</td>
                                             <td>
                                                 <div class="btn-group btn-group-sm">
-                                                    <a href="{{ url_for('admin.download_backup', filename=backup.name) }}" class="btn btn-outline-primary download-backup-btn" title="下载备份" data-filename="{{ backup.name }}">
+                                                    <a href="{{ url_for('admin.download_backup', filename=backup.name) }}" class="btn btn-outline-primary download-backup-btn" title="下载备份" data-filename="{{ backup.name }}" data-no-loading="true">
                                                         <i class="fas fa-download"></i>
                                                     </a>
                                                     <a href="{{ url_for('admin.delete_backup', filename=backup.name) }}" class="btn btn-outline-danger delete-backup-btn" 

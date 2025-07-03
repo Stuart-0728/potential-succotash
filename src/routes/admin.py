@@ -2297,39 +2297,45 @@ def reset_system():
         with open(filepath, 'w', encoding='utf-8') as f:
             json.dump(backup_data, f, ensure_ascii=False, indent=2, default=str)
         
-        # 执行重置操作
+        # 执行重置操作 - 按照正确的顺序处理外键依赖
+        
+        # 1. 首先处理报名记录（依赖于活动和用户）
         if reset_registrations:
+            logger.info("删除报名记录")
             Registration.query.delete()
             db.session.commit()
             flash('所有报名记录已重置', 'success')
         
+        # 2. 处理活动相关数据（依赖于标签）
         if reset_activities:
+            logger.info("删除活动相关数据")
             # 先清除活动标签关联
-            db.session.execute(activity_tags.delete())
+            db.session.execute(db.text("DELETE FROM activity_tags"))
             db.session.commit()
             
             # 清除积分历史中对活动的引用
-            PointsHistory.query.filter(PointsHistory.activity_id.isnot(None)).delete()
+            db.session.execute(db.text("UPDATE points_history SET activity_id = NULL WHERE activity_id IS NOT NULL"))
             db.session.commit()
             
             # 删除活动评价
-            from src.models import ActivityReview
-            ActivityReview.query.delete()
+            db.session.execute(db.text("DELETE FROM activity_reviews"))
             db.session.commit()
             
             # 删除活动
-            Activity.query.delete()
+            db.session.execute(db.text("DELETE FROM activities"))
             db.session.commit()
             flash('所有活动已重置', 'success')
         
+        # 3. 处理标签数据
         if reset_tags:
+            logger.info("删除标签数据")
             # 清除标签关联
-            db.session.execute(student_tags.delete())
-            db.session.execute(activity_tags.delete())
+            db.session.execute(db.text("DELETE FROM student_tags"))
+            db.session.execute(db.text("DELETE FROM activity_tags"))
             db.session.commit()
             
             # 删除标签
-            Tag.query.delete()
+            db.session.execute(db.text("DELETE FROM tags"))
             db.session.commit()
             flash('所有标签已重置', 'success')
             
@@ -2350,6 +2356,7 @@ def reset_system():
             db.session.commit()
             flash('默认标签已重新创建', 'success')
         
+        # 4. 处理用户数据（最复杂的部分）
         if reset_users:
             # 保留当前管理员账号
             admin_username = current_user.username
@@ -2357,20 +2364,31 @@ def reset_system():
             admin_password = current_user.password_hash
             
             try:
+                logger.info("删除用户相关数据")
                 # 删除所有用户相关数据 - 按照正确的顺序处理外键依赖
-                # 首先删除积分历史记录
-                logger.info("删除积分历史记录")
-                PointsHistory.query.delete()
+                
+                # 首先删除通知阅读记录
+                db.session.execute(db.text("DELETE FROM notification_reads WHERE user_id != :admin_id").bindparams(admin_id=current_user.id))
                 db.session.commit()
                 
-                # 然后删除学生信息
-                logger.info("删除学生信息")
-                StudentInfo.query.delete()
+                # 删除消息
+                db.session.execute(db.text("DELETE FROM messages WHERE sender_id != :admin_id AND receiver_id != :admin_id").bindparams(admin_id=current_user.id))
+                db.session.commit()
+                
+                # 删除积分历史记录
+                db.session.execute(db.text("DELETE FROM points_history WHERE user_id != :admin_id").bindparams(admin_id=current_user.id))
+                db.session.commit()
+                
+                # 删除学生标签关联
+                db.session.execute(db.text("DELETE FROM student_tags WHERE student_id IN (SELECT id FROM users WHERE id != :admin_id)").bindparams(admin_id=current_user.id))
+                db.session.commit()
+                
+                # 删除学生信息
+                db.session.execute(db.text("DELETE FROM student_info WHERE user_id != :admin_id").bindparams(admin_id=current_user.id))
                 db.session.commit()
                 
                 # 最后删除用户账号（除了当前管理员）
-                logger.info("删除用户账号")
-                User.query.filter(User.id != current_user.id).delete()
+                db.session.execute(db.text("DELETE FROM users WHERE id != :admin_id").bindparams(admin_id=current_user.id))
                 db.session.commit()
                 
                 # 重新创建角色
@@ -2392,8 +2410,9 @@ def reset_system():
                 logger.error(f"重置用户数据时出错: {str(e)}")
                 flash(f'重置用户数据时出错: {str(e)}', 'danger')
         
-        
+        # 5. 最后处理日志
         if reset_logs:
+            logger.info("重置系统日志")
             # 清空日志文件
             log_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'logs', 'cqnu_association.log')
             if os.path.exists(log_file):
@@ -2401,7 +2420,7 @@ def reset_system():
                     f.write(f"日志已于 {normalize_datetime_for_db(datetime.now()).strftime('%Y-%m-%d %H:%M:%S')} 被管理员重置\n")
             
             # 清空系统日志表
-            SystemLog.query.delete()
+            db.session.execute(db.text("DELETE FROM system_logs"))
             db.session.commit()
             
             flash('系统日志已重置', 'success')
