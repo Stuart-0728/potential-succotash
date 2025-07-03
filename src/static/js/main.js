@@ -77,6 +77,32 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // 为所有按钮添加加载状态
     setupLoadingButtons();
+
+    // 重置所有按钮状态（解决浏览器返回问题）
+    resetAllButtonStates();
+    
+    // 监听浏览器前进/后退事件
+    window.addEventListener('pageshow', function(event) {
+        // 当页面从浏览器缓存中加载时（例如使用后退按钮）
+        if (event.persisted) {
+            console.log('页面从缓存加载，重置按钮状态');
+            resetAllButtonStates();
+        }
+    });
+    
+    // 监听popstate事件（浏览器前进/后退按钮）
+    window.addEventListener('popstate', function(event) {
+        console.log('浏览器导航事件，重置按钮状态');
+        resetAllButtonStates();
+    });
+    
+    // 监听页面可见性变化
+    document.addEventListener('visibilitychange', function() {
+        if (document.visibilityState === 'visible') {
+            console.log('页面变为可见，重置按钮状态');
+            resetAllButtonStates();
+        }
+    });
 });
 
 // 初始化全局加载动画
@@ -121,7 +147,7 @@ function setupFormLoading() {
             form.getAttribute('data-no-loading') === 'true' ||
             form.id === 'tagsForm' ||
             form.action?.includes('/tags/') ||  // 标签相关操作
-            form.id === 'editTagForm') { // 排除标签编辑表单
+            form.id === 'editTagForm') {
             return;
         }
         
@@ -572,33 +598,59 @@ function setupSearchOptimization() {
     });
 }
 
-// 活动状态更新
+// 更新活动状态
 function updateActivityStatus(activityId, newStatus) {
-    if (!confirm('确定要更新活动状态吗？')) {
-        return;
-    }
+    // 找到触发按钮
+    const button = event.target.closest('.activity-status-btn');
+    if (!button) return;
     
-    fetch(`/api/activity/${activityId}/status`, {
+    // 保存原始内容
+    const originalContent = button.innerHTML;
+    
+    // 设置加载状态
+    button.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span> 处理中...';
+    button.disabled = true;
+    
+    // 获取CSRF令牌
+    const csrfToken = document.querySelector('input[name="csrf_token"]').value;
+    
+    // 发送请求
+    fetch(`/admin/activity/${activityId}/change_status`, {
         method: 'POST',
         headers: {
-            'Content-Type': 'application/json',
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'X-CSRFToken': csrfToken
         },
-        body: JSON.stringify({
-            status: newStatus
-        })
+        body: `status=${newStatus}&csrf_token=${csrfToken}`
     })
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            alert('状态更新成功！');
-            window.location.reload();
+            // 显示成功消息
+            showAlert('success', data.message || '活动状态已更新');
+            
+            // 延迟刷新页面，让用户看到成功消息
+            setTimeout(() => {
+                location.reload();
+            }, 1000);
         } else {
-            alert('状态更新失败: ' + data.message);
+            // 恢复按钮状态
+            button.innerHTML = originalContent;
+            button.disabled = false;
+            
+            // 显示错误消息
+            showAlert('danger', data.message || '更新活动状态失败');
         }
     })
     .catch(error => {
-        console.error('状态更新请求失败:', error);
-        alert('状态更新请求失败，请重试');
+        console.error('Error:', error);
+        
+        // 恢复按钮状态
+        button.innerHTML = originalContent;
+        button.disabled = false;
+        
+        // 显示错误消息
+        showAlert('danger', '更新活动状态时出错');
     });
 }
 
@@ -1193,43 +1245,73 @@ function setupLoadingButtons() {
     });
 }
 
-// 在页面加载完成后执行
-document.addEventListener('DOMContentLoaded', function() {
-    setupLoadingButtons();
+// 重置所有按钮状态
+function resetAllButtonStates() {
+    console.log('重置所有按钮状态');
     
-    // 为动态加载的内容设置MutationObserver
-    const observer = new MutationObserver(function(mutations) {
-        mutations.forEach(function(mutation) {
-            if (mutation.addedNodes && mutation.addedNodes.length > 0) {
-                setupLoadingButtons();
-            }
-        });
-    });
-    
-    // 开始观察文档的变化
-    observer.observe(document.body, { childList: true, subtree: true });
-    
-    // 处理页面卸载前的状态
-    window.addEventListener('beforeunload', function() {
-        // 显示全局加载状态
-        if (window.showLoading) {
-            window.showLoading('页面加载中...');
+    // 重置所有带有加载状态的按钮
+    document.querySelectorAll('.btn-loading').forEach(function(button) {
+        button.classList.remove('btn-loading');
+        if (button.hasAttribute('data-original-text')) {
+            button.innerHTML = button.getAttribute('data-original-text');
+            // 清除存储的原始文本，防止重复使用
+            button.removeAttribute('data-original-text');
         }
     });
     
-    // 处理页面可见性变化，解决浏览器返回时"页面加载中"一直存在的问题
-    document.addEventListener('visibilitychange', function() {
-        if (document.visibilityState === 'visible') {
-            // 页面变为可见时，隐藏加载动画
-            if (window.hideLoading) {
-                window.hideLoading();
-            }
+    // 重置所有禁用的按钮
+    document.querySelectorAll('button.disabled, a.disabled').forEach(function(button) {
+        // 排除应该保持禁用状态的按钮
+        if (button.hasAttribute('disabled') && button.getAttribute('disabled') !== 'false') {
+            return;
+        }
+        
+        button.classList.remove('disabled');
+        
+        // 恢复原始内容
+        if (button.hasAttribute('data-original-text')) {
+            button.innerHTML = button.getAttribute('data-original-text');
+            // 清除存储的原始文本，防止重复使用
+            button.removeAttribute('data-original-text');
         }
     });
     
-    // 页面加载完成后，确保隐藏加载动画
+    // 重置所有包含spinner的按钮
+    document.querySelectorAll('button .spinner-border, a .spinner-border').forEach(function(spinner) {
+        const button = spinner.closest('button, a');
+        if (button && button.hasAttribute('data-original-text')) {
+            button.innerHTML = button.getAttribute('data-original-text');
+            button.classList.remove('disabled');
+            // 清除存储的原始文本，防止重复使用
+            button.removeAttribute('data-original-text');
+        }
+    });
+    
+    // 重置所有下拉菜单按钮
+    document.querySelectorAll('.dropdown-toggle').forEach(function(button) {
+        if (button.hasAttribute('data-original-text')) {
+            button.innerHTML = button.getAttribute('data-original-text');
+            button.classList.remove('disabled');
+            // 清除存储的原始文本，防止重复使用
+            button.removeAttribute('data-original-text');
+        }
+    });
+    
+    // 重置所有表单提交按钮
+    document.querySelectorAll('button[type="submit"], input[type="submit"]').forEach(function(button) {
+        button.disabled = false;
+        if (button.tagName === 'BUTTON' && button.hasAttribute('data-original-text')) {
+            button.innerHTML = button.getAttribute('data-original-text');
+            button.removeAttribute('data-original-text');
+        } else if (button.tagName === 'INPUT' && button.hasAttribute('data-original-value')) {
+            button.value = button.getAttribute('data-original-value');
+            button.removeAttribute('data-original-value');
+        }
+    });
+    
+    // 隐藏全局加载状态
     if (window.hideLoading) {
         window.hideLoading();
     }
-});
+}
 

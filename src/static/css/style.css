@@ -1192,6 +1192,7 @@ footer {
     border-radius: 50%;
     border-top-color: white;
     animation: spin 0.8s linear infinite;
+    box-shadow: 0 0 5px rgba(0, 0, 0, 0.1);
 }
 
 /* 为不同颜色的按钮设置不同的加载动画颜色 */

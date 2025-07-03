@@ -92,59 +92,59 @@
                             </td>
                             <td>
                                 <div class="dropdown position-static">
-                                    <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" id="actionMenu{{ activity.id }}" data-bs-toggle="dropdown" aria-expanded="false" data-no-global-loading="true" style="position: relative; z-index: 1;">
+                                    <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" id="actionMenu{{ activity.id }}" data-bs-toggle="dropdown" aria-expanded="false" data-no-loading="true" data-no-global-loading="true">
                                         操作
                                     </button>
-                                    <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="actionMenu{{ activity.id }}" style="min-width: 220px; z-index: 1050;">
+                                    <ul class="dropdown-menu dropdown-menu-end shadow-sm" aria-labelledby="actionMenu{{ activity.id }}" style="min-width: 220px; z-index: 1050;">
                                         <li>
-                                            <a class="dropdown-item" href="{{ url_for('admin.edit_activity', id=activity.id) }}" data-no-global-loading="true">
+                                            <a class="dropdown-item" href="{{ url_for('admin.edit_activity', id=activity.id) }}" data-no-loading="true">
                                                 <i class="fas fa-edit text-primary me-2"></i>编辑活动
                                             </a>
                                         </li>
                                         <li>
-                                            <a class="dropdown-item" href="{{ url_for('admin.activity_view', id=activity.id) }}" data-no-global-loading="true">
+                                            <a class="dropdown-item" href="{{ url_for('admin.activity_view', id=activity.id) }}" data-no-loading="true">
                                                 <i class="fas fa-eye text-info me-2"></i>查看详情
                                             </a>
                                         </li>
                                         <li>
-                                            <a class="dropdown-item" href="{{ url_for('admin.activity_registrations', id=activity.id) }}" data-no-global-loading="true">
+                                            <a class="dropdown-item" href="{{ url_for('admin.activity_registrations', id=activity.id) }}" data-no-loading="true">
                                                 <i class="fas fa-users text-success me-2"></i>报名情况
                                             </a>
                                         </li>
                                         <li>
-                                            <a class="dropdown-item" href="{{ url_for('admin.activity_reviews', id=activity.id) }}" data-no-global-loading="true">
+                                            <a class="dropdown-item" href="{{ url_for('admin.activity_reviews', id=activity.id) }}" data-no-loading="true">
                                                 <i class="fas fa-star text-warning me-2"></i>活动评价
                                             </a>
                                         </li>
                                         <li><hr class="dropdown-divider"></li>
                                         <li>
-                                            <a class="dropdown-item" href="{{ url_for('admin.checkin_modal', id=activity.id) }}" data-no-global-loading="true">
+                                            <a class="dropdown-item" href="{{ url_for('admin.checkin_modal', id=activity.id) }}" data-no-loading="true">
                                                 <i class="fas fa-qrcode text-primary me-2"></i>签到管理
                                             </a>
                                         </li>
                                         {% if activity.status == 'active' %}
                                         <li>
-                                            <a class="dropdown-item" href="#" onclick="updateActivityStatus('{{ activity.id }}', 'completed'); return false;" data-no-global-loading="true">
+                                            <button class="dropdown-item activity-status-btn" onclick="updateActivityStatus('{{ activity.id }}', 'completed'); return false;" data-no-loading="true" data-no-global-loading="true">
                                                 <i class="fas fa-check-circle text-success me-2"></i>标记为已结束
-                                            </a>
+                                            </button>
                                         </li>
                                         <li>
-                                            <a class="dropdown-item" href="#" onclick="updateActivityStatus('{{ activity.id }}', 'cancelled'); return false;" data-no-global-loading="true">
+                                            <button class="dropdown-item activity-status-btn" onclick="updateActivityStatus('{{ activity.id }}', 'cancelled'); return false;" data-no-loading="true" data-no-global-loading="true">
                                                 <i class="fas fa-ban text-danger me-2"></i>取消活动
-                                            </a>
+                                            </button>
                                         </li>
                                         {% elif activity.status == 'completed' or activity.status == 'cancelled' %}
                                         <li>
-                                            <a class="dropdown-item" href="#" onclick="updateActivityStatus('{{ activity.id }}', 'active'); return false;" data-no-global-loading="true">
+                                            <button class="dropdown-item activity-status-btn" onclick="updateActivityStatus('{{ activity.id }}', 'active'); return false;" data-no-loading="true" data-no-global-loading="true">
                                                 <i class="fas fa-play-circle text-success me-2"></i>恢复为进行中
-                                            </a>
+                                            </button>
                                         </li>
                                         {% endif %}
                                         <li><hr class="dropdown-divider"></li>
                                         <li>
-                                            <a class="dropdown-item text-danger" href="#" onclick="confirmDeleteActivity('{{ activity.id }}', '{{ activity.title }}', '{{ registration_counts.get(activity.id, 0) }}'); return false;" data-no-global-loading="true">
+                                            <button class="dropdown-item text-danger" onclick="confirmDeleteActivity('{{ activity.id }}', '{{ activity.title }}', '{{ registration_counts.get(activity.id, 0) }}'); return false;" data-no-loading="true" data-no-global-loading="true">
                                                 <i class="fas fa-trash-alt text-danger me-2"></i>删除活动
-                                            </a>
+                                            </button>
                                         </li>
                                     </ul>
                                 </div>
