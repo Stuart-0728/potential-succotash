@@ -1458,6 +1458,23 @@ function setupLoginButton() {
             // 检查表单是否有效
             const form = this.closest('form');
             if (form && form.checkValidity()) {
+                // 检查当前URL是否包含可能导致循环重定向的参数
+                const currentUrl = window.location.href;
+                if (currentUrl.includes('/utils/ai_chat/history')) {
+                    // 修改next参数，避免重定向循环
+                    const nextInput = form.querySelector('input[name="next"]');
+                    if (nextInput) {
+                        nextInput.value = '/';
+                    } else {
+                        // 如果没有next输入字段，创建一个
+                        const input = document.createElement('input');
+                        input.type = 'hidden';
+                        input.name = 'next';
+                        input.value = '/';
+                        form.appendChild(input);
+                    }
+                }
+                
                 // 保存原始文本
                 const originalText = this.value || this.innerHTML;
                 this.setAttribute('data-original-text', originalText);

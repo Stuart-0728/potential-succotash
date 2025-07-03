@@ -162,6 +162,10 @@ def register():
 @auth_bp.route('/login', methods=['GET', 'POST'])
 def login():
     """用户登录"""
+    # 如果用户已登录，直接重定向到主页
+    if current_user.is_authenticated:
+        return redirect(url_for('main.index'))
+        
     form = LoginForm()
     
     # 如果是GET请求，直接显示登录表单
@@ -207,6 +211,13 @@ def login():
                 
                 # 获取next参数，如果有的话重定向到该页面
                 next_page = request.args.get('next')
+                
+                # 检查next参数是否安全，避免重定向循环
+                if next_page and '/utils/ai_chat/history' in next_page:
+                    logger.warning(f"检测到可能的重定向循环: {next_page}")
+                    next_page = None
+                
+                # 如果没有有效的next参数，设置默认重定向目标
                 if not next_page or next_page.startswith('//'):
                     if hasattr(user, 'role') and user.role and user.role.name == 'Admin':
                         next_page = url_for('admin.dashboard')
