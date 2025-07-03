@@ -1177,37 +1177,43 @@ footer {
 /* 按钮加载状态 */
 .btn-loading {
     position: relative;
-    color: transparent !important;
     pointer-events: none;
-    transition: all 0.3s ease;
-}
-
-.btn-loading:before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background-color: inherit;
-    border-radius: inherit;
-    opacity: 0.8;
-    z-index: 1;
+    color: transparent !important;
 }
 
 .btn-loading:after {
-    content: '';
+    content: "";
     position: absolute;
-    width: 16px;
-    height: 16px;
-    top: calc(50% - 8px);
-    left: calc(50% - 8px);
-    border: 2px solid rgba(255, 255, 255, 0.5);
+    left: 50%;
+    top: 50%;
+    width: 1.2em;
+    height: 1.2em;
+    margin-left: -0.6em;
+    margin-top: -0.6em;
+    border: 2px solid currentColor;
+    border-right-color: transparent;
     border-radius: 50%;
-    border-top-color: white;
-    animation: spin 0.8s linear infinite;
-    box-shadow: 0 0 5px rgba(0, 0, 0, 0.1);
-    z-index: 2;
+    animation: spinner-border 0.75s linear infinite;
+    opacity: 1;
+}
+
+/* 确保旋转动画稳定 */
+@keyframes spinner-border {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* 确保旋转动画流畅 */
+.spinner-border {
+    animation: spinner-border 0.75s linear infinite;
+    border-width: 0.15em;
+}
+
+/* 提高按钮加载状态的可见度 */
+.btn.disabled, .btn:disabled {
+    opacity: 0.8;
+    cursor: not-allowed;
 }
 
 /* 为不同颜色的按钮设置不同的加载动画颜色 */
@@ -1217,19 +1223,6 @@ footer {
 .btn-outline-secondary.btn-loading:after {
     border: 2px solid rgba(0, 0, 0, 0.1);
     border-top-color: var(--primary-color);
-}
-
-/* 按钮禁用状态 */
-.btn.disabled, 
-.btn:disabled {
-    cursor: not-allowed;
-    opacity: 0.65;
-    pointer-events: none;
-}
-
-/* 按钮加载状态的过渡效果 */
-.btn {
-    transition: all 0.3s ease;
 }
 
 /* 链接按钮加载状态 */

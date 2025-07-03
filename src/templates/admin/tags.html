@@ -143,6 +143,11 @@
         </div>
     </div>
 </div>
+
+<!-- 删除标签的隐藏表单 -->
+<form id="deleteTagForm" method="POST" style="display: none;">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+</form>
 {% endblock %}
 
 {% block scripts %}
@@ -161,23 +166,10 @@ function editTag(id, name, color) {
 
 function deleteTag(id, name) {
     if (confirm(`确定要删除标签"${name}"吗？\n删除后不可恢复，且会从所有相关活动中移除此标签。`)) {
-        fetch(`/admin/tags/${id}/delete`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': document.querySelector('input[name="csrf_token"]').value
-            }
-        }).then(response => {
-            if (response.ok) {
-                location.reload();
-            } else {
-                response.json().then(data => {
-                    alert(data.message || '删除失败，请重试');
-                }).catch(() => {
-                    alert('删除失败，请重试');
-                });
-            }
-        });
+        // 使用隐藏表单提交，确保CSRF令牌被正确传递
+        const form = document.getElementById('deleteTagForm');
+        form.action = `/admin/tags/${id}/delete`;
+        form.submit();
     }
 }
 

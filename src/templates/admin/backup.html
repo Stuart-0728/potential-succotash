@@ -130,12 +130,11 @@
                                             <td>{{ backup.content }}</td>
                                             <td>
                                                 <div class="btn-group btn-group-sm">
-                                                    <a href="{{ url_for('admin.download_backup', filename=backup.name) }}" class="btn btn-outline-primary download-backup-btn" title="下载备份" data-filename="{{ backup.name }}" data-no-loading="true">
-                                                        <i class="fas fa-download"></i>
+                                                    <a href="{{ url_for('admin.download_backup', filename=backup.name) }}" class="btn btn-outline-primary" data-no-loading="true">
+                                                        <i class="fas fa-download"></i> 下载
                                                     </a>
-                                                    <a href="{{ url_for('admin.delete_backup', filename=backup.name) }}" class="btn btn-outline-danger delete-backup-btn" 
-                                                       onclick="return confirm('确定要删除此备份吗？此操作不可撤销！');" title="删除备份" data-filename="{{ backup.name }}">
-                                                        <i class="fas fa-trash-alt"></i>
+                                                    <a href="{{ url_for('admin.delete_backup', filename=backup.name) }}" class="btn btn-outline-danger" onclick="return confirm('确定要删除此备份吗？此操作不可撤销！');">
+                                                        <i class="fas fa-trash-alt"></i> 删除
                                                     </a>
                                                 </div>
                                             </td>

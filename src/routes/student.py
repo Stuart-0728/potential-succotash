@@ -958,7 +958,7 @@ def messages():
                 Message.sender_id == current_user.id,
                 Message.receiver_id == current_user.id
             ))
-            
+        
         # 不使用复杂的连接，保持简单查询
         messages = query.order_by(Message.created_at.desc()).paginate(page=page, per_page=10)
         

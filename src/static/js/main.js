@@ -133,7 +133,8 @@ function initGlobalLoading() {
             
             window.loadingTimeout = setTimeout(() => {
                 window.hideLoading();
-            }, 10000); // 10秒后自动隐藏
+                console.log('安全超时：自动隐藏加载动画');
+            }, 15000); // 15秒后自动隐藏
         }
     };
     
@@ -161,8 +162,24 @@ function initGlobalLoading() {
         const activeElement = document.activeElement;
         if (activeElement && activeElement.tagName === 'A' && 
             activeElement.getAttribute('href') && 
-            activeElement.getAttribute('href').includes('/admin/')) {
+            (activeElement.getAttribute('href').includes('/admin/') || 
+             !activeElement.hasAttribute('data-no-loading'))) {
             window.showLoading('页面加载中...');
+        }
+    });
+    
+    // 监听页面可见性变化
+    document.addEventListener('visibilitychange', function() {
+        if (document.visibilityState === 'visible') {
+            // 如果页面变为可见，检查加载状态是否悬挂
+            setTimeout(() => {
+                // 如果加载动画显示超过5秒，自动隐藏
+                const loadingEl = document.querySelector('.global-loading');
+                if (loadingEl && loadingEl.classList.contains('show')) {
+                    console.log('页面可见性变化：自动隐藏加载动画');
+                    window.hideLoading();
+                }
+            }, 1000);
         }
     });
 }
@@ -213,18 +230,28 @@ function setupFormLoading() {
             }
             submitBtn.disabled = true;
             
-            // 提交完成后恢复按钮状态
-            setTimeout(function() {
-                // 如果10秒后表单还在页面上，恢复按钮状态
-                if (document.body.contains(submitBtn)) {
-                    if (submitBtn.tagName === 'INPUT') {
-                        submitBtn.value = originalContent;
-                    } else {
-                    submitBtn.innerHTML = originalContent;
+            // 保存原始内容到按钮属性中
+            if (submitBtn.tagName === 'INPUT') {
+                submitBtn.setAttribute('data-original-value', originalContent);
+            } else {
+                submitBtn.setAttribute('data-original-text', originalContent);
+            }
+            
+            // 对于登录表单，不设置自动恢复，让服务器端处理结果
+            if (!isLoginForm) {
+                // 提交完成后恢复按钮状态
+                setTimeout(function() {
+                    // 如果10秒后表单还在页面上，恢复按钮状态
+                    if (document.body.contains(submitBtn)) {
+                        if (submitBtn.tagName === 'INPUT') {
+                            submitBtn.value = originalContent;
+                        } else {
+                            submitBtn.innerHTML = originalContent;
+                        }
+                        submitBtn.disabled = false;
                     }
-                    submitBtn.disabled = false;
-                }
-            }, 10000);
+                }, 10000);
+            }
         } else {
             // 如果没有找到提交按钮，显示全局加载动画
             showLoading('提交中...');
@@ -282,7 +309,10 @@ function setupAjaxLoading() {
             
             // 标记特殊请求，避免处理302重定向错误
             xhr.isSpecialRequest = url.includes('/student/api/messages/unread_count') || 
-                                  url.includes('/api/notifications/unread');
+                                  url.includes('/api/notifications/unread') ||
+                                  url.includes('/admin/') || 
+                                  url.includes('/student/') ||
+                                  url.includes('/api/');
             
             return originalOpen.apply(this, arguments);
         };
@@ -315,9 +345,10 @@ function setupAjaxLoading() {
         // 覆盖原始的onreadystatechange
         const originalOnReadyStateChange = xhr.onreadystatechange;
         xhr.onreadystatechange = function(e) {
-            // 如果是特殊请求且返回302或401，不做任何处理
+            // 如果是特殊请求且返回302或401/403，不做任何处理
             if (xhr.isSpecialRequest && (xhr.status === 302 || xhr.status === 401 || xhr.status === 403)) {
                 // 不处理重定向或权限错误
+                console.log('特殊请求状态码:', xhr.status, '- 忽略处理');
                 return;
             }
             
@@ -1166,10 +1197,22 @@ function setupLoadingButtons() {
                 
                 // 如果是下载链接，不添加加载状态，因为浏览器会自动处理下载
                 if (isDownloadLink) {
+                    // 为下载链接添加特殊属性
+                    this.setAttribute('data-no-loading', 'true');
+                    
                     // 为下载链接添加特殊处理，确保3秒后自动隐藏全局加载状态
                     setTimeout(() => {
                         if (window.hideLoading) {
                             window.hideLoading();
+                        }
+                        
+                        // 恢复按钮状态
+                        if (this.classList.contains('disabled')) {
+                            this.classList.remove('disabled');
+                            if (this.hasAttribute('data-original-text')) {
+                                this.innerHTML = this.getAttribute('data-original-text');
+                                this.removeAttribute('data-original-text');
+                            }
                         }
                     }, 3000);
                     return;

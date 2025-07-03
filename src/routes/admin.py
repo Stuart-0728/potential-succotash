@@ -1432,30 +1432,36 @@ def import_backup():
         
         # 开始数据导入
         if 'data' in backup_data:
+            # 显示全局加载动画
+            flash('正在导入备份数据，请稍候...', 'info')
+            
             # 删除现有数据，按照外键依赖顺序删除
-            # 首先清除中间表
+            # 使用原生SQL语句，避免ORM级别的外键约束问题
+            
+            # 首先禁用外键约束检查
+            db.session.execute(db.text("SET CONSTRAINTS ALL DEFERRED"))
+            
+            # 清除所有中间表和关联表
             db.session.execute(db.text("DELETE FROM activity_tags"))
             db.session.execute(db.text("DELETE FROM student_tags"))
+            db.session.execute(db.text("DELETE FROM points_history"))
+            db.session.execute(db.text("DELETE FROM activity_checkins"))
+            db.session.execute(db.text("DELETE FROM activity_reviews"))
+            db.session.execute(db.text("DELETE FROM registrations"))
+            db.session.execute(db.text("DELETE FROM system_logs"))
+            db.session.execute(db.text("DELETE FROM notifications"))
+            db.session.execute(db.text("DELETE FROM messages"))
+            db.session.execute(db.text("DELETE FROM announcements"))
+            db.session.execute(db.text("DELETE FROM ai_chat_history"))
+            db.session.execute(db.text("DELETE FROM ai_user_preferences"))
             
-            # 然后清除依赖表
-            if 'registrations' in backup_data['data']:
-                db.session.execute(db.text("DELETE FROM registrations"))
+            # 然后删除主要表
+            db.session.execute(db.text("DELETE FROM activities"))
+            db.session.execute(db.text("DELETE FROM student_info"))
+            db.session.execute(db.text("DELETE FROM tags"))
+            db.session.execute(db.text("DELETE FROM users"))
             
-            if 'activity_reviews' in backup_data['data']:
-                db.session.execute(db.text("DELETE FROM activity_reviews"))
-                
-            if 'activity_checkins' in backup_data['data']:
-                db.session.execute(db.text("DELETE FROM activity_checkins"))
-            
-            if 'activities' in backup_data['data']:
-                db.session.execute(db.text("DELETE FROM activities"))
-            
-            if 'student_info' in backup_data['data']:
-                db.session.execute(db.text("DELETE FROM student_info"))
-            
-            if 'users' in backup_data['data']:
-                db.session.execute(db.text("DELETE FROM users"))
-            
+            # 提交删除操作
             db.session.commit()
             
             # 导入备份数据
@@ -1499,7 +1505,7 @@ def import_backup():
     except Exception as e:
         db.session.rollback()
         logger.error(f"Error importing backup: {e}")
-        flash('导入备份失败', 'danger')
+        flash(f'导入备份失败: {str(e)}', 'danger')
         return redirect(url_for('admin.backup_system'))
 
 # 添加更新报名状态的路由
