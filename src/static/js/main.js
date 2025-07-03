@@ -1452,61 +1452,33 @@ function resetAllButtonStates() {
 
 // 特别处理登录按钮
 function setupLoginButton() {
+    const loginForm = document.querySelector('form[action*="/auth/login"]');
     const loginBtn = document.querySelector('.login-btn');
-    if (loginBtn) {
-        loginBtn.addEventListener('click', function(e) {
-            // 检查表单是否有效
-            const form = this.closest('form');
-            if (form && form.checkValidity()) {
-                // 检查当前URL是否包含可能导致循环重定向的参数
-                const currentUrl = window.location.href;
-                if (currentUrl.includes('/utils/ai_chat/history')) {
-                    // 修改next参数，避免重定向循环
-                    const nextInput = form.querySelector('input[name="next"]');
-                    if (nextInput) {
-                        nextInput.value = '/';
-                    } else {
-                        // 如果没有next输入字段，创建一个
-                        const input = document.createElement('input');
-                        input.type = 'hidden';
-                        input.name = 'next';
-                        input.value = '/';
-                        form.appendChild(input);
-                    }
-                }
-                
-                // 保存原始文本
-                const originalText = this.value || this.innerHTML;
-                this.setAttribute('data-original-text', originalText);
-                
-                // 添加加载动画
-                const loadingText = this.getAttribute('data-loading-text') || '正在登录...';
-                if (this.tagName === 'INPUT') {
-                    this.value = loadingText;
-                } else {
-                    this.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span> ' + loadingText;
-                }
-                
-                // 禁用按钮
-                this.disabled = true;
-                this.classList.add('disabled');
-                
-                // 显示全局加载动画
+    
+    if (loginForm && loginBtn) {
+        // 使用表单提交事件而不是按钮点击事件
+        loginForm.addEventListener('submit', function(e) {
+            // 不阻止默认提交行为
+            
+            // 保存原始文本
+            const originalText = loginBtn.value || loginBtn.innerHTML;
+            loginBtn.setAttribute('data-original-text', originalText);
+            
+            // 添加加载动画
+            const loadingText = loginBtn.getAttribute('data-loading-text') || '正在登录...';
+            if (loginBtn.tagName === 'INPUT') {
+                loginBtn.value = loadingText;
+            } else {
+                loginBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span> ' + loadingText;
+            }
+            
+            // 禁用按钮
+            loginBtn.disabled = true;
+            loginBtn.classList.add('disabled');
+            
+            // 显示全局加载动画
+            if (window.showLoading) {
                 window.showLoading('登录中...');
-                
-                // 如果10秒后仍未跳转，恢复按钮状态
-                setTimeout(() => {
-                    if (document.body.contains(this)) {
-                        this.disabled = false;
-                        this.classList.remove('disabled');
-                        if (this.tagName === 'INPUT') {
-                            this.value = originalText;
-                        } else {
-                            this.innerHTML = originalText;
-                        }
-                        window.hideLoading();
-                    }
-                }, 10000);
             }
         });
     }

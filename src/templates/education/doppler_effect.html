@@ -5,11 +5,13 @@
 {% block styles %}
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
 <meta name="csrf-token" content="{{ csrf_token() }}">
 <style>
+    body { font-family: 'Inter', 'Noto Sans SC', sans-serif; background-color: #f0f2f5; color: #334155; }
     .main-container-gradient { background: linear-gradient(145deg, #eef2f7, #ffffff); }
     .display-card { background-color: rgba(255, 255, 255, 0.7); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border: 1px solid rgba(0, 0, 0, 0.05); transition: all 0.3s ease; }
     .display-card:hover { transform: translateY(-3px); box-shadow: 0 12px 24px rgba(0, 0, 0, 0.08); }
@@ -29,40 +31,14 @@
     .settings-panel.show { max-height: 500px; padding-top: 1rem; padding-bottom: 1rem; margin-bottom: 1.5rem; }
     .modal-content { transform: scale(0.95) translateY(20px); opacity: 0; transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); }
     .modal-content.show { transform: scale(1) translateY(0); opacity: 1; }
-    
-    /* 新增样式 */
-    .freq-up, .freq-down {
-        animation: pulse 1s infinite alternate;
-        font-weight: bold;
-    }
-    
-    @keyframes pulse {
-        0% { opacity: 0.7; transform: scale(1); }
-        100% { opacity: 1; transform: scale(1.1); }
-    }
-    
-    #motionStatusText {
-        transition: all 0.3s ease;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    }
-    
-    #motionStatusText.bg-red-100 {
-        animation: approach 1.5s infinite alternate;
-    }
-    
-    #motionStatusText.bg-green-100 {
-        animation: retreat 1.5s infinite alternate;
-    }
-    
-    @keyframes approach {
-        0% { transform: translateX(-2px); }
-        100% { transform: translateX(2px); }
-    }
-    
-    @keyframes retreat {
-        0% { transform: translateX(2px); }
-        100% { transform: translateX(-2px); }
-    }
+    #doppler3DScene { width: 100%; height: 100%; display: block; border-radius: 0.5rem; }
+    .freq-up, .freq-down { animation: pulse 1s infinite alternate; font-weight: bold; }
+    @keyframes pulse { 0% { opacity: 0.7; transform: scale(1); } 100% { opacity: 1; transform: scale(1.1); } }
+    #motionStatusText { transition: all 0.3s ease; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    #motionStatusText.bg-red-100 { animation: approach 1.5s infinite alternate; }
+    #motionStatusText.bg-green-100 { animation: retreat 1.5s infinite alternate; }
+    @keyframes approach { 0% { transform: translateX(-2px); } 100% { transform: translateX(2px); } }
+    @keyframes retreat { 0% { transform: translateX(2px); } 100% { transform: translateX(-2px); } }
 </style>
 {% endblock %}
 
@@ -84,7 +60,7 @@
     <div class="w-full max-w-4xl mx-auto space-y-6">
         <div class="main-container-gradient shadow-xl rounded-2xl p-6 md:p-8">
             <header class="mb-6">
-                <h1 class="text-3xl font-bold text-gray-800 text-center">多普勒效应演示 (稳定增强版)</h1>
+                <h1 class="text-3xl font-bold text-gray-800 text-center">在线一体式多普勒效应演示系统</h1>
                 <p class="text-center text-gray-500 mt-2">通过麦克风和AI实时分析声波频率变化来测量和解读运动</p>
             </header>
 
@@ -112,6 +88,10 @@
                         <div><label for="spikeThreshold" class="block text-sm font-medium text-gray-600 mb-1">尖峰阈值 (Hz)</label><input type="number" id="spikeThreshold" value="75" min="10" max="200" step="5" class="w-full p-2 border border-gray-300 rounded-lg text-sm focus:ring-1 focus:ring-blue-500"></div>
                     </div>
                 </div>
+            </div>
+            
+            <div class="bg-gray-800 p-2 rounded-lg shadow-inner relative h-96 mb-6">
+                 <canvas id="doppler3DScene"></canvas>
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
@@ -188,14 +168,18 @@
     <script>
     document.addEventListener('DOMContentLoaded', () => {
         // --- 常量与配置 ---
+        // 作用: 定义整个应用中不会改变的基础数值和配置。
+        // 可调整参数: 无，这些是基础物理和性能常量。
         const V_SOUND = 343;
         const MAX_CHART_POINTS = 150;
         const UI_UPDATE_INTERVAL = 100;
-        const DATA_START_DELAY_MS = 500; // 0.5秒稳定期
+        const DATA_START_DELAY_MS = 500;
         const NO_SIGNAL_THRESHOLD = 30;
         const GRACE_PERIOD_MS = 1000;
 
-        // --- DOM 元素 ---
+        // --- DOM 元素缓存 ---
+        // 作用: 一次性获取所有需要操作的HTML元素，提高性能，避免重复查询。
+        // 可调整参数: 无，与HTML结构严格对应。
         const dom = {
             freqInput: document.getElementById('freqInput'),
             startButton: document.getElementById('startButton'),
@@ -230,9 +214,12 @@
             aiQuestionInput: document.getElementById('aiQuestionInput'),
             askAIButton: document.getElementById('askAIButton'),
             aiAnswer: document.getElementById('aiAnswer'),
+            threeCanvas: document.getElementById('doppler3DScene'),
         };
 
-        // --- 应用状态 ---
+        // --- 应用状态管理 ---
+        // 作用: 集中管理应用的所有动态变化的状态，方便跟踪和调试。
+        // 可调整参数: 无，这些是程序运行时内部状态。
         let state = {
             isRecording: false, appStatus: 'IDLE', audioContext: null, analyser: null,
             microphoneStream: null, oscillator: null, animationFrameId: null,
@@ -241,8 +228,11 @@
             isStabilizing: false, previousFreq: null, freqTrendThreshold: 1.0,
         };
         let charts = { realtimeChart: null, finalFreqChart: null, finalSpeedChart: null };
+        let threeState = { scene: null, camera: null, renderer: null, waves: [], clock: new THREE.Clock(), lastWaveTime: 0, wavelengthFactor: 1.0, source: null, sourceSpeed: 0, sourceInitialPosition: new THREE.Vector3(-6, 1, 0) };
 
-        // --- 获取配置 ---
+        // --- 获取用户配置 ---
+        // 作用: 从设置面板读取用户配置，供其他函数使用。
+        // 可调整参数: 无，此函数只负责读取。
         const getConfig = () => ({
             emittedFreq: parseFloat(dom.freqInput.value),
             micGain: parseFloat(dom.micGain.value),
@@ -252,7 +242,9 @@
             spikeThresholdHz: parseInt(dom.spikeThreshold.value),
         });
 
-        // --- UI 更新 ---
+        // --- UI状态机 ---
+        // 作用: 根据传入的状态(newStatus)统一更新界面上所有相关元素的显隐和禁用状态。
+        // 可调整参数: 无，这是核心UI逻辑。
         function updateUiState(newStatus, message = '') {
             state.appStatus = newStatus;
             dom.startButton.disabled = newStatus !== 'IDLE';
@@ -262,9 +254,7 @@
             dom.showLastResultButton.disabled = newStatus !== 'IDLE' || state.finalFilteredData.length === 0;
 
             dom.statusOverlay.classList.toggle('hidden', newStatus !== 'PREPARING' && newStatus !== 'STABILIZING');
-            if (newStatus === 'PREPARING' || newStatus === 'STABILIZING') {
-                dom.statusText.textContent = message;
-            }
+            if (newStatus === 'PREPARING' || newStatus === 'STABILIZING') dom.statusText.textContent = message;
             
             if (newStatus === 'IDLE' || newStatus === 'PREPARING' || newStatus === 'STABILIZING') {
                 dom.currentFreqText.textContent = '-- Hz';
@@ -276,6 +266,8 @@
         }
 
         // --- 核心音频处理 ---
+        // 作用: 点击“开始”按钮后，初始化所有音频相关的API和节点。
+        // 可调整参数: oscillatorGainNode.gain.value (发射音量, 0-1)。
         const start = async () => {
             if (state.isRecording) return;
             updateUiState('PREPARING', '正在初始化音频...');
@@ -314,10 +306,10 @@
                 updateUiState('STABILIZING', '正在稳定声波...');
                 
                 setTimeout(() => {
-                    if (!state.isRecording) return; // 可能在稳定期间被停止
+                    if (!state.isRecording) return;
                     state.isStabilizing = false;
-                    state.startTime = performance.now(); // 重置开始时间，从0开始记录
-                    state.dataHistory = []; // 清空稳定期间可能产生的无效数据
+                    state.startTime = performance.now();
+                    state.dataHistory = [];
                     updateUiState('RECORDING');
                 }, DATA_START_DELAY_MS);
 
@@ -330,16 +322,20 @@
             }
         };
 
+        // 作用: 点击“停止”按钮后，停止分析并显示结果。
         const stop = async () => {
             if (!state.isRecording) return;
             state.isRecording = false;
             cancelAnimationFrame(state.animationFrameId);
-            state.finalFilteredData = state.dataHistory; // 不再需要过滤，因为记录开始时就已延迟
+            state.finalFilteredData = state.dataHistory;
             showFinalResults();
             await cleanupAudioResources();
             updateUiState('IDLE');
+            threeState.sourceSpeed = 0;
         };
 
+        // 作用: 每一帧进行音频数据分析的核心循环。
+        // 可调整参数: maxVal < -85 (信号检测灵敏度，越小越灵敏)。
         const analysisLoop = () => {
             if (!state.isRecording) return;
             state.animationFrameId = requestAnimationFrame(analysisLoop);
@@ -355,7 +351,7 @@
                     if (freqData[i] > maxVal) { maxVal = freqData[i]; maxIdx = i; }
                 }
 
-                if (state.isStabilizing) return; // 稳定期间不处理数据
+                if (state.isStabilizing) return;
 
                 const elapsedTime = performance.now() - state.startTime;
                 if (maxIdx === -1 || maxVal < -85) {
@@ -365,6 +361,7 @@
                             updateUiState('NO_SIGNAL');
                         }
                     }
+                    threeState.sourceSpeed = 0;
                     return;
                 }
                 if (state.appStatus === 'NO_SIGNAL') updateUiState('RECORDING');
@@ -388,12 +385,15 @@
                     updateLiveUI(smoothedFreq, speed, currentTime);
                     state.lastUiUpdateTime = performance.now();
                 }
+                threeState.wavelengthFactor = config.emittedFreq / smoothedFreq;
+                threeState.sourceSpeed = speed;
             } catch (error) {
                 console.error("分析循环出错:", error);
                 stop();
             }
         };
         
+        // 作用: 安全地关闭和释放所有音频资源。
         async function cleanupAudioResources() {
             if (state.animationFrameId) cancelAnimationFrame(state.animationFrameId);
             if (state.oscillator) { try { state.oscillator.stop(); } catch (e) {} state.oscillator.disconnect(); }
@@ -403,8 +403,11 @@
             Object.assign(state, { isRecording: false, audioContext: null, analyser: null, microphoneStream: null, oscillator: null, animationFrameId: null });
         }
 
+        // 作用: 根据多普勒效应公式计算速度。
         function calculateSpeed(observedFreq, emittedFreq) { return V_SOUND * (observedFreq / emittedFreq - 1); }
 
+        // --- 结果显示、图表、导出 ---
+        // 作用: 停止测量后，计算统计数据并显示结果弹窗。
         function showFinalResults() {
             const data = state.finalFilteredData;
             if (data.length < 10) {
@@ -428,11 +431,12 @@
             }, 50);
         }
 
+        // 作用: 在结果弹窗中渲染最终的频率和速度图表。
         function renderFinalCharts(data) {
-             const emittedFreq = getConfig().emittedFreq;
+            const emittedFreq = getConfig().emittedFreq;
             const freqData = data.map(d => ({ x: d.t, y: d.f }));
             const speedData = data.map(d => ({ x: d.t, y: d.v }));
-            const timeRange = { min: data[0].t, max: data[data.length - 1].t };
+            const timeRange = { min: data.length ? data[0].t : 0, max: data.length ? data[data.length - 1].t : 1 };
             const chartBaseOptions = {
                 responsive: true, maintainAspectRatio: false, animation: false,
                 scales: { x: { type: 'linear', ...timeRange, title: { display: true, text: `时间 (s)` } } },
@@ -449,12 +453,12 @@
             charts.finalSpeedChart = new Chart(dom.finalSpeedChartCanvas.getContext('2d'), { type: 'line', data: { datasets: datasets.speed }, options: { ...chartBaseOptions, plugins: {...chartBaseOptions.plugins, title: {display: true, text: '速度 vs 时间'}}, scales: { ...chartBaseOptions.scales, y: { title: { display: true, text: '速度 (m/s)' } } } } });
         }
         
+        // 作用: 更新主界面上的实时数据和图表。
         function updateLiveUI(freq, speed, time) {
             if (state.appStatus === 'RECORDING') {
                 dom.currentFreqText.textContent = `${freq.toFixed(1)} Hz`;
                 dom.currentSpeedText.textContent = `${speed.toFixed(2)} m/s`;
                 
-                // 更新频率趋势箭头
                 const freqTrendArrow = document.getElementById('freqTrendArrow');
                 const freqUpArrow = freqTrendArrow.querySelector('.freq-up');
                 const freqDownArrow = freqTrendArrow.querySelector('.freq-down');
@@ -476,7 +480,6 @@
                 }
                 state.previousFreq = freq;
                 
-                // 更新运动状态指示
                 const motionStatusText = document.getElementById('motionStatusText');
                 if (Math.abs(speed) < 0.2) {
                     motionStatusText.textContent = '静止';
@@ -503,6 +506,7 @@
             chart.update('none');
         }
 
+        // 作用: 初始化实时图表。
         function initRealtimeChart() {
             if (charts.realtimeChart) charts.realtimeChart.destroy();
             const emittedFreq = getConfig().emittedFreq;
@@ -514,6 +518,7 @@
             });
         }
 
+        // 作用: 将测量数据导出为CSV文件。
         function exportToCsv() {
             if (state.finalFilteredData.length === 0) { alert("没有可导出的数据。"); return; }
             const headers = '"Time (s)","Detected Frequency (Hz)","Relative Speed (m/s)"';
@@ -528,6 +533,8 @@
             document.body.removeChild(link);
         }
 
+        // --- AI 相关功能 ---
+        // 作用: 将连续的速度数据分割成“靠近”、“远离”、“静止”等有意义的片段。
         function segmentMovementData(data) {
             const segments = [];
             if (data.length < 5) return "";
@@ -565,16 +572,19 @@
             }).filter(Boolean).join(' ');
         }
         
+        // 作用: 设置按钮为加载状态。
         async function setButtonLoading(button, text) {
             button.disabled = true;
             button.innerHTML = `<div class="flex items-center justify-center"><div class="ai-spinner mr-2"></div><span>${text}</span></div>`;
         }
 
+        // 作用: 恢复按钮的原始状态。
         function resetButton(button, originalText) {
             button.disabled = false;
             button.innerHTML = originalText;
         }
 
+        // 作用: 请求AI对运动数据进行分析。
         async function generateAiAnalysis() {
             const originalText = dom.aiAnalyzeBtn.innerHTML;
             await setButtonLoading(dom.aiAnalyzeBtn, '分析中...');
@@ -595,6 +605,7 @@
             }
         }
 
+        // 作用: 请求AI回答用户提出的问题。
         async function askAiQuestion() {
             const question = dom.aiQuestionInput.value.trim();
             if (!question) { alert("请输入您的问题。"); return; }
@@ -611,8 +622,8 @@
             }
         }
 
+        // 作用: 调用后端API与Gemini模型交互。
         async function callGeminiAPI(prompt) {
-            // 获取CSRF令牌
             const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
             const apiUrl = "{{ url_for('education.gemini_api') }}";
             const response = await fetch(apiUrl, { 
@@ -634,6 +645,151 @@
             }
         }
 
+        // --- 3D 可视化 ---
+        // 作用: 初始化3D场景、相机、渲染器和光照。
+        // 可调整参数: camera.position (相机位置), gridHelper (网格大小和颜色)。
+        function init3D() {
+            const container = dom.threeCanvas.parentElement;
+            const width = container.clientWidth;
+            const height = container.clientHeight;
+
+            threeState.scene = new THREE.Scene();
+            threeState.camera = new THREE.PerspectiveCamera(75, width / height, 0.1, 1000);
+            threeState.camera.position.set(0, 6, 12); // 拉近相机
+            threeState.camera.lookAt(0, 2, 0);
+
+            threeState.renderer = new THREE.WebGLRenderer({ canvas: dom.threeCanvas, antialias: true, alpha: true });
+            threeState.renderer.setSize(width, height);
+            threeState.renderer.setPixelRatio(window.devicePixelRatio);
+
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
+            threeState.scene.add(ambientLight);
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 1.0);
+            directionalLight.position.set(10, 15, 10);
+            threeState.scene.add(directionalLight);
+            
+            const gridHelper = new THREE.GridHelper(40, 40, 0x555555, 0x333333);
+            threeState.scene.add(gridHelper);
+
+            createModels();
+            animate3D();
+
+            window.addEventListener('resize', () => {
+                const newWidth = container.clientWidth;
+                const newHeight = container.clientHeight;
+                threeState.camera.aspect = newWidth / newHeight;
+                threeState.camera.updateProjectionMatrix();
+                threeState.renderer.setSize(newWidth, newHeight);
+            });
+        }
+
+        // 作用: 创建3D场景中的扬声器和观察者模型。
+        // 可调整参数: 各种模型的几何形状(Geometry)和材质(Material)。
+        function createModels() {
+            // 扬声器 (Source)
+            const speakerGroup = new THREE.Group();
+            const boxMat = new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.6, metalness: 0.2 });
+            const speakerBox = new THREE.Mesh(new THREE.BoxGeometry(1.5, 2, 1.2), boxMat);
+            const coneMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.4 });
+            const speakerCone = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.4, 0.5, 32), coneMat);
+            speakerCone.position.z = 0.61;
+            speakerCone.rotation.x = Math.PI / 2;
+            const coneRing = new THREE.Mesh(new THREE.TorusGeometry(0.5, 0.05, 16, 100), new THREE.MeshStandardMaterial({ color: 0x555555 }));
+            coneRing.position.z = 0.61;
+            coneRing.rotation.x = Math.PI / 2;
+            speakerGroup.add(speakerBox, speakerCone, coneRing);
+            speakerGroup.position.copy(threeState.sourceInitialPosition);
+            threeState.scene.add(speakerGroup);
+            threeState.source = speakerGroup;
+
+            // 观察者 (Observer)
+            const observerGroup = new THREE.Group();
+            const baseMat = new THREE.MeshStandardMaterial({ color: 0x4a5568, roughness: 0.5 });
+            const screenMat = new THREE.MeshStandardMaterial({ color: 0x3a4558, roughness: 0.5 });
+            
+            const base = new THREE.Mesh(new THREE.BoxGeometry(3, 0.2, 2.2), baseMat);
+            base.position.y = 0.1;
+
+            const hinge = new THREE.Group();
+            base.add(hinge);
+            hinge.position.z = -1;
+
+            const screen = new THREE.Mesh(new THREE.BoxGeometry(3, 2.2, 0.15), screenMat);
+            screen.position.y = 1.1;
+            hinge.add(screen);
+            hinge.rotation.x = Math.PI / 2.5;
+
+            const receiverMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+            const receiver = new THREE.Mesh(new THREE.CircleGeometry(0.3, 32), receiverMat);
+            receiver.position.z = 0.08; 
+            screen.add(receiver);
+
+            observerGroup.add(base);
+            observerGroup.position.set(6, 0, 0); // 调整初始距离
+            threeState.scene.add(observerGroup);
+        }
+
+        // 作用: 3D场景的动画循环，负责更新物体位置和声波动画。
+        function animate3D() {
+            requestAnimationFrame(animate3D);
+            const now = performance.now();
+            const delta = threeState.clock.getDelta();
+
+            // 更新声源位置
+            if (threeState.source) {
+                if (state.isRecording) {
+                    // 可调整参数: * 4 (声源移动速度的视觉倍率)
+                    threeState.source.position.x += threeState.sourceSpeed * delta * 4;
+                    threeState.source.position.x = THREE.MathUtils.clamp(threeState.source.position.x, -10, 4);
+                } else {
+                    // 平滑返回初始位置
+                    threeState.source.position.lerp(threeState.sourceInitialPosition, 0.05);
+                }
+            }
+
+            // 创建声波
+            // 可调整参数: 150 (声波生成频率，越小越快)
+            if (state.isRecording && !state.isStabilizing && (now - threeState.lastWaveTime > 150 * threeState.wavelengthFactor)) {
+                threeState.lastWaveTime = now;
+                
+                const points = new THREE.Path().absarc(0, 0, 0.1, 0, Math.PI * 2, false).getPoints(64);
+                const waveGeometry = new THREE.BufferGeometry().setFromPoints(points);
+                const waveMaterial = new THREE.LineBasicMaterial({ color: 0x34d399, transparent: true });
+                
+                const wave = new THREE.LineLoop(waveGeometry, waveMaterial);
+                
+                wave.position.copy(threeState.source.position);
+                wave.rotation.x = Math.PI / 2;
+                wave.userData.creationTime = now;
+                threeState.scene.add(wave);
+                threeState.waves.push(wave);
+            }
+
+            // 更新声波动画
+            threeState.waves.forEach((wave, index) => {
+                const age = (now - wave.userData.creationTime) / 1000;
+                const radius = age * 30; // 可调整参数：声波扩散速度
+                wave.scale.set(radius, radius, radius);
+                
+                const fadeStartRadius = 25; // 可调整参数：开始消失的半径
+                const maxRadius = 200; // 可调整参数：完全消失的半径
+                if (radius > fadeStartRadius) {
+                    wave.material.opacity = 1.0 - (radius - fadeStartRadius) / (maxRadius - fadeStartRadius);
+                }
+
+                if (wave.material.opacity <= 0) {
+                    threeState.scene.remove(wave);
+                    wave.geometry.dispose();
+                    wave.material.dispose();
+                    threeState.waves.splice(index, 1);
+                }
+            });
+
+            threeState.renderer.render(threeState.scene, threeState.camera);
+        }
+
+        // --- 应用初始化 ---
+        // 作用: 绑定所有事件监听器，并初始化UI和3D场景。
         function init() {
             dom.startButton.addEventListener('click', start);
             dom.stopButton.addEventListener('click', stop);
@@ -651,6 +807,7 @@
             window.addEventListener('beforeunload', cleanupAudioResources);
             updateUiState('IDLE');
             initRealtimeChart();
+            init3D();
         }
 
         init();

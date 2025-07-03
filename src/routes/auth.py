@@ -199,63 +199,42 @@ def login():
                 # 登录成功
                 login_user(user)
                 
-                # 更新最后登录时间
-                user.last_login = datetime.now()
-                db.session.commit()
+                # 记录登录成功日志
+                logger.info(f"登录成功: 用户名={username}, 用户ID={user.id}")
                 
-                logger.info(f"用户 {username} 登录成功")
-                
-                # 记录系统日志
+                # 添加系统日志
                 log = SystemLog(
                     user_id=user.id,
-                    action='登录',
-                    details=f'用户 {username} 登录成功',
+                    action="用户登录",
+                    details=f"用户 {username} 登录成功",
                     ip_address=request.remote_addr
                 )
                 db.session.add(log)
                 db.session.commit()
                 
-                # 获取next参数，如果有的话重定向到该页面
-                next_page = request.form.get('next') or request.args.get('next')
-                
                 # 检查next参数是否安全，避免重定向循环
+                next_page = request.form.get('next')
                 if next_page and '/utils/ai_chat/history' in next_page:
-                    logger.warning(f"检测到可能的重定向循环: {next_page}")
-                    next_page = None
+                    logger.warning(f"阻止重定向到AI聊天历史: {next_page}")
+                    next_page = url_for('main.index')
                 
-                # 如果没有有效的next参数，设置默认重定向目标
-                if not next_page or next_page.startswith('//'):
-                    if hasattr(user, 'role') and user.role and user.role.name == 'Admin':
-                        next_page = url_for('admin.dashboard')
-                    else:
-                        # 检查学生是否已选择标签
-                        student_info = db.session.execute(db.select(StudentInfo).filter_by(user_id=user.id)).scalar_one_or_none()
-                        if student_info and not student_info.has_selected_tags:
-                            # 学生尚未选择标签，跳转到标签选择页面
-                            next_page = url_for('auth.select_tags')
-                        else:
-                            next_page = url_for('student.dashboard')
+                # 如果有next参数，则重定向到next页面
+                if next_page and next_page != 'None' and next_page != url_for('auth.login'):
+                    logger.info(f"重定向到: {next_page}")
+                    return redirect(next_page)
                 
-                flash('登录成功！', 'success')
-                return redirect(next_page)
+                # 否则重定向到主页
+                return redirect(url_for('main.index'))
             else:
                 # 登录失败
-                logger.warning(f"用户 {username} 登录失败: 用户名或密码错误")
+                logger.warning(f"登录失败: 用户名={username}, 原因=用户名或密码错误")
                 flash('用户名或密码错误，请重试。', 'danger')
-                return render_template('auth/login.html', form=form)
-                
         except Exception as e:
-            # 捕获所有异常，确保即使数据库查询失败也能正常显示错误信息
-            logger.error(f"登录查询错误: {str(e)}")
-            logger.error(f"登录过程发生错误: {str(e)}", exc_info=True)
-            flash('登录过程中发生错误，请稍后再试。', 'danger')
-            return render_template('auth/login.html', form=form)
-    elif request.method == 'POST':
-        # 表单验证失败，可能是CSRF令牌无效
-        logger.warning("表单验证失败，可能是CSRF令牌无效或缺失")
-        flash('表单提交无效，请重试。', 'danger')
+            # 处理异常
+            logger.error(f"登录过程中发生错误: {str(e)}", exc_info=True)
+            flash('登录过程中发生错误，请稍后重试。', 'danger')
     
-    # 表单验证失败
+    # 表单验证失败或登录失败，返回登录页面
     return render_template('auth/login.html', form=form)
 
 @auth_bp.route('/logout')
