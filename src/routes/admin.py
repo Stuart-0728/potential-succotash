@@ -1432,18 +1432,31 @@ def import_backup():
         
         # 开始数据导入
         if 'data' in backup_data:
-            # 删除现有数据
+            # 删除现有数据，按照外键依赖顺序删除
+            # 首先清除中间表
+            db.session.execute(db.text("DELETE FROM activity_tags"))
+            db.session.execute(db.text("DELETE FROM student_tags"))
+            
+            # 然后清除依赖表
             if 'registrations' in backup_data['data']:
-                Registration.query.delete()
+                db.session.execute(db.text("DELETE FROM registrations"))
+            
+            if 'activity_reviews' in backup_data['data']:
+                db.session.execute(db.text("DELETE FROM activity_reviews"))
+                
+            if 'activity_checkins' in backup_data['data']:
+                db.session.execute(db.text("DELETE FROM activity_checkins"))
             
             if 'activities' in backup_data['data']:
-                Activity.query.delete()
+                db.session.execute(db.text("DELETE FROM activities"))
             
             if 'student_info' in backup_data['data']:
-                StudentInfo.query.delete()
+                db.session.execute(db.text("DELETE FROM student_info"))
             
             if 'users' in backup_data['data']:
-                User.query.delete()
+                db.session.execute(db.text("DELETE FROM users"))
+            
+            db.session.commit()
             
             # 导入备份数据
             if 'users' in backup_data['data']:
@@ -1474,6 +1487,7 @@ def import_backup():
                         setattr(reg, key, value)
                     db.session.add(reg)
             
+            # 提交所有更改
             db.session.commit()
             flash('备份数据导入成功', 'success')
             log_action('import_backup', '导入系统备份数据')

@@ -152,6 +152,9 @@ function editTag(id, name, color) {
     document.getElementById('editTagName').value = name;
     document.getElementById('editTagColor').value = color;
     
+    // 设置表单的action属性
+    document.getElementById('editTagForm').action = `/admin/tags/${id}/edit`;
+    
     const editModal = new bootstrap.Modal(document.getElementById('editTagModal'));
     editModal.show();
 }
@@ -162,13 +165,17 @@ function deleteTag(id, name) {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                'X-CSRFToken': document.querySelector('input[name="csrf_token"]').value
             }
         }).then(response => {
             if (response.ok) {
                 location.reload();
             } else {
-                alert('删除失败，请重试');
+                response.json().then(data => {
+                    alert(data.message || '删除失败，请重试');
+                }).catch(() => {
+                    alert('删除失败，请重试');
+                });
             }
         });
     }
