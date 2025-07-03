@@ -225,7 +225,7 @@
             microphoneStream: null, oscillator: null, animationFrameId: null,
             dataHistory: [], lastSmoothedFreq: null, startTime: 0,
             finalFilteredData: [], lastUiUpdateTime: 0, noSignalCounter: 0,
-            isStabilizing: false, previousFreq: null, freqTrendThreshold: 1.0,
+            isStabilizing: false, previousFreq: null
         };
         let charts = { realtimeChart: null, finalFreqChart: null, finalSpeedChart: null };
         let threeState = { scene: null, camera: null, renderer: null, waves: [], clock: new THREE.Clock(), lastWaveTime: 0, wavelengthFactor: 1.0, source: null, sourceSpeed: 0, sourceInitialPosition: new THREE.Vector3(-6, 1, 0) };
@@ -266,7 +266,7 @@
         }
 
         // --- 核心音频处理 ---
-        // 作用: 点击“开始”按钮后，初始化所有音频相关的API和节点。
+        // 作用: 点击"开始"按钮后，初始化所有音频相关的API和节点。
         // 可调整参数: oscillatorGainNode.gain.value (发射音量, 0-1)。
         const start = async () => {
             if (state.isRecording) return;
@@ -322,7 +322,7 @@
             }
         };
 
-        // 作用: 点击“停止”按钮后，停止分析并显示结果。
+        // 作用: 点击"停止"按钮后，停止分析并显示结果。
         const stop = async () => {
             if (!state.isRecording) return;
             state.isRecording = false;
@@ -463,21 +463,37 @@
                 const freqUpArrow = freqTrendArrow.querySelector('.freq-up');
                 const freqDownArrow = freqTrendArrow.querySelector('.freq-down');
                 
+                // 更新频率趋势箭头
                 if (state.previousFreq !== null) {
                     const freqDiff = freq - state.previousFreq;
-                    if (Math.abs(freqDiff) >= state.freqTrendThreshold) {
+                    const emittedFreq = getConfig().emittedFreq;
+                    
+                    // 显示箭头的阈值，可以根据需要调整
+                    const threshold = Math.max(0.5, emittedFreq * 0.0002);
+                    
+                    if (Math.abs(freqDiff) >= threshold) {
                         freqTrendArrow.classList.remove('hidden');
+                        
+                        // 频率上升（靠近）显示向上箭头
                         if (freqDiff > 0) {
                             freqUpArrow.classList.remove('hidden');
                             freqDownArrow.classList.add('hidden');
-                        } else {
+                        } 
+                        // 频率下降（远离）显示向下箭头
+                        else {
                             freqUpArrow.classList.add('hidden');
                             freqDownArrow.classList.remove('hidden');
                         }
                     } else {
+                        // 频率变化不明显，隐藏箭头
                         freqTrendArrow.classList.add('hidden');
                     }
+                } else {
+                    // 首次测量，没有前值比较，隐藏箭头
+                    freqTrendArrow.classList.add('hidden');
                 }
+                
+                // 保存当前频率用于下次比较
                 state.previousFreq = freq;
                 
                 const motionStatusText = document.getElementById('motionStatusText');
@@ -534,7 +550,7 @@
         }
 
         // --- AI 相关功能 ---
-        // 作用: 将连续的速度数据分割成“靠近”、“远离”、“静止”等有意义的片段。
+        // 作用: 将连续的速度数据分割成"靠近"、"远离"、"静止"等有意义的片段。
         function segmentMovementData(data) {
             const segments = [];
             if (data.length < 5) return "";
