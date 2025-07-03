@@ -1182,19 +1182,47 @@ footer {
 }
 
 .btn-loading:after {
-    content: "";
+    content: '';
     position: absolute;
-    left: 50%;
-    top: 50%;
-    width: 1.2em;
-    height: 1.2em;
-    margin-left: -0.6em;
-    margin-top: -0.6em;
-    border: 2px solid currentColor;
-    border-right-color: transparent;
+    width: 1rem;
+    height: 1rem;
+    top: calc(50% - 0.5rem);
+    left: calc(50% - 0.5rem);
+    border: 2px solid rgba(255, 255, 255, 0.5);
     border-radius: 50%;
-    animation: spinner-border 0.75s linear infinite;
-    opacity: 1;
+    border-top-color: #fff;
+    animation: spinner 0.6s linear infinite;
+    z-index: 10;
+}
+
+/* 改进的加载动画，更稳定，不闪烁 */
+@keyframes spinner {
+    to {transform: rotate(360deg);}
+}
+
+/* 按钮加载状态的过渡效果 */
+.btn {
+    transition: all 0.2s ease-in-out;
+}
+
+/* 为按钮加载状态添加更多样式 */
+.btn-primary.btn-loading:after,
+.btn-success.btn-loading:after,
+.btn-info.btn-loading:after,
+.btn-warning.btn-loading:after,
+.btn-danger.btn-loading:after {
+    border: 2px solid rgba(255, 255, 255, 0.5);
+    border-top-color: #fff;
+}
+
+.btn-outline-primary.btn-loading:after,
+.btn-outline-success.btn-loading:after,
+.btn-outline-info.btn-loading:after,
+.btn-outline-warning.btn-loading:after,
+.btn-outline-danger.btn-loading:after,
+.btn-outline-secondary.btn-loading:after {
+    border: 2px solid rgba(108, 117, 125, 0.5);
+    border-top-color: #6c757d;
 }
 
 /* 确保旋转动画稳定 */
@@ -1214,15 +1242,6 @@ footer {
 .btn.disabled, .btn:disabled {
     opacity: 0.8;
     cursor: not-allowed;
-}
-
-/* 为不同颜色的按钮设置不同的加载动画颜色 */
-.btn-outline-primary.btn-loading:after,
-.btn-outline-success.btn-loading:after,
-.btn-outline-info.btn-loading:after,
-.btn-outline-secondary.btn-loading:after {
-    border: 2px solid rgba(0, 0, 0, 0.1);
-    border-top-color: var(--primary-color);
 }
 
 /* 链接按钮加载状态 */

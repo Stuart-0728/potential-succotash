@@ -312,7 +312,8 @@ function setupAjaxLoading() {
                                   url.includes('/api/notifications/unread') ||
                                   url.includes('/admin/') || 
                                   url.includes('/student/') ||
-                                  url.includes('/api/');
+                                  url.includes('/api/') ||
+                                  url.includes('/auth/');
             
             return originalOpen.apply(this, arguments);
         };
@@ -337,6 +338,22 @@ function setupAjaxLoading() {
                         window.hideLoading();
                     }
                 }
+                
+                // 处理权限错误
+                if (xhr.status === 401 || xhr.status === 403) {
+                    // 如果是特殊请求，忽略处理
+                    if (xhr.isSpecialRequest) {
+                        console.log('特殊请求状态码:', xhr.status, '- 忽略处理');
+                        return;
+                    }
+                    
+                    // 如果不是特殊请求，显示权限提示
+                    if (xhr.status === 401) {
+                        window.showToast('请先登录后再执行此操作', 'warning');
+                    } else if (xhr.status === 403) {
+                        window.showToast('您没有权限执行此操作', 'warning');
+                    }
+                }
             });
             
             return originalSend.apply(this, arguments);
@@ -346,7 +363,7 @@ function setupAjaxLoading() {
         const originalOnReadyStateChange = xhr.onreadystatechange;
         xhr.onreadystatechange = function(e) {
             // 如果是特殊请求且返回302或401/403，不做任何处理
-            if (xhr.isSpecialRequest && (xhr.status === 302 || xhr.status === 401 || xhr.status === 403)) {
+            if (xhr.readyState === 4 && xhr.isSpecialRequest && (xhr.status === 302 || xhr.status === 401 || xhr.status === 403)) {
                 // 不处理重定向或权限错误
                 console.log('特殊请求状态码:', xhr.status, '- 忽略处理');
                 return;
@@ -1246,6 +1263,21 @@ function setupLoadingButtons() {
                     if (this.getAttribute('href').includes('/admin/')) {
                         window.showLoading('页面加载中...');
                     }
+                    
+                    // 添加页面卸载事件监听，确保在页面跳转前保持按钮状态
+                    window.addEventListener('beforeunload', function() {
+                        // 在页面卸载前保持按钮状态
+                    }, { once: true });
+                    
+                    // 安全超时：如果10秒后仍未跳转，恢复按钮状态
+                    setTimeout(() => {
+                        if (document.body.contains(this) && this.classList.contains('disabled')) {
+                            this.classList.remove('disabled');
+                            if (this.hasAttribute('data-original-text')) {
+                                this.innerHTML = this.getAttribute('data-original-text');
+                            }
+                        }
+                    }, 10000);
                 } else {
                     // 存储原始文本，以便在页面卸载时恢复
                     this.setAttribute('data-original-text', originalText);

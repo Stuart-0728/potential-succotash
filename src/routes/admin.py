@@ -1697,11 +1697,13 @@ def delete_tag(id):
         db.session.commit()
         
         log_action('delete_tag', f'删除标签: {name}')
-        return jsonify({'success': True})
+        flash('标签已成功删除', 'success')
+        return redirect(url_for('admin.manage_tags'))
     except Exception as e:
         db.session.rollback()
         logger.error(f"Error deleting tag: {e}")
-        return jsonify({'success': False, 'message': '删除标签失败'})
+        flash('删除标签失败', 'danger')
+        return redirect(url_for('admin.manage_tags'))
 
 @admin_bp.route('/api/statistics_ext')
 @admin_bp.route('/admin/api/statistics_ext')  # 添加一个包含admin前缀的路由
