@@ -1273,3 +1273,77 @@ a.btn.disabled::before {
         left: 100%;
     }
 }
+
+/* 下拉菜单按钮现代化样式 */
+.dropdown-toggle {
+    position: relative;
+    transition: all 0.2s ease;
+}
+
+.dropdown-toggle::after {
+    transition: all 0.2s ease;
+    margin-left: 0.5em;
+    vertical-align: middle;
+}
+
+.dropdown-toggle:hover::after {
+    transform: translateY(2px);
+}
+
+.dropdown-menu {
+    border: none;
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+    border-radius: 0.5rem;
+    padding: 0.5rem 0;
+    margin-top: 0.5rem;
+    animation: dropdownFadeIn 0.2s ease;
+}
+
+.dropdown-item {
+    padding: 0.5rem 1.25rem;
+    font-weight: 500;
+    transition: all 0.2s ease;
+}
+
+.dropdown-item:hover {
+    background-color: rgba(30, 136, 229, 0.1);
+}
+
+.dropdown-item:active {
+    background-color: var(--primary-color);
+}
+
+.dropdown-item i {
+    margin-right: 0.5rem;
+    opacity: 0.7;
+}
+
+@keyframes dropdownFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* 登录按钮特殊样式 */
+.login-btn {
+    position: relative;
+    overflow: hidden;
+    transition: all 0.3s ease;
+    background: linear-gradient(135deg, #1e88e5, #1565c0);
+}
+
+.login-btn:hover {
+    background: linear-gradient(135deg, #1976d2, #0d47a1);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.login-btn:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}

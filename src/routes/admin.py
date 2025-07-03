@@ -1435,68 +1435,77 @@ def import_backup():
             # 显示全局加载动画
             flash('正在导入备份数据，请稍候...', 'info')
             
-            # 删除现有数据，按照外键依赖顺序删除
-            # 使用原生SQL语句，避免ORM级别的外键约束问题
-            
-            # 首先禁用外键约束检查
+            # 设置事务隔离级别并延迟约束检查
+            db.session.execute(db.text("BEGIN"))
             db.session.execute(db.text("SET CONSTRAINTS ALL DEFERRED"))
             
-            # 清除所有中间表和关联表
-            db.session.execute(db.text("DELETE FROM activity_tags"))
-            db.session.execute(db.text("DELETE FROM student_tags"))
-            db.session.execute(db.text("DELETE FROM points_history"))
-            db.session.execute(db.text("DELETE FROM activity_checkins"))
-            db.session.execute(db.text("DELETE FROM activity_reviews"))
-            db.session.execute(db.text("DELETE FROM registrations"))
-            db.session.execute(db.text("DELETE FROM system_logs"))
-            db.session.execute(db.text("DELETE FROM notifications"))
-            db.session.execute(db.text("DELETE FROM messages"))
-            db.session.execute(db.text("DELETE FROM announcements"))
-            db.session.execute(db.text("DELETE FROM ai_chat_history"))
-            db.session.execute(db.text("DELETE FROM ai_user_preferences"))
-            
-            # 然后删除主要表
-            db.session.execute(db.text("DELETE FROM activities"))
-            db.session.execute(db.text("DELETE FROM student_info"))
-            db.session.execute(db.text("DELETE FROM tags"))
-            db.session.execute(db.text("DELETE FROM users"))
-            
-            # 提交删除操作
-            db.session.commit()
-            
-            # 导入备份数据
-            if 'users' in backup_data['data']:
-                for user_data in backup_data['data']['users']:
-                    user = User()
-                    for key, value in user_data.items():
-                        setattr(user, key, value)
-                    db.session.add(user)
-            
-            if 'student_info' in backup_data['data']:
-                for info_data in backup_data['data']['student_info']:
-                    info = StudentInfo()
-                    for key, value in info_data.items():
-                        setattr(info, key, value)
-                    db.session.add(info)
-            
-            if 'activities' in backup_data['data']:
-                for activity_data in backup_data['data']['activities']:
-                    activity = Activity()
-                    for key, value in activity_data.items():
-                        setattr(activity, key, value)
-                    db.session.add(activity)
-            
-            if 'registrations' in backup_data['data']:
-                for reg_data in backup_data['data']['registrations']:
-                    reg = Registration()
-                    for key, value in reg_data.items():
-                        setattr(reg, key, value)
-                    db.session.add(reg)
-            
-            # 提交所有更改
-            db.session.commit()
-            flash('备份数据导入成功', 'success')
-            log_action('import_backup', '导入系统备份数据')
+            try:
+                # 清除所有中间表和关联表
+                tables_to_clear = [
+                    "activity_tags", "student_tags", "points_history", 
+                    "activity_checkins", "activity_reviews", "registrations", 
+                    "system_logs", "messages", "announcements", 
+                    "ai_chat_history", "ai_user_preferences"
+                ]
+                
+                # 检查notifications表是否存在
+                try:
+                    db.session.execute(db.text("SELECT 1 FROM notifications LIMIT 1"))
+                    tables_to_clear.append("notifications")
+                except Exception as e:
+                    logger.info(f"notifications表不存在，跳过: {e}")
+                
+                # 按顺序删除表数据
+                for table in tables_to_clear:
+                    try:
+                        db.session.execute(db.text(f"DELETE FROM {table}"))
+                        logger.info(f"已清空表: {table}")
+                    except Exception as e:
+                        logger.info(f"清空表{table}时出错，可能不存在: {e}")
+                
+                # 然后删除主要表
+                main_tables = ["activities", "student_info", "tags", "users"]
+                for table in main_tables:
+                    db.session.execute(db.text(f"DELETE FROM {table}"))
+                    logger.info(f"已清空表: {table}")
+                
+                # 导入备份数据
+                if 'users' in backup_data['data']:
+                    for user_data in backup_data['data']['users']:
+                        user = User()
+                        for key, value in user_data.items():
+                            setattr(user, key, value)
+                        db.session.add(user)
+                
+                if 'student_info' in backup_data['data']:
+                    for info_data in backup_data['data']['student_info']:
+                        info = StudentInfo()
+                        for key, value in info_data.items():
+                            setattr(info, key, value)
+                        db.session.add(info)
+                
+                if 'activities' in backup_data['data']:
+                    for activity_data in backup_data['data']['activities']:
+                        activity = Activity()
+                        for key, value in activity_data.items():
+                            setattr(activity, key, value)
+                        db.session.add(activity)
+                
+                if 'registrations' in backup_data['data']:
+                    for reg_data in backup_data['data']['registrations']:
+                        reg = Registration()
+                        for key, value in reg_data.items():
+                            setattr(reg, key, value)
+                        db.session.add(reg)
+                
+                # 提交所有更改
+                db.session.commit()
+                flash('备份数据导入成功！系统数据已恢复', 'success')
+                log_action('import_backup', '导入系统备份数据')
+            except Exception as e:
+                db.session.rollback()
+                logger.error(f"导入备份过程中出错: {e}")
+                flash(f'导入备份失败: {str(e)}', 'danger')
         else:
             flash('无效的备份文件格式', 'danger')
         

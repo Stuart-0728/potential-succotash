@@ -103,6 +103,9 @@ document.addEventListener('DOMContentLoaded', function() {
             resetAllButtonStates();
         }
     });
+
+    // 特别处理登录按钮
+    setupLoginButton();
 });
 
 // 初始化全局加载动画
@@ -1444,6 +1447,51 @@ function resetAllButtonStates() {
     // 隐藏全局加载状态
     if (window.hideLoading) {
         window.hideLoading();
+    }
+}
+
+// 特别处理登录按钮
+function setupLoginButton() {
+    const loginBtn = document.querySelector('.login-btn');
+    if (loginBtn) {
+        loginBtn.addEventListener('click', function(e) {
+            // 检查表单是否有效
+            const form = this.closest('form');
+            if (form && form.checkValidity()) {
+                // 保存原始文本
+                const originalText = this.value || this.innerHTML;
+                this.setAttribute('data-original-text', originalText);
+                
+                // 添加加载动画
+                const loadingText = this.getAttribute('data-loading-text') || '正在登录...';
+                if (this.tagName === 'INPUT') {
+                    this.value = loadingText;
+                } else {
+                    this.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span> ' + loadingText;
+                }
+                
+                // 禁用按钮
+                this.disabled = true;
+                this.classList.add('disabled');
+                
+                // 显示全局加载动画
+                window.showLoading('登录中...');
+                
+                // 如果10秒后仍未跳转，恢复按钮状态
+                setTimeout(() => {
+                    if (document.body.contains(this)) {
+                        this.disabled = false;
+                        this.classList.remove('disabled');
+                        if (this.tagName === 'INPUT') {
+                            this.value = originalText;
+                        } else {
+                            this.innerHTML = originalText;
+                        }
+                        window.hideLoading();
+                    }
+                }, 10000);
+            }
+        });
     }
 }
 
