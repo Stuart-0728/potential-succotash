@@ -125,6 +125,15 @@ function initGlobalLoading() {
                 messageEl.textContent = message;
             }
             loadingEl.classList.add('show');
+            
+            // 设置一个安全超时，确保加载动画不会永远显示
+            if (window.loadingTimeout) {
+                clearTimeout(window.loadingTimeout);
+            }
+            
+            window.loadingTimeout = setTimeout(() => {
+                window.hideLoading();
+            }, 10000); // 10秒后自动隐藏
         }
     };
     
@@ -132,8 +141,30 @@ function initGlobalLoading() {
         const loadingEl = document.querySelector('.global-loading');
         if (loadingEl) {
             loadingEl.classList.remove('show');
+            
+            // 清除超时
+            if (window.loadingTimeout) {
+                clearTimeout(window.loadingTimeout);
+                window.loadingTimeout = null;
+            }
         }
     };
+    
+    // 监听页面加载完成事件，确保隐藏加载动画
+    window.addEventListener('load', function() {
+        window.hideLoading();
+    });
+    
+    // 监听页面卸载前事件，显示加载动画
+    window.addEventListener('beforeunload', function(event) {
+        // 检查是否是导航到管理页面
+        const activeElement = document.activeElement;
+        if (activeElement && activeElement.tagName === 'A' && 
+            activeElement.getAttribute('href') && 
+            activeElement.getAttribute('href').includes('/admin/')) {
+            window.showLoading('页面加载中...');
+        }
+    });
 }
 
 // 为所有表单添加加载动画
@@ -232,7 +263,10 @@ function setupAjaxLoading() {
             const includeUrls = [
                 '/admin/backup',
                 '/admin/reset',
-                '/admin/export'
+                '/admin/export',
+                '/admin/import',
+                '/admin/students',
+                '/admin/student/'
             ];
             
             // 检查是否是需要显示全局加载的请求
@@ -247,7 +281,8 @@ function setupAjaxLoading() {
             }
             
             // 标记特殊请求，避免处理302重定向错误
-            xhr.isSpecialRequest = url.includes('/student/api/messages/unread_count');
+            xhr.isSpecialRequest = url.includes('/student/api/messages/unread_count') || 
+                                  url.includes('/api/notifications/unread');
             
             return originalOpen.apply(this, arguments);
         };
@@ -280,9 +315,9 @@ function setupAjaxLoading() {
         // 覆盖原始的onreadystatechange
         const originalOnReadyStateChange = xhr.onreadystatechange;
         xhr.onreadystatechange = function(e) {
-            // 如果是特殊请求且返回302，不做任何处理
-            if (xhr.isSpecialRequest && xhr.status === 302) {
-                // 不处理重定向错误
+            // 如果是特殊请求且返回302或401，不做任何处理
+            if (xhr.isSpecialRequest && (xhr.status === 302 || xhr.status === 401 || xhr.status === 403)) {
+                // 不处理重定向或权限错误
                 return;
             }
             
@@ -1152,6 +1187,10 @@ function setupLoadingButtons() {
                 
                 // 对特定按钮使用更明显的加载状态
                 if (isViewAllBtn || isLoginBtn || this.classList.contains('btn-lg')) {
+                    // 存储原始文本，以便在页面卸载时恢复
+                    this.setAttribute('data-original-text', originalText);
+                    
+                    // 添加加载状态
                     this.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span> ' + 
                                      (isViewAllBtn ? '加载活动...' : 
                                       isLoginBtn ? '正在登录...' : '加载中...');
@@ -1159,18 +1198,23 @@ function setupLoadingButtons() {
                     
                     // 添加属性防止全局加载动画
                     this.setAttribute('data-no-global-loading', 'true');
+                    
+                    // 为大页面跳转显示全局加载动画
+                    if (this.getAttribute('href').includes('/admin/')) {
+                        window.showLoading('页面加载中...');
+                    }
                 } else {
-                    this.classList.add('btn-loading');
+                    // 存储原始文本，以便在页面卸载时恢复
                     this.setAttribute('data-original-text', originalText);
+                    
+                    // 添加加载状态
+                    this.classList.add('btn-loading');
                     
                     // 添加属性防止全局加载动画
                     this.setAttribute('data-no-global-loading', 'true');
                 }
                 
-                // 存储原始文本，以便在页面卸载时恢复
-                this.setAttribute('data-original-text', originalText);
-                
-                // 如果5秒后页面还没有跳转，恢复按钮状态
+                // 如果8秒后页面还没有跳转，恢复按钮状态
                 setTimeout(() => {
                     if (document.body.contains(this)) {
                         if (this.classList.contains('disabled')) {
@@ -1203,8 +1247,13 @@ function setupLoadingButtons() {
                                   this.classList.contains('btn-export');
             
             if (isExportButton || this.getAttribute('href')?.includes('export')) {
-                // 添加加载状态
+                // 保存原始内容
                 const originalText = this.innerHTML;
+                
+                // 存储原始文本，以便在页面卸载时恢复
+                this.setAttribute('data-original-text', originalText);
+                
+                // 添加加载状态
                 this.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span> 处理中...';
                 this.classList.add('disabled');
                 
@@ -1213,9 +1262,11 @@ function setupLoadingButtons() {
                 
                 // 恢复按钮状态（如果页面加载时间过长）
                 setTimeout(() => {
-                    if (this.classList.contains('disabled')) {
-                        this.classList.remove('disabled');
-                        this.innerHTML = originalText;
+                    if (document.body.contains(this)) {
+                        if (this.classList.contains('disabled')) {
+                            this.classList.remove('disabled');
+                            this.innerHTML = originalText;
+                        }
                     }
                     // 确保隐藏全局加载状态
                     if (window.hideLoading) {
@@ -1226,19 +1277,25 @@ function setupLoadingButtons() {
                 return;
             }
             
-            // 添加加载状态
+            // 保存原始内容
             const originalText = this.innerHTML;
-            this.classList.add('btn-loading');
+            
+            // 存储原始文本，以便在页面卸载时恢复
             this.setAttribute('data-original-text', originalText);
+            
+            // 添加加载状态
+            this.classList.add('btn-loading');
             
             // 添加属性防止全局加载动画
             this.setAttribute('data-no-global-loading', 'true');
             
             // 恢复按钮状态（如果页面加载时间过长）
             setTimeout(() => {
-                if (this.classList.contains('btn-loading')) {
-                    this.classList.remove('btn-loading');
-                    this.innerHTML = originalText;
+                if (document.body.contains(this)) {
+                    if (this.classList.contains('btn-loading')) {
+                        this.classList.remove('btn-loading');
+                        this.innerHTML = originalText;
+                    }
                 }
             }, 5000);
         });
