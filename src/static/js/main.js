@@ -119,7 +119,9 @@ function setupFormLoading() {
         if (form.classList.contains('no-loading') || 
             form.id === 'search-form' || 
             form.getAttribute('data-no-loading') === 'true' ||
-            form.id === 'tagsForm') { // 排除标签选择表单
+            form.id === 'tagsForm' ||
+            form.action?.includes('/tags/') ||  // 标签相关操作
+            form.id === 'editTagForm') { // 排除标签编辑表单
             return;
         }
         
@@ -1029,7 +1031,15 @@ function setupLoadingButtons() {
         button.setAttribute('data-loading-setup', 'true');
         
         // 跳过标签选择页面的按钮
-        if (button.closest('#tagsForm')) {
+        if (button.closest('#tagsForm') || button.closest('.tag-btn') || 
+            button.closest('form[data-no-loading="true"]') || 
+            button.hasAttribute('data-no-loading')) {
+            return;
+        }
+        
+        // 跳过标签管理页面的删除和编辑按钮
+        if ((button.onclick && button.onclick.toString().includes('editTag')) || 
+            (button.onclick && button.onclick.toString().includes('deleteTag'))) {
             return;
         }
         
@@ -1040,7 +1050,8 @@ function setupLoadingButtons() {
                 if (this.getAttribute('data-no-loading') || 
                     this.getAttribute('data-bs-toggle') === 'modal' ||
                     this.getAttribute('href').startsWith('#') ||
-                    this.getAttribute('target') === '_blank') {
+                    this.getAttribute('target') === '_blank' ||
+                    this.closest('.pagination')) {
                     return;
                 }
                 

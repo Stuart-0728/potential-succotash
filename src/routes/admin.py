@@ -1669,6 +1669,10 @@ def delete_tag(id):
         for activity in tag.activities:
             activity.tags.remove(tag)
         
+        # 从所有相关学生中移除标签
+        for student in tag.students:
+            student.tags.remove(tag)
+        
         db.session.delete(tag)
         db.session.commit()
         
