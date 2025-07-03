@@ -49,7 +49,7 @@ def index():
                 Activity.is_featured == True,
                 Activity.status == 'active'
             ).order_by(Activity.created_at.desc()).limit(3).all()
-                except Exception as e:
+        except Exception as e:
             logger.error(f"获取特色活动出错: {e}")
             featured_activities = []
         
@@ -59,9 +59,9 @@ def index():
             
             # 检查海报文件是否存在
             if activity.poster_image:
-                        poster_path = os.path.join(static_folder, 'uploads', 'posters', activity.poster_image)
-                        if os.path.exists(poster_path):
-                            logger.info(f"  海报文件存在: {poster_path}")
+                poster_path = os.path.join(static_folder, 'uploads', 'posters', activity.poster_image)
+                if os.path.exists(poster_path):
+                    logger.info(f"  海报文件存在: {poster_path}")
                 else:
                     logger.info(f"  海报文件不存在: {poster_path}")
                     
@@ -77,7 +77,7 @@ def index():
                     # 如果仍然没有找到海报，设置默认图片
                     poster_path = os.path.join(static_folder, 'uploads', 'posters', activity.poster_image) if static_folder and activity.poster_image else ""
                     if not os.path.exists(poster_path):
-                    logger.info(f"设置活动详情页备用风景图: landscape.jpg")
+                        logger.info(f"设置活动详情页备用风景图: landscape.jpg")
         
         # 获取最新活动
         try:
@@ -90,10 +90,10 @@ def index():
             
         # 获取即将开始的活动
         try:
-        upcoming_activities = Activity.query.filter(
-            Activity.status == 'active',
+            upcoming_activities = Activity.query.filter(
+                Activity.status == 'active',
                 Activity.start_time > now
-        ).order_by(Activity.start_time.asc()).limit(3).all()
+            ).order_by(Activity.start_time.asc()).limit(3).all()
         except Exception as e:
             logger.error(f"获取即将开始的活动出错: {e}")
             upcoming_activities = []
@@ -102,22 +102,22 @@ def index():
         try:
             # 使用子查询计算每个活动的报名人数
             reg_count_subq = db.session.query(
-            Registration.activity_id,
+                Registration.activity_id,
                 func.count(Registration.id).label('reg_count')
-        ).filter(
-            Registration.status.in_(['registered', 'attended'])
-        ).group_by(Registration.activity_id).subquery()
+            ).filter(
+                Registration.status.in_(['registered', 'attended'])
+            ).group_by(Registration.activity_id).subquery()
         
             # 查询活动并按报名人数排序
             popular_activities = db.session.query(Activity).join(
                 reg_count_subq,
                 Activity.id == reg_count_subq.c.activity_id,
                 isouter=True
-        ).filter(
+            ).filter(
                 Activity.status == 'active'
-        ).order_by(
+            ).order_by(
                 reg_count_subq.c.reg_count.desc().nullslast()
-        ).limit(3).all()
+            ).limit(3).all()
         except Exception as e:
             logger.error(f"获取热门活动出错: {e}")
             popular_activities = []
@@ -272,26 +272,27 @@ def activities():
         # 排序
         query = query.order_by(Activity.created_at.desc())
         
-        try:
         # 分页
-        activities_list = get_compatible_paginate(db, query, page=page, per_page=9, error_out=False)
-        
-        # 获取用户已报名的活动ID列表
-        registered_activity_ids = []
-        if current_user.is_authenticated:
-            reg_stmt = db.select(Registration.activity_id).filter(
-                Registration.user_id == current_user.id,
-                    Registration.status.in_(['registered', 'attended'])
-            )
-            registered = db.session.execute(reg_stmt).all()
-            registered_activity_ids = [r[0] for r in registered]
-        
-        return render_template('main/search.html',
-                               activities=activities_list,
-                               search_query=search_query,
-                               current_status=status,
-                               registered_activity_ids=registered_activity_ids,
-                                display_datetime=display_datetime)
+        try:
+            # 分页
+            activities_list = get_compatible_paginate(db, query, page=page, per_page=9, error_out=False)
+            
+            # 获取用户已报名的活动ID列表
+            registered_activity_ids = []
+            if current_user.is_authenticated:
+                reg_stmt = db.select(Registration.activity_id).filter(
+                    Registration.user_id == current_user.id,
+                        Registration.status.in_(['registered', 'attended'])
+                )
+                registered = db.session.execute(reg_stmt).all()
+                registered_activity_ids = [r[0] for r in registered]
+            
+            return render_template('main/search.html',
+                                   activities=activities_list,
+                                   search_query=search_query,
+                                   current_status=status,
+                                   registered_activity_ids=registered_activity_ids,
+                                    display_datetime=display_datetime)
         except Exception as e:
             logger.error(f"分页或获取已报名活动出错: {e}")
             # 尝试不使用分页获取活动列表
