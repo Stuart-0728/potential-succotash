@@ -225,38 +225,36 @@ class AIChatSession {
     
     // 从后端加载消息历史
     loadMessagesFromServer() {
-        // 如果没有会话ID，无法加载
-        if (!this.sessionId) {
-            return Promise.reject('No session ID');
+        // 检查用户是否已登录
+        const isLoggedIn = document.body.getAttribute('data-user-logged-in') === 'true';
+        if (!isLoggedIn) {
+            console.log("用户未登录，跳过加载历史记录");
+            return Promise.resolve([]); // 返回空数组
         }
-
-        // 从服务器加载历史消息
-        return fetch(`/utils/ai_chat/history?session_id=${this.sessionId}`, {
-            method: 'GET',
-            headers: {
-                'Accept': 'application/json',
-                'X-CSRFToken': this.getCsrfToken()
-            }
-        })
-        .then(response => {
-            if (!response.ok) {
-                throw new Error('加载历史记录失败');
-            }
-            return response.json();
-        })
-        .then(data => {
-            if (data.success && data.data && data.data.length > 0) {
-                this.messages = data.data;
-                // 如果有UI实例，刷新UI
-                if (window.aiChat && window.aiChat.ui) {
-                    window.aiChat.ui.refreshMessages();
+        
+        // 从服务器加载消息
+        return fetch(`/utils/ai_chat/history?session_id=${this.sessionId}`)
+            .then(response => {
+                if (response.redirected) {
+                    console.log("检测到重定向，可能是未登录状态");
+                    return []; // 返回空数组
                 }
-            }
-        })
-        .catch(error => {
-            console.error('从服务器加载历史记录失败:', error);
-            // 如果从服务器加载失败，就使用Cookie中的数据（如果有）
-        });
+                if (!response.ok) {
+                    throw new Error(`加载历史记录失败 (${response.status})`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log('从服务器加载的消息:', data);
+                if (data && data.messages) {
+                    return data.messages;
+                }
+                return [];
+            })
+            .catch(error => {
+                console.error('加载历史记录出错:', error);
+                return []; // 出错时返回空数组
+            });
     }
     
     // 从Cookie加载消息（作为备用方案）
@@ -305,45 +303,44 @@ class AIChatSession {
 class AIChatUI {
     constructor(session) {
         this.session = session;
-        this.container = document.getElementById('aiChatContainer');
-        this.messagesContainer = document.getElementById('aiChatMessages');
-        this.input = document.getElementById('aiChatInput');
-        this.sendButton = document.getElementById('aiSendButton');
-        this.toggleButton = document.querySelector('.ai-chat-button');
-        
-        this.setupEventListeners();
-        this.initialize();
+        this.isOpen = false;
+        this.isProcessing = false;
+        this.container = null;
+        this.messagesContainer = null;
+        this.inputField = null;
+        this.sendButton = null;
     }
     
-    // 初始化
     initialize() {
-        // 清空现有消息区域
-        this.clearMessagesUI();
+        // 检查用户是否已登录
+        const isLoggedIn = document.body.getAttribute('data-user-logged-in') === 'true';
         
-        // 如果有保存的消息，则加载消息
-        const messages = this.session.getMessages();
+        // 创建聊天界面
+        this.createChatUI();
         
-        // 如果没有历史消息，添加初始欢迎消息
-        if (messages.length === 0) {
+        // 设置事件监听器
+        this.setupEventListeners();
+        
+        // 加载历史消息
+        if (isLoggedIn) {
+            this.session.loadMessagesFromServer()
+                .then(messages => {
+                    if (messages && messages.length > 0) {
+                        this.session.messages = messages;
+                        this.refreshMessages();
+                    } else {
+                        // 如果没有历史消息或加载失败，显示初始消息
+                        this.addMessageToUI(AI_CHAT_CONFIG.initialBotMessage, 'bot');
+                    }
+                })
+                .catch(error => {
+                    console.error('加载历史消息失败:', error);
+                    // 显示初始消息
+                    this.addMessageToUI(AI_CHAT_CONFIG.initialBotMessage, 'bot');
+                });
+        } else {
+            // 未登录用户显示初始消息
             this.addMessageToUI(AI_CHAT_CONFIG.initialBotMessage, 'bot');
-        } else {
-            // 加载保存的消息
-            this.refreshMessages();
-        }
-        
-        // 恢复聊天窗口状态
-        const isOpen = this.session.getCookie('chat_open') === 'true';
-        if (isOpen) {
-            // 初始化时如果应该打开，直接设置样式而不使用动画
-            this.container.style.display = 'flex';
-            this.container.classList.add('visible');
-            this.session.isOpen = true;
-            this.scrollToBottom();
-        } else {
-            // 确保窗口是关闭的
-            this.container.style.display = 'none';
-            this.container.classList.remove('visible');
-            this.session.isOpen = false;
         }
     }
     
@@ -374,8 +371,8 @@ class AIChatUI {
         }
         
         // 输入框回车事件
-        if (this.input) {
-            this.input.addEventListener('keypress', (e) => {
+        if (this.inputField) {
+            this.inputField.addEventListener('keypress', (e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault(); // 防止默认的换行行为
                     this.sendMessage();
@@ -454,13 +451,13 @@ class AIChatUI {
     
     // 发送消息
     sendMessage() {
-        if (!this.input) return;
+        if (!this.inputField) return;
         
-        const message = this.input.value.trim();
+        const message = this.inputField.value.trim();
         if (!message) return;
         
         // 清空输入框
-        this.input.value = '';
+        this.inputField.value = '';
         
         // 添加用户消息到UI
         this.addMessageToUI(message, 'user');
@@ -517,7 +514,7 @@ class AIChatUI {
                     aiMessageDiv.textContent = `错误: ${data.error}`;
                     eventSource.close();
                     this.disableInput(false);
-                    this.input.focus();
+                    this.inputField.focus();
                 } else if (data.content) {
                     // 移除加载指示器
                     if (fullResponse === '') {
@@ -572,7 +569,7 @@ class AIChatUI {
             }
             
             this.disableInput(false);
-            this.input.focus();
+            this.inputField.focus();
         });
         
         // 处理错误
@@ -596,7 +593,7 @@ class AIChatUI {
                 aiMessageDiv.textContent = '抱歉，服务出现错误，请稍后再试。';
             }
             this.disableInput(false);
-            this.input.focus();
+            this.inputField.focus();
         };
     }
     
@@ -655,23 +652,58 @@ class AIChatUI {
     
     // 禁用/启用输入
     disableInput(disabled) {
-        if (this.input) this.input.disabled = disabled;
+        if (this.inputField) this.inputField.disabled = disabled;
         if (this.sendButton) this.sendButton.disabled = disabled;
+    }
+
+    // 创建聊天界面
+    createChatUI() {
+        // 查找或创建聊天容器
+        this.container = document.getElementById('aiChatContainer');
+        if (!this.container) {
+            console.log("AI聊天容器不存在，跳过UI创建");
+            return;
+        }
+        
+        this.messagesContainer = document.getElementById('aiChatMessages');
+        this.inputField = document.getElementById('aiChatInput');
+        this.sendButton = document.getElementById('aiSendButton');
+        this.toggleButton = document.querySelector('.ai-chat-button');
+        
+        // 恢复聊天窗口状态
+        const isOpen = this.session.getCookie('chat_open') === 'true';
+        if (isOpen) {
+            // 初始化时如果应该打开，直接设置样式而不使用动画
+            this.container.style.display = 'flex';
+            this.container.classList.add('visible');
+            this.isOpen = true;
+            this.scrollToBottom();
+        } else {
+            // 确保窗口是关闭的
+            this.container.style.display = 'none';
+            this.container.classList.remove('visible');
+            this.isOpen = false;
+        }
     }
 }
 
 // 初始化
 document.addEventListener('DOMContentLoaded', () => {
-    // 加载Markdown库
-    loadMarkedLibrary().catch(err => console.warn('Markdown库加载失败:', err));
+    // 检查是否已经加载过marked库
+    if (!window.marked) {
+        loadMarkedLibrary();
+    }
     
-    // 初始化会话
+    // 创建聊天会话实例
     const chatSession = new AIChatSession();
     
-    // 初始化UI
+    // 创建UI实例
     const chatUI = new AIChatUI(chatSession);
     
-    // 将对象挂到全局以便调试和外部访问
+    // 初始化UI
+    chatUI.initialize();
+    
+    // 将实例保存到全局变量
     window.aiChat = {
         session: chatSession,
         ui: chatUI,

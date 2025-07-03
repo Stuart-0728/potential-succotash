@@ -18,7 +18,7 @@
                     
                     <form method="POST" action="{{ url_for('auth.login') }}">
                         {{ form.hidden_tag() }}
-                        {% if request.args.get('next') and not '/utils/ai_chat/history' in request.args.get('next') %}
+                        {% if request.args.get('next') and not '/utils/ai_chat/history' in request.args.get('next') and not remove_next|default(false) %}
                         <input type="hidden" name="next" value="{{ request.args.get('next') }}">
                         {% endif %}
                         <div class="mb-4">

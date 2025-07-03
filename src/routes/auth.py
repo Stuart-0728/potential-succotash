@@ -170,6 +170,12 @@ def login():
     
     # 如果是GET请求，直接显示登录表单
     if request.method == 'GET':
+        # 检查是否是AI聊天历史请求导致的重定向
+        next_param = request.args.get('next', '')
+        if '/utils/ai_chat/history' in next_param:
+            # 移除可能导致循环的next参数
+            logger.warning(f"检测到AI聊天历史重定向循环: {next_param}")
+            return render_template('auth/login.html', form=form, remove_next=True)
         return render_template('auth/login.html', form=form)
     
     # 如果是POST请求，处理表单提交
@@ -210,7 +216,7 @@ def login():
                 db.session.commit()
                 
                 # 获取next参数，如果有的话重定向到该页面
-                next_page = request.args.get('next')
+                next_page = request.form.get('next') or request.args.get('next')
                 
                 # 检查next参数是否安全，避免重定向循环
                 if next_page and '/utils/ai_chat/history' in next_page:
