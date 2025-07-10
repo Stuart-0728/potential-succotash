@@ -526,3 +526,9 @@ def poster_image(activity_id):
         logger.error(f"获取活动海报时出错: {e}")
         # 重定向到默认图片
         return redirect(url_for('static', filename='img/landscape.jpg'))
+
+@main_bp.route('/tencent5668923388243771053.txt')
+def tencent_verification():
+    """处理腾讯站长验证文件请求"""
+    verification_content = "3552953637355933699"
+    return verification_content, 200, {'Content-Type': 'text/plain; charset=utf-8'}
