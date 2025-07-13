@@ -1,0 +1,309 @@
+{% extends 'base.html' %}
+
+{% block title %}签到管理 - {{ activity.title }} - 重庆师范大学师能素质协会{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white border-0">
+                    <div class="d-flex align-items-center">
+                        <div class="bg-primary bg-opacity-10 rounded-circle p-3 me-3">
+                            <i class="fas fa-qrcode text-primary fs-4"></i>
+                        </div>
+                        <h5 class="mb-0 fw-bold">签到管理 - {{ activity.title }}</h5>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="row mb-4">
+                        <div class="col-md-6 mb-4 mb-md-0">
+                            <div class="card h-100 border-0 shadow-sm">
+                                <div class="card-header bg-white border-0">
+                                    <h5 class="mb-0 fw-semibold">活动信息</h5>
+                                </div>
+                                <div class="card-body">
+                                    <div class="d-flex mb-3">
+                                        <div class="bg-light rounded-circle p-2 d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                                            <i class="fas fa-calendar-alt text-primary"></i>
+                                        </div>
+                                        <div class="ms-3">
+                                            <p class="text-muted mb-0">活动时间</p>
+                                            <p class="mb-0 fw-medium">{{ display_datetime(activity.start_time, 'Asia/Shanghai') }} 至 {{ display_datetime(activity.end_time, 'Asia/Shanghai') }}</p>
+                                        </div>
+                                    </div>
+                                    <div class="d-flex mb-3">
+                                        <div class="bg-light rounded-circle p-2 d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                                            <i class="fas fa-map-marker-alt text-danger"></i>
+                                        </div>
+                                        <div class="ms-3">
+                                            <p class="text-muted mb-0">活动地点</p>
+                                            <p class="mb-0 fw-medium">{{ activity.location }}</p>
+                                        </div>
+                                    </div>
+                                    <div class="d-flex mb-3">
+                                        <div class="bg-light rounded-circle p-2 d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                                            <i class="fas fa-users text-success"></i>
+                                        </div>
+                                        <div class="ms-3">
+                                            <p class="text-muted mb-0">报名人数</p>
+                                            <p class="mb-0 fw-medium">{{ registration_count }} / {% if activity.max_participants > 0 %}{{ activity.max_participants }}{% else %}不限{% endif %}</p>
+                                        </div>
+                                    </div>
+                                    <div class="d-flex mb-3">
+                                        <div class="bg-light rounded-circle p-2 d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                                            <i class="fas fa-check-circle text-info"></i>
+                                        </div>
+                                        <div class="ms-3">
+                                            <p class="text-muted mb-0">签到人数</p>
+                                            <p class="mb-0 fw-medium">{{ checkin_count }}</p>
+                                        </div>
+                                    </div>
+                                    <div class="d-flex mb-3">
+                                        <div class="bg-light rounded-circle p-2 d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                                            <i class="fas fa-info-circle text-warning"></i>
+                                        </div>
+                                        <div class="ms-3">
+                                            <p class="text-muted mb-0">当前状态</p>
+                                            <p class="mb-0">
+                                        {% if activity.status == 'active' %}
+                                                    <span class="badge bg-success rounded-pill">进行中</span>
+                                        {% elif activity.status == 'completed' %}
+                                                    <span class="badge bg-secondary rounded-pill">已结束</span>
+                                        {% else %}
+                                                    <span class="badge bg-danger rounded-pill">已取消</span>
+                                        {% endif %}
+                                    </p>
+                                        </div>
+                                    </div>
+                                    <div class="d-flex mb-3">
+                                        <div class="bg-light rounded-circle p-2 d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                                            <i class="fas fa-sign-in-alt text-primary"></i>
+                                        </div>
+                                        <div class="ms-3">
+                                            <p class="text-muted mb-0">签到状态</p>
+                                            <p class="mb-0">
+                                        {% if activity.checkin_enabled %}
+                                                    <span class="badge bg-success rounded-pill">已开启</span>
+                                        {% else %}
+                                                    <span class="badge bg-danger rounded-pill">已关闭</span>
+                                        {% endif %}
+                                    </p>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="card-footer bg-white border-0 pt-0">
+                                    <!-- 检查是否已经开启签到，并显示相应的按钮 -->
+                                    {% if activity.checkin_enabled %}
+                                    <form action="{{ url_for('admin.toggle_checkin', id=activity.id) }}" method="POST" class="mb-4">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                        <button type="submit" class="btn btn-danger">关闭签到</button>
+                                    </form>
+                                    {% else %}
+                                    <form action="{{ url_for('admin.toggle_checkin', id=activity.id) }}" method="POST" class="mb-4">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                        <button type="submit" class="btn btn-success">开启签到</button>
+                                    </form>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card h-100 border-0 shadow-sm">
+                                <div class="card-header bg-white border-0">
+                                    <h5 class="mb-0 fw-semibold">签到二维码</h5>
+                                </div>
+                                <div class="card-body text-center">
+                                    {% if activity.checkin_enabled %}
+                                        <div id="qrcode-container" class="py-4">
+                                            <div class="spinner-border text-primary" role="status">
+                                                <span class="visually-hidden">Loading...</span>
+                                            </div>
+                                            <p class="mt-2">正在加载二维码...</p>
+                                        </div>
+                                        <div class="mt-3">
+                                            <p><small class="text-muted">二维码有效期：5分钟</small></p>
+                                            <p><small class="text-muted">当前服务器时间：<span id="server-time">{{ display_datetime(now, 'Asia/Shanghai') }}</span> (北京时间)</small></p>
+                                            <button id="refresh-qrcode" class="btn btn-primary mt-2">
+                                                <i class="fas fa-sync-alt me-1"></i> 刷新二维码
+                                            </button>
+                                        </div>
+                                    {% else %}
+                                        <div class="alert alert-warning my-4">
+                                            <i class="fas fa-exclamation-triangle me-2"></i>
+                                            <p class="mb-0">签到功能未开启，请先开启签到功能。</p>
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="card border-0 shadow-sm mt-4">
+                        <div class="card-header bg-white border-0">
+                            <h5 class="mb-0 fw-semibold">签到记录</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-hover align-middle">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>学号</th>
+                                            <th>姓名</th>
+                                            <th>学院</th>
+                                            <th>专业</th>
+                                            <th>签到时间</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for checkin in checkins %}
+                                        <tr>
+                                            <td>{{ checkin.student_id }}</td>
+                                            <td>{{ checkin.real_name }}</td>
+                                            <td>{{ checkin.college }}</td>
+                                            <td>{{ checkin.major }}</td>
+                                            <td>{{ display_datetime(checkin.check_in_time, 'Asia/Shanghai') }}</td>
+                                        </tr>
+                                        {% else %}
+                                        <tr>
+                                            <td colspan="5" class="text-center py-4 text-muted">暂无签到记录</td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-footer bg-white border-0">
+                    <a href="{{ url_for('admin.activity_view', id=activity.id) }}" class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-left me-1"></i> 返回活动详情
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        {% if activity.checkin_enabled %}
+        // 加载二维码
+        loadQRCode();
+        
+        // 刷新二维码按钮
+        document.getElementById('refresh-qrcode').addEventListener('click', function() {
+            const container = document.getElementById('qrcode-container');
+            container.innerHTML = `
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <p class="mt-2">正在加载二维码...</p>
+            `;
+            loadQRCode();
+        });
+        
+        // 定时更新服务器时间
+        setInterval(updateServerTime, 1000);
+        
+        // 定时刷新二维码（每5分钟）
+        setInterval(loadQRCode, 5 * 60 * 1000);
+        {% endif %}
+    });
+    
+    function loadQRCode() {
+        fetch('{{ url_for("admin.generate_checkin_qrcode", id=activity.id) }}')
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('网络响应错误');
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.success) {
+                    const container = document.getElementById('qrcode-container');
+                    container.innerHTML = `
+                        <div class="qrcode-wrapper bg-white p-3 d-inline-block rounded shadow-sm">
+                            <img src="${data.qrcode}" class="img-fluid" alt="签到二维码">
+                        </div>
+                        <p class="text-success mt-3">
+                            <i class="fas fa-check-circle me-1"></i> 二维码已生成
+                        </p>
+                    `;
+                } else {
+                    console.error('加载二维码失败:', data.message);
+                    const container = document.getElementById('qrcode-container');
+                    container.innerHTML = `
+                        <div class="alert alert-danger">
+                            <i class="fas fa-exclamation-circle me-2"></i>
+                            加载二维码失败，请点击刷新按钮重试
+                        </div>
+                    `;
+                }
+            })
+            .catch(error => {
+                console.error('请求二维码出错:', error);
+                const container = document.getElementById('qrcode-container');
+                container.innerHTML = `
+                    <div class="alert alert-danger">
+                        <i class="fas fa-exclamation-circle me-2"></i>
+                        网络错误，请检查连接后重试
+                    </div>
+                `;
+            });
+    }
+    
+    function updateServerTime() {
+        const now = new Date();
+        now.setTime(now.getTime() + (8 * 60 * 60 * 1000)); // 转为北京时间
+        const serverTimeElement = document.getElementById('server-time');
+        if (serverTimeElement) {
+            serverTimeElement.textContent = now.toISOString().replace('T', ' ').substr(0, 19);
+        }
+    }
+</script>
+{% endblock %}
+
+{% block styles %}
+{{ super() }}
+<style>
+    @media print {
+        body * {
+            visibility: hidden;
+        }
+        .card, .card * {
+            visibility: visible;
+        }
+        .card {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+        }
+        .btn {
+            display: none !important;
+        }
+    }
+    
+    .qrcode-wrapper {
+        border: 1px solid #eee;
+        display: inline-block;
+        padding: 15px;
+        border-radius: 8px;
+    }
+    
+    /* 移动端优化 */
+    @media (max-width: 576px) {
+        .card-body {
+            padding: 1rem;
+        }
+        .btn {
+            width: 100%;
+            margin-bottom: 0.5rem;
+        }
+        .qrcode-wrapper {
+            padding: 10px;
+        }
+    }
+</style>
+{% endblock %} 
