@@ -69,14 +69,8 @@ document.addEventListener('DOMContentLoaded', function() {
     // 初始化Toast通知系统
     initToastSystem();
     
-    // 初始化全局加载动画
-    initGlobalLoading();
-    
-    // 为所有表单添加加载动画
-    setupFormLoading();
-
-    // 为所有按钮添加加载状态
-    setupLoadingButtons();
+    // 初始化统一的加载系统
+    initUnifiedLoadingSystem();
 
     // 重置所有按钮状态（解决浏览器返回问题）
     resetAllButtonStates();
@@ -108,8 +102,28 @@ document.addEventListener('DOMContentLoaded', function() {
     setupLoginButton();
 });
 
-// 初始化全局加载动画
-function initGlobalLoading() {
+// 统一的加载系统
+function initUnifiedLoadingSystem() {
+    // 创建全局加载动画
+    createGlobalLoading();
+
+    // 设置按钮加载处理
+    setupButtonLoading();
+
+    // 设置表单加载处理
+    setupFormLoadingHandlers();
+
+    // 设置AJAX加载处理
+    setupAjaxLoadingHandlers();
+}
+
+// 创建全局加载动画
+function createGlobalLoading() {
+    // 如果已经存在，不重复创建
+    if (document.querySelector('.global-loading')) {
+        return;
+    }
+
     // 创建加载动画元素
     const loadingEl = document.createElement('div');
     loadingEl.className = 'global-loading';
@@ -118,269 +132,209 @@ function initGlobalLoading() {
         <div class="message">加载中...</div>
     `;
     document.body.appendChild(loadingEl);
-    
-    // 添加全局显示/隐藏加载的函数
-    window.showLoading = function(message = '加载中...') {
-        const loadingEl = document.querySelector('.global-loading');
-        if (loadingEl) {
-            const messageEl = loadingEl.querySelector('.message');
-            if (messageEl) {
-                messageEl.textContent = message;
+
+    // 统一的加载管理器
+    window.LoadingManager = {
+        timeout: null,
+
+        show: function(message = '加载中...', autoHide = true) {
+            const loadingEl = document.querySelector('.global-loading');
+            if (loadingEl) {
+                const messageEl = loadingEl.querySelector('.message');
+                if (messageEl) {
+                    messageEl.textContent = message;
+                }
+                loadingEl.classList.add('show');
+
+                // 清除之前的超时
+                if (this.timeout) {
+                    clearTimeout(this.timeout);
+                    this.timeout = null;
+                }
+
+                // 设置自动隐藏
+                if (autoHide) {
+                    this.timeout = setTimeout(() => {
+                        this.hide();
+                        console.log('加载超时：自动隐藏');
+                    }, 8000); // 统一8秒超时
+                }
             }
-            loadingEl.classList.add('show');
-            
-            // 设置一个安全超时，确保加载动画不会永远显示
-            if (window.loadingTimeout) {
-                clearTimeout(window.loadingTimeout);
+        },
+
+        hide: function() {
+            const loadingEl = document.querySelector('.global-loading');
+            if (loadingEl) {
+                loadingEl.classList.remove('show');
             }
-            
-            window.loadingTimeout = setTimeout(() => {
-                window.hideLoading();
-                console.log('安全超时：自动隐藏加载动画');
-            }, 5000); // 5秒后自动隐藏，减少等待时间
-        }
-    };
-    
-    window.hideLoading = function() {
-        const loadingEl = document.querySelector('.global-loading');
-        if (loadingEl) {
-            loadingEl.classList.remove('show');
-            
+
             // 清除超时
-            if (window.loadingTimeout) {
-                clearTimeout(window.loadingTimeout);
-                window.loadingTimeout = null;
+            if (this.timeout) {
+                clearTimeout(this.timeout);
+                this.timeout = null;
             }
         }
     };
+
+    // 向后兼容
+    window.showLoading = window.LoadingManager.show.bind(window.LoadingManager);
+    window.hideLoading = window.LoadingManager.hide.bind(window.LoadingManager);
     
-    // 监听页面加载完成事件，确保隐藏加载动画
-    window.addEventListener('load', function() {
-        window.hideLoading();
-    });
-    
-    // 监听页面卸载前事件，显示加载动画
-    window.addEventListener('beforeunload', function(event) {
-        // 检查是否是导航到管理页面
-        const activeElement = document.activeElement;
-        if (activeElement && activeElement.tagName === 'A' && 
-            activeElement.getAttribute('href') && 
-            (activeElement.getAttribute('href').includes('/admin/') || 
-             !activeElement.hasAttribute('data-no-loading'))) {
-            window.showLoading('页面加载中...');
-        }
-    });
-    
-    // 监听页面可见性变化
+    // 页面事件监听
+    window.addEventListener('load', () => window.LoadingManager.hide());
+
     document.addEventListener('visibilitychange', function() {
         if (document.visibilityState === 'visible') {
-            // 如果页面变为可见，检查加载状态是否悬挂
-            setTimeout(() => {
-                // 如果加载动画显示超过3秒，自动隐藏
-                const loadingEl = document.querySelector('.global-loading');
-                if (loadingEl && loadingEl.classList.contains('show')) {
-                    console.log('页面可见性变化：自动隐藏加载动画');
-                    window.hideLoading();
-                }
-            }, 500); // 减少检查延迟
+            setTimeout(() => window.LoadingManager.hide(), 500);
         }
     });
 }
 
-// 为所有表单添加加载动画
-function setupFormLoading() {
+// 统一的按钮加载处理
+function setupButtonLoading() {
+    // 按钮加载管理器
+    window.ButtonLoadingManager = {
+        loadingButtons: new Set(),
+
+        setLoading: function(button, loadingText = '处理中...') {
+            if (this.loadingButtons.has(button)) {
+                return; // 避免重复设置
+            }
+
+            // 保存原始状态
+            const originalText = button.innerHTML;
+            const originalDisabled = button.disabled;
+
+            button.setAttribute('data-original-text', originalText);
+            button.setAttribute('data-original-disabled', originalDisabled);
+
+            // 设置加载状态
+            button.innerHTML = `<span class="spinner-border spinner-border-sm me-2"></span>${loadingText}`;
+            button.disabled = true;
+            button.classList.add('btn-loading-active');
+
+            this.loadingButtons.add(button);
+
+            // 安全超时
+            setTimeout(() => {
+                this.clearLoading(button);
+            }, 10000); // 10秒超时
+        },
+
+        clearLoading: function(button) {
+            if (!this.loadingButtons.has(button)) {
+                return;
+            }
+
+            // 恢复原始状态
+            const originalText = button.getAttribute('data-original-text');
+            const originalDisabled = button.getAttribute('data-original-disabled') === 'true';
+
+            if (originalText) {
+                button.innerHTML = originalText;
+            }
+            button.disabled = originalDisabled;
+            button.classList.remove('btn-loading-active');
+
+            // 清理属性
+            button.removeAttribute('data-original-text');
+            button.removeAttribute('data-original-disabled');
+
+            this.loadingButtons.delete(button);
+        },
+
+        clearAll: function() {
+            this.loadingButtons.forEach(button => {
+                this.clearLoading(button);
+            });
+        }
+    };
+
+    // 为按钮添加加载处理
+    document.addEventListener('click', function(e) {
+        const button = e.target.closest('button, a.btn');
+        if (!button) return;
+
+        // 跳过特定按钮
+        if (button.hasAttribute('data-no-loading') ||
+            button.getAttribute('data-bs-toggle') === 'modal' ||
+            button.closest('.pagination') ||
+            button.type === 'button' && !button.classList.contains('btn-primary', 'btn-success', 'btn-info')) {
+            return;
+        }
+
+        // 确定加载文本
+        let loadingText = '处理中...';
+        if (button.textContent.includes('登录')) loadingText = '登录中...';
+        else if (button.textContent.includes('注册')) loadingText = '注册中...';
+        else if (button.textContent.includes('保存')) loadingText = '保存中...';
+        else if (button.textContent.includes('删除')) loadingText = '删除中...';
+        else if (button.textContent.includes('导出')) loadingText = '导出中...';
+
+        // 设置加载状态
+        window.ButtonLoadingManager.setLoading(button, loadingText);
+    });
+}
+
+// 简化的表单加载处理
+function setupFormLoadingHandlers() {
     document.addEventListener('submit', function(e) {
         const form = e.target;
-        
-        // 排除特定表单（如搜索表单）
-        if (form.classList.contains('no-loading') || 
-            form.id === 'search-form' || 
-            form.getAttribute('data-no-loading') === 'true' ||
-            form.id === 'tagsForm' ||
-            form.action?.includes('/tags/') ||  // 标签相关操作
-            form.id === 'editTagForm') {
+
+        // 跳过特定表单
+        if (form.hasAttribute('data-no-loading') ||
+            form.classList.contains('no-loading')) {
             return;
         }
         
         // 获取表单提交按钮
         const submitBtn = form.querySelector('button[type="submit"], input[type="submit"]');
         if (submitBtn) {
-            // 保存原始内容
-            const originalContent = submitBtn.innerHTML || submitBtn.value;
-            
-            // 检查是否为登录表单
-            const isLoginForm = form.action && (
-                form.action.includes('/login') || 
-                form.querySelector('input[name="username"]') && form.querySelector('input[name="password"]')
-            );
-            
-            // 检查是否为注册表单
-            const isRegisterForm = form.action && form.action.includes('/register');
-            
-            // 根据表单类型设置不同的加载文本
-            let loadingText = '处理中...';
-            if (isLoginForm) {
-                loadingText = '登录中...';
-            } else if (isRegisterForm) {
-                loadingText = '注册中...';
-            }
-            
-            // 替换为加载图标
-            if (submitBtn.tagName === 'INPUT') {
-                submitBtn.value = loadingText;
-            } else {
-                submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span> ' + loadingText;
-            }
-            submitBtn.disabled = true;
-            
-            // 保存原始内容到按钮属性中
-            if (submitBtn.tagName === 'INPUT') {
-                submitBtn.setAttribute('data-original-value', originalContent);
-            } else {
-                submitBtn.setAttribute('data-original-text', originalContent);
-            }
-            
-            // 对于登录表单，不设置自动恢复，让服务器端处理结果
-            if (!isLoginForm) {
-                // 提交完成后恢复按钮状态
-                setTimeout(function() {
-                    // 如果5秒后表单还在页面上，恢复按钮状态
-                    if (document.body.contains(submitBtn)) {
-                        if (submitBtn.tagName === 'INPUT') {
-                            submitBtn.value = originalContent;
-                        } else {
-                            submitBtn.innerHTML = originalContent;
-                        }
-                        submitBtn.disabled = false;
-                    }
-                }, 5000); // 减少等待时间
-            }
-        } else {
-            // 如果没有找到提交按钮，显示全局加载动画
-            showLoading('提交中...');
+            // 确定加载文本
+            let loadingText = '提交中...';
+            if (form.action?.includes('/login')) loadingText = '登录中...';
+            else if (form.action?.includes('/register')) loadingText = '注册中...';
 
-            // 3秒后自动隐藏
-            setTimeout(hideLoading, 3000);
+            // 使用统一的按钮管理器
+            window.ButtonLoadingManager.setLoading(submitBtn, loadingText);
         }
     });
-    
-    // 为所有AJAX请求添加全局加载指示器
-    setupAjaxLoading();
 }
 
-// 为AJAX请求添加全局加载指示器
-function setupAjaxLoading() {
-    // 保存原始的XMLHttpRequest
-    const originalXHR = window.XMLHttpRequest;
-    
-    // 创建一个计数器来跟踪活动的AJAX请求
+// 简化的AJAX加载处理
+function setupAjaxLoadingHandlers() {
+    // 简单的AJAX请求计数器
     let activeRequests = 0;
-    
-    // 替换XMLHttpRequest
-    window.XMLHttpRequest = function() {
-        const xhr = new originalXHR();
-        
-        // 覆盖open方法
-        const originalOpen = xhr.open;
-        xhr.open = function() {
-            // 检查是否需要显示加载动画
-            const url = arguments[1];
-            
-            // 默认不显示全局加载动画，除非特别指定
-            xhr.showLoading = false;
-            
-            // 只有特定请求才显示全局加载动画
-            const includeUrls = [
-                '/admin/backup',
-                '/admin/reset',
-                '/admin/export',
-                '/admin/import',
-                '/admin/students',
-                '/admin/student/'
-            ];
-            
-            // 检查是否是需要显示全局加载的请求
-            if (includeUrls.some(included => url.includes(included))) {
-                xhr.showLoading = true;
+
+    // 监听fetch请求
+    const originalFetch = window.fetch;
+    window.fetch = function(...args) {
+        const url = args[0];
+
+        // 只对特定API显示全局加载
+        const showGlobalLoading = url.includes('/admin/api/') &&
+                                 (url.includes('sync') || url.includes('backup') || url.includes('restore'));
+
+        if (showGlobalLoading) {
+            activeRequests++;
+            if (activeRequests === 1) {
+                window.LoadingManager.show('处理中...');
             }
-            
-            // 检查是否有data-show-global-loading属性
-            const activeElement = document.activeElement;
-            if (activeElement && activeElement.hasAttribute('data-show-global-loading')) {
-                xhr.showLoading = true;
-            }
-            
-            // 标记特殊请求，避免处理302重定向错误
-            xhr.isSpecialRequest = url.includes('/student/api/messages/unread_count') || 
-                                  url.includes('/api/notifications/unread') ||
-                                  url.includes('/admin/') || 
-                                  url.includes('/student/') ||
-                                  url.includes('/api/') ||
-                                  url.includes('/auth/');
-            
-            return originalOpen.apply(this, arguments);
-        };
-        
-        // 覆盖send方法
-        const originalSend = xhr.send;
-        xhr.send = function() {
-            if (xhr.showLoading) {
-                activeRequests++;
-                if (activeRequests === 1) {
-                    // 第一个请求开始时显示加载动画
-                    window.showLoading();
+        }
+
+        return originalFetch.apply(this, args).finally(() => {
+            if (showGlobalLoading) {
+                activeRequests--;
+                if (activeRequests === 0) {
+                    window.LoadingManager.hide();
                 }
             }
-            
-            // 处理请求完成
-            xhr.addEventListener('loadend', function() {
-                if (xhr.showLoading) {
-                    activeRequests--;
-                    if (activeRequests === 0) {
-                        // 所有请求完成时隐藏加载动画
-                        window.hideLoading();
-                    }
-                }
-                
-                // 处理权限错误
-                if (xhr.status === 401 || xhr.status === 403) {
-                    // 如果是特殊请求，忽略处理
-                    if (xhr.isSpecialRequest) {
-                        console.log('特殊请求状态码:', xhr.status, '- 忽略处理');
-                        return;
-                    }
-                    
-                    // 如果不是特殊请求，显示权限提示
-                    if (xhr.status === 401) {
-                        window.showToast('请先登录后再执行此操作', 'warning');
-                    } else if (xhr.status === 403) {
-                        window.showToast('您没有权限执行此操作', 'warning');
-                    }
-                }
-            });
-            
-            return originalSend.apply(this, arguments);
-        };
-        
-        // 覆盖原始的onreadystatechange
-        const originalOnReadyStateChange = xhr.onreadystatechange;
-        xhr.onreadystatechange = function(e) {
-            // 如果是特殊请求且返回302或401/403，不做任何处理
-            if (xhr.readyState === 4 && xhr.isSpecialRequest && (xhr.status === 302 || xhr.status === 401 || xhr.status === 403)) {
-                // 不处理重定向或权限错误
-                console.log('特殊请求状态码:', xhr.status, '- 忽略处理');
-                return;
-            }
-            
-            // 调用原始的onreadystatechange
-            if (originalOnReadyStateChange) {
-                originalOnReadyStateChange.call(this, e);
-            }
-        };
-        
-        return xhr;
+        });
     };
 }
+
+// 旧的复杂AJAX处理已被简化版本替代
+
 
 // 初始化Toast通知系统
 function initToastSystem() {
@@ -1388,73 +1342,34 @@ function setupLoadingButtons() {
     });
 }
 
-// 重置所有按钮状态
+// 重置所有按钮状态 - 简化版本
 function resetAllButtonStates() {
     console.log('重置所有按钮状态');
-    
-    // 重置所有带有加载状态的按钮
-    document.querySelectorAll('.btn-loading').forEach(function(button) {
-        button.classList.remove('btn-loading');
-        if (button.hasAttribute('data-original-text')) {
-            button.innerHTML = button.getAttribute('data-original-text');
-            // 清除存储的原始文本，防止重复使用
-            button.removeAttribute('data-original-text');
-        }
-    });
-    
-    // 重置所有禁用的按钮
-    document.querySelectorAll('button.disabled, a.disabled').forEach(function(button) {
-        // 排除应该保持禁用状态的按钮
-        if (button.hasAttribute('disabled') && button.getAttribute('disabled') !== 'false') {
-            return;
-        }
-        
-        button.classList.remove('disabled');
-        
-        // 恢复原始内容
-        if (button.hasAttribute('data-original-text')) {
-            button.innerHTML = button.getAttribute('data-original-text');
-            // 清除存储的原始文本，防止重复使用
-            button.removeAttribute('data-original-text');
-        }
-    });
-    
-    // 重置所有包含spinner的按钮
-    document.querySelectorAll('button .spinner-border, a .spinner-border').forEach(function(spinner) {
-        const button = spinner.closest('button, a');
-        if (button && button.hasAttribute('data-original-text')) {
-            button.innerHTML = button.getAttribute('data-original-text');
-            button.classList.remove('disabled');
-            // 清除存储的原始文本，防止重复使用
-            button.removeAttribute('data-original-text');
-        }
-    });
-    
-    // 重置所有下拉菜单按钮
-    document.querySelectorAll('.dropdown-toggle').forEach(function(button) {
-        if (button.hasAttribute('data-original-text')) {
-            button.innerHTML = button.getAttribute('data-original-text');
-            button.classList.remove('disabled');
-            // 清除存储的原始文本，防止重复使用
-            button.removeAttribute('data-original-text');
-        }
-    });
-    
-    // 重置所有表单提交按钮
-    document.querySelectorAll('button[type="submit"], input[type="submit"]').forEach(function(button) {
+
+    // 使用统一的按钮管理器清理所有按钮
+    if (window.ButtonLoadingManager) {
+        window.ButtonLoadingManager.clearAll();
+    }
+
+    // 清理旧的加载状态类
+    document.querySelectorAll('.btn-loading, .btn-loading-active').forEach(function(button) {
+        button.classList.remove('btn-loading', 'btn-loading-active');
         button.disabled = false;
-        if (button.tagName === 'BUTTON' && button.hasAttribute('data-original-text')) {
+
+        // 清理旧的属性
+        if (button.hasAttribute('data-original-text')) {
             button.innerHTML = button.getAttribute('data-original-text');
             button.removeAttribute('data-original-text');
-        } else if (button.tagName === 'INPUT' && button.hasAttribute('data-original-value')) {
+        }
+        if (button.hasAttribute('data-original-value')) {
             button.value = button.getAttribute('data-original-value');
             button.removeAttribute('data-original-value');
         }
     });
-    
+
     // 隐藏全局加载状态
-    if (window.hideLoading) {
-        window.hideLoading();
+    if (window.LoadingManager) {
+        window.LoadingManager.hide();
     }
 }
 

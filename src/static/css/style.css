@@ -1174,7 +1174,13 @@ footer {
     to { transform: rotate(360deg); }
 }
 
-/* 按钮加载状态 */
+/* 按钮加载状态 - 简化版本 */
+.btn-loading-active {
+    pointer-events: none;
+    opacity: 0.8;
+}
+
+/* 旧的btn-loading类保持兼容性 */
 .btn-loading {
     position: relative;
     pointer-events: none;
