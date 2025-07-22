@@ -67,22 +67,31 @@ class DatabaseSyncer:
                 self.log_sync_action("数据库连接", "失败", f"连接错误: {str(e)}")
                 return False
 
-            # 获取要同步的表（按依赖关系排序，先删除依赖表，再删除主表）
+            # 获取要同步的表（正确的依赖顺序：先同步主表，再同步依赖表）
             tables_to_sync = [
-                # 先同步依赖表
+                # 第一阶段：基础表（无外键依赖）
+                'roles', 'tags',
+                # 第二阶段：用户和活动表
+                'users', 'activities',
+                # 第三阶段：关联表（有外键依赖）
+                'activity_tags', 'user_tags', 'system_logs',
+                # 第四阶段：会话和消息表
                 'ai_chat_session', 'ai_chat_message',
-                'activity_registrations', 'user_tags', 'activity_tags', 'checkin_records',
-                'messages', 'notifications', 'system_logs',
-                # 再同步主表
-                'activities', 'tags', 'users', 'roles'
+                # 第五阶段：其他依赖表
+                'activity_registrations', 'checkin_records', 'messages', 'notifications'
             ]
 
             synced_tables = 0
             total_rows = 0
 
             with primary_engine.connect() as primary_conn, backup_engine.connect() as backup_conn:
-                # 开始事务
-                backup_trans = backup_conn.begin()
+                # 禁用外键约束检查（PostgreSQL）
+                try:
+                    backup_conn.execute(text('SET session_replication_role = replica'))
+                    backup_conn.commit()
+                    self.log_sync_action("禁用外键约束", "成功", "临时禁用外键约束检查")
+                except Exception as e:
+                    self.log_sync_action("禁用外键约束", "警告", f"无法禁用外键约束: {str(e)}")
 
                 try:
                     for table_name in tables_to_sync:
@@ -135,33 +144,26 @@ class DatabaseSyncer:
 
                         except Exception as e:
                             self.log_sync_action(f"同步表 {table_name}", "失败", str(e))
-                            # 回滚事务
-                            try:
-                                backup_trans.rollback()
-                            except:
-                                pass
-                            # 不重新抛出异常，继续处理其他表
+                            # 记录错误但继续处理其他表
                             continue
 
-                    # 提交事务
+                    # 重新启用外键约束检查
                     try:
-                        backup_trans.commit()
-                    except Exception as commit_error:
-                        self.log_sync_action("提交事务", "失败", str(commit_error))
-                        try:
-                            backup_trans.rollback()
-                        except:
-                            pass
-                        raise commit_error
+                        backup_conn.execute(text('SET session_replication_role = DEFAULT'))
+                        backup_conn.commit()
+                        self.log_sync_action("恢复外键约束", "成功", "重新启用外键约束检查")
+                    except Exception as e:
+                        self.log_sync_action("恢复外键约束", "警告", f"无法恢复外键约束: {str(e)}")
 
                 except Exception as e:
-                    # 确保事务被回滚
+                    # 确保恢复外键约束
                     try:
-                        backup_trans.rollback()
+                        backup_conn.execute(text('SET session_replication_role = DEFAULT'))
+                        backup_conn.commit()
                     except:
                         pass
-                    # 不重新抛出异常，让函数正常返回
-                    self.log_sync_action("数据库同步", "失败", f"事务处理失败: {str(e)}")
+
+                    self.log_sync_action("数据库同步", "失败", f"同步过程失败: {str(e)}")
                     synced_tables = 0  # 确保返回失败状态
 
             if synced_tables > 0:
@@ -205,14 +207,18 @@ class DatabaseSyncer:
                 self.log_sync_action("数据库连接", "失败", f"连接错误: {str(e)}")
                 return False
 
-            # 获取要恢复的表（按依赖关系排序）
+            # 获取要恢复的表（正确的依赖顺序）
             tables_to_restore = [
-                # 先恢复依赖表
+                # 第一阶段：基础表（无外键依赖）
+                'roles', 'tags',
+                # 第二阶段：用户和活动表
+                'users', 'activities',
+                # 第三阶段：关联表（有外键依赖）
+                'activity_tags', 'user_tags', 'system_logs',
+                # 第四阶段：会话和消息表
                 'ai_chat_session', 'ai_chat_message',
-                'activity_registrations', 'user_tags', 'activity_tags', 'checkin_records',
-                'messages', 'notifications', 'system_logs',
-                # 再恢复主表
-                'activities', 'tags', 'users', 'roles'
+                # 第五阶段：其他依赖表
+                'activity_registrations', 'checkin_records', 'messages', 'notifications'
             ]
 
             restored_tables = 0
