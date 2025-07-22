@@ -119,11 +119,15 @@ class DatabaseSyncer:
                                 columns = result.keys()
                                 column_names = ', '.join([f'"{col}"' for col in columns])
 
-                                # 简单插入数据（避免复杂的批量操作）
+                                # 简单插入数据（修复SQL参数格式）
                                 for row in rows:
-                                    placeholders = ', '.join(['%s'] * len(columns))
+                                    # 使用命名参数而不是位置参数
+                                    placeholders = ', '.join([f':{col}' for col in columns])
                                     insert_sql = f'INSERT INTO "{table_name}" ({column_names}) VALUES ({placeholders})'
-                                    backup_conn.execute(text(insert_sql), tuple(row))
+
+                                    # 创建参数字典
+                                    params = {col: row[i] for i, col in enumerate(columns)}
+                                    backup_conn.execute(text(insert_sql), params)
 
                             synced_tables += 1
                             total_rows += len(rows)
@@ -131,12 +135,24 @@ class DatabaseSyncer:
 
                         except Exception as e:
                             self.log_sync_action(f"同步表 {table_name}", "失败", str(e))
-                            # 回滚事务并重新抛出异常
-                            backup_trans.rollback()
-                            raise e
+                            # 回滚事务
+                            try:
+                                backup_trans.rollback()
+                            except:
+                                pass
+                            # 不重新抛出异常，继续处理其他表
+                            continue
 
                     # 提交事务
-                    backup_trans.commit()
+                    try:
+                        backup_trans.commit()
+                    except Exception as commit_error:
+                        self.log_sync_action("提交事务", "失败", str(commit_error))
+                        try:
+                            backup_trans.rollback()
+                        except:
+                            pass
+                        raise commit_error
 
                 except Exception as e:
                     # 确保事务被回滚
@@ -144,7 +160,9 @@ class DatabaseSyncer:
                         backup_trans.rollback()
                     except:
                         pass
-                    raise e
+                    # 不重新抛出异常，让函数正常返回
+                    self.log_sync_action("数据库同步", "失败", f"事务处理失败: {str(e)}")
+                    synced_tables = 0  # 确保返回失败状态
 
             if synced_tables > 0:
                 self.log_sync_action("备份到ClawCloud", "成功",
@@ -236,11 +254,15 @@ class DatabaseSyncer:
                             columns = result.keys()
                             column_names = ', '.join([f'"{col}"' for col in columns])
 
-                            # 简单插入数据（避免复杂的批量操作）
+                            # 简单插入数据（修复SQL参数格式）
                             for row in rows:
-                                placeholders = ', '.join(['%s'] * len(columns))
+                                # 使用命名参数而不是位置参数
+                                placeholders = ', '.join([f':{col}' for col in columns])
                                 insert_sql = f'INSERT INTO "{table_name}" ({column_names}) VALUES ({placeholders})'
-                                primary_conn.execute(text(insert_sql), tuple(row))
+
+                                # 创建参数字典
+                                params = {col: row[i] for i, col in enumerate(columns)}
+                                primary_conn.execute(text(insert_sql), params)
 
                         primary_conn.commit()
                         restored_tables += 1
