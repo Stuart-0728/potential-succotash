@@ -642,7 +642,7 @@
                             if (toastType === 'success') toastType = 'success';
                             if (toastType === 'info') toastType = 'info';
                             
-                            // 使用延迟显示，避免所有消息同时出现
+                            // 使用较短延迟显示，避免所有消息同时出现
                             setTimeout(function() {
                                 if (typeof showToast === 'function') {
                                     showToast('{{ message }}', toastType);
@@ -650,7 +650,7 @@
                                     // 如果showToast函数还没准备好，使用传统alert
                                     console.log('Toast系统未就绪，使用传统alert显示: {{ message }}');
                                 }
-                            }, {{ loop.index0 }} * 300);
+                            }, {{ loop.index0 }} * 100); // 减少延迟时间
                         {% endfor %}
                     });
                 </script>
@@ -787,7 +787,7 @@
             $(document).ajaxError(function(event, jqxhr, settings, thrownError) {
                 if (jqxhr.status == 401) {
                     toastr.error('您的会话已过期，请重新登录。');
-                    setTimeout(() => window.location.href = "{{ url_for('auth.login') }}", 2000);
+                    setTimeout(() => window.location.href = "{{ url_for('auth.login') }}", 1000); // 减少重定向延迟
                 }
             });
         });

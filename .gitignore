@@ -60,3 +60,28 @@ logs/
 
 # Environment variables
 .env
+
+# 清理后不需要的文件类型
+*.log
+*.tmp
+*.bak
+*.swp
+*~
+
+# 数据库文件
+*.db
+*.sqlite
+*.sqlite3
+
+# 临时文件
+temp_*
+backup_*
+restore_*
+
+# 同步日志
+sync_log_*.json
+sync_scheduler.log
+
+# 环境变量文件（如果包含敏感信息）
+.env.local
+.env.production

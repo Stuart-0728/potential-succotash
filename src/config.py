@@ -114,36 +114,48 @@ class Config:
     # 数据库配置
     INSTANCE_PATH = INSTANCE_PATH
     DB_PATH = DB_PATH
-    
-    # 优先使用环境变量中的数据库URL，默认为SQLite数据库
-    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or \
-        f'sqlite:///{DB_PATH}'
-    
+
+    # 双数据库配置
+    # 主数据库 (Render PostgreSQL)
+    PRIMARY_DATABASE_URL = os.environ.get('DATABASE_URL') or os.environ.get('RENDER_DATABASE_URL')
+    # 备份数据库 (ClawCloud)
+    BACKUP_DATABASE_URL = os.environ.get('BACKUP_DATABASE_URL') or os.environ.get('CLAWCLOUD_DATABASE_URL')
+
+    # 优先使用主数据库，如果不可用则使用备份数据库，最后使用SQLite
+    SQLALCHEMY_DATABASE_URI = PRIMARY_DATABASE_URL or BACKUP_DATABASE_URL or f'sqlite:///{DB_PATH}'
+
     # 打印当前使用的数据库URL（隐藏敏感信息）
-    logger.info(f"使用数据库: {SQLALCHEMY_DATABASE_URI[:50] + '...' if len(SQLALCHEMY_DATABASE_URI) > 50 else SQLALCHEMY_DATABASE_URI}")
+    db_type = "主数据库" if PRIMARY_DATABASE_URL and SQLALCHEMY_DATABASE_URI == PRIMARY_DATABASE_URL else \
+              "备份数据库" if BACKUP_DATABASE_URL and SQLALCHEMY_DATABASE_URI == BACKUP_DATABASE_URL else "SQLite"
+    logger.info(f"使用{db_type}: {SQLALCHEMY_DATABASE_URI[:50] + '...' if len(SQLALCHEMY_DATABASE_URI) > 50 else SQLALCHEMY_DATABASE_URI}")
+
+    # 双数据库启用标志
+    DUAL_DATABASE_ENABLED = bool(PRIMARY_DATABASE_URL and BACKUP_DATABASE_URL)
     
-    # SQLAlchemy配置
+    # SQLAlchemy配置 - 优化连接池以减少延迟
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SQLALCHEMY_ENGINE_OPTIONS = {
-        'pool_size': 10,
-        'max_overflow': 20,
-        'pool_timeout': 30,
-        'pool_recycle': 1800,  # 连接回收时间，30分钟
+        'pool_size': 15,  # 增加连接池大小
+        'max_overflow': 30,  # 增加最大溢出连接数
+        'pool_timeout': 20,  # 减少连接超时时间
+        'pool_recycle': 3600,  # 连接回收时间，1小时
         'pool_pre_ping': True,  # 连接前ping一下确保连接有效
+        'echo': False,  # 生产环境关闭SQL回显
     }
     
     # 时区配置
     TIMEZONE_NAME = os.environ.get('TIMEZONE_NAME', 'Asia/Shanghai')
     
-    # 如果使用PostgreSQL，设置时区和连接参数
+    # 如果使用PostgreSQL，设置时区和连接参数 - 优化连接性能
     if 'postgresql:' in str(SQLALCHEMY_DATABASE_URI):
         SQLALCHEMY_ENGINE_OPTIONS['connect_args'] = {
             'options': f'-c timezone=UTC',  # 强制PostgreSQL连接使用UTC时区
-            'connect_timeout': int(os.environ.get('DB_CONNECT_TIMEOUT', 10)),  # 连接超时时间(秒)
+            'connect_timeout': int(os.environ.get('DB_CONNECT_TIMEOUT', 8)),  # 减少连接超时时间
             'keepalives': 1,  # 启用TCP keepalive
-            'keepalives_idle': 30,  # 空闲多少秒后发送keepalive包(秒)
-            'keepalives_interval': 10,  # keepalive包之间的间隔(秒)
-            'keepalives_count': 5,  # 重试次数
+            'keepalives_idle': 20,  # 减少空闲时间，更快检测断开连接
+            'keepalives_interval': 5,  # 减少keepalive包间隔
+            'keepalives_count': 3,  # 减少重试次数，更快故障转移
+            'application_name': 'cqnu_association',  # 应用名称，便于数据库监控
         }
     
     # Flask-Session配置

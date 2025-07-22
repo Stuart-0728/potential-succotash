@@ -1,2 +1,0 @@
--- PostgreSQL版本
-ALTER TABLE activities ADD COLUMN IF NOT EXISTS type VARCHAR(50) DEFAULT '其他'; 

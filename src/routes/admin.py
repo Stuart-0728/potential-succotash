@@ -3395,3 +3395,119 @@ def delete_activity(id):
         logger.error(f"Error deleting activity: {e}")
         flash('删除活动时出错', 'danger')
         return redirect(url_for('admin.activities'))
+
+# 数据库状态监控路由
+@admin_bp.route('/database-status')
+@login_required
+@admin_required
+def database_status():
+    """数据库状态监控页面"""
+    return render_template('admin/database_status.html')
+
+@admin_bp.route('/api/database-status')
+@login_required
+@admin_required
+def api_database_status():
+    """获取数据库状态API"""
+    try:
+        from src.dual_db_config import dual_db
+        info = dual_db.get_database_info()
+        return jsonify(info)
+    except Exception as e:
+        logger.error(f"获取数据库状态失败: {e}")
+        return jsonify({
+            'error': str(e),
+            'dual_db_enabled': False,
+            'primary_configured': False,
+            'backup_configured': False
+        }), 500
+
+@admin_bp.route('/api/sync-to-backup', methods=['POST'])
+@login_required
+@admin_required
+def api_sync_to_backup():
+    """同步到备份数据库API"""
+    try:
+        from src.db_sync import DatabaseSyncer
+
+        syncer = DatabaseSyncer()
+        success = syncer.backup_to_clawcloud()
+
+        if success:
+            log_action('数据库同步', f'成功备份到ClawCloud', current_user.id)
+            return jsonify({
+                'success': True,
+                'message': '数据已成功备份到ClawCloud'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': '备份失败，请查看日志'
+            }), 500
+
+    except Exception as e:
+        logger.error(f"备份到ClawCloud失败: {e}")
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 500
+
+@admin_bp.route('/api/restore-from-backup', methods=['POST'])
+@login_required
+@admin_required
+def api_restore_from_backup():
+    """从备份数据库恢复API"""
+    try:
+        from src.db_sync import DatabaseSyncer
+
+        syncer = DatabaseSyncer()
+        success = syncer.restore_from_clawcloud()
+
+        if success:
+            log_action('数据库恢复', f'成功从ClawCloud恢复', current_user.id)
+            return jsonify({
+                'success': True,
+                'message': '数据已从ClawCloud成功恢复'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': '恢复失败，请查看日志'
+            }), 500
+
+    except Exception as e:
+        logger.error(f"从ClawCloud恢复失败: {e}")
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 500
+
+@admin_bp.route('/api/sync-log')
+@login_required
+@admin_required
+def api_sync_log():
+    """获取同步日志API"""
+    try:
+        # 从系统日志中获取同步相关的日志
+        sync_logs = SystemLog.query.filter(
+            or_(
+                SystemLog.action.like('%同步%'),
+                SystemLog.action.like('%备份%'),
+                SystemLog.action.like('%恢复%')
+            )
+        ).order_by(desc(SystemLog.timestamp)).limit(20).all()
+
+        logs = []
+        for log in sync_logs:
+            logs.append({
+                'timestamp': log.timestamp.isoformat(),
+                'action': log.action,
+                'status': '成功' if '成功' in log.details else '失败',
+                'details': log.details
+            })
+
+        return jsonify({'logs': logs})
+
+    except Exception as e:
+        logger.error(f"获取同步日志失败: {e}")
+        return jsonify({'logs': []})

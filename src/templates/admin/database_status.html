@@ -1,0 +1,321 @@
+{% extends "base.html" %}
+
+{% block title %}数据库状态监控{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2><i class="fas fa-database me-2"></i>数据库状态监控</h2>
+                <div>
+                    <button class="btn btn-outline-primary" onclick="refreshStatus()">
+                        <i class="fas fa-sync-alt me-2"></i>刷新状态
+                    </button>
+                    <a href="{{ url_for('admin.dashboard') }}" class="btn btn-secondary">
+                        <i class="fas fa-arrow-left me-2"></i>返回管理面板
+                    </a>
+                </div>
+            </div>
+
+            <!-- 数据库状态概览 -->
+            <div class="row mb-4">
+                <div class="col-md-6">
+                    <div class="card border-primary">
+                        <div class="card-header bg-primary text-white">
+                            <h5 class="mb-0"><i class="fas fa-server me-2"></i>主数据库 (Render)</h5>
+                        </div>
+                        <div class="card-body">
+                            <div id="primary-db-status">
+                                <div class="text-center">
+                                    <div class="spinner-border text-primary" role="status">
+                                        <span class="visually-hidden">检测中...</span>
+                                    </div>
+                                    <p class="mt-2">检测连接状态...</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-6">
+                    <div class="card border-info">
+                        <div class="card-header bg-info text-white">
+                            <h5 class="mb-0"><i class="fas fa-cloud me-2"></i>备份数据库 (ClawCloud)</h5>
+                        </div>
+                        <div class="card-body">
+                            <div id="backup-db-status">
+                                <div class="text-center">
+                                    <div class="spinner-border text-info" role="status">
+                                        <span class="visually-hidden">检测中...</span>
+                                    </div>
+                                    <p class="mt-2">检测连接状态...</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 同步操作 -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-sync me-2"></i>数据库同步操作</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="d-grid gap-2">
+                                <button class="btn btn-success" onclick="syncToBackup()" id="syncToBackupBtn">
+                                    <i class="fas fa-cloud-upload-alt me-2"></i>备份到ClawCloud
+                                </button>
+                                <small class="text-muted">将主数据库的数据备份到ClawCloud</small>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="d-grid gap-2">
+                                <button class="btn btn-warning" onclick="restoreFromBackup()" id="restoreFromBackupBtn">
+                                    <i class="fas fa-cloud-download-alt me-2"></i>从ClawCloud恢复
+                                </button>
+                                <small class="text-muted">从ClawCloud恢复数据到主数据库</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 同步日志 -->
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-history me-2"></i>同步日志</h5>
+                </div>
+                <div class="card-body">
+                    <div id="sync-log">
+                        <p class="text-muted">暂无同步日志</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// 刷新数据库状态
+function refreshStatus() {
+    checkDatabaseStatus();
+}
+
+// 检查数据库状态
+function checkDatabaseStatus() {
+    fetch('/admin/api/database-status')
+        .then(response => response.json())
+        .then(data => {
+            updatePrimaryStatus(data);
+            updateBackupStatus(data);
+        })
+        .catch(error => {
+            console.error('获取数据库状态失败:', error);
+            showError('获取数据库状态失败');
+        });
+}
+
+// 更新主数据库状态
+function updatePrimaryStatus(data) {
+    const container = document.getElementById('primary-db-status');
+    const isConnected = data.primary;
+    const latency = data.primary_latency;
+    
+    let statusHtml = '';
+    if (isConnected) {
+        statusHtml = `
+            <div class="text-success">
+                <i class="fas fa-check-circle fa-2x mb-2"></i>
+                <h6>连接正常</h6>
+                <p class="mb-0">延迟: ${latency ? latency.toFixed(2) + 'ms' : '未知'}</p>
+            </div>
+        `;
+    } else {
+        statusHtml = `
+            <div class="text-danger">
+                <i class="fas fa-times-circle fa-2x mb-2"></i>
+                <h6>连接失败</h6>
+                <p class="mb-0">无法连接到主数据库</p>
+            </div>
+        `;
+    }
+    
+    container.innerHTML = statusHtml;
+}
+
+// 更新备份数据库状态
+function updateBackupStatus(data) {
+    const container = document.getElementById('backup-db-status');
+    const isConnected = data.backup;
+    const latency = data.backup_latency;
+    
+    let statusHtml = '';
+    if (data.backup_configured) {
+        if (isConnected) {
+            statusHtml = `
+                <div class="text-success">
+                    <i class="fas fa-check-circle fa-2x mb-2"></i>
+                    <h6>连接正常</h6>
+                    <p class="mb-0">延迟: ${latency ? latency.toFixed(2) + 'ms' : '未知'}</p>
+                </div>
+            `;
+        } else {
+            statusHtml = `
+                <div class="text-danger">
+                    <i class="fas fa-times-circle fa-2x mb-2"></i>
+                    <h6>连接失败</h6>
+                    <p class="mb-0">无法连接到备份数据库</p>
+                </div>
+            `;
+        }
+    } else {
+        statusHtml = `
+            <div class="text-warning">
+                <i class="fas fa-exclamation-triangle fa-2x mb-2"></i>
+                <h6>未配置</h6>
+                <p class="mb-0">备份数据库未配置</p>
+            </div>
+        `;
+    }
+    
+    container.innerHTML = statusHtml;
+}
+
+// 同步到备份数据库
+function syncToBackup() {
+    const btn = document.getElementById('syncToBackupBtn');
+    const originalText = btn.innerHTML;
+    
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>备份中...';
+    btn.disabled = true;
+    
+    fetch('/admin/api/sync-to-backup', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('input[name="csrf_token"]').value
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showSuccess('数据已成功备份到ClawCloud');
+            loadSyncLog();
+        } else {
+            showError('备份失败: ' + data.message);
+        }
+    })
+    .catch(error => {
+        console.error('备份失败:', error);
+        showError('备份操作失败');
+    })
+    .finally(() => {
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+    });
+}
+
+// 从备份数据库恢复
+function restoreFromBackup() {
+    if (!confirm('确定要从ClawCloud恢复数据吗？这将覆盖主数据库的当前数据！')) {
+        return;
+    }
+    
+    const btn = document.getElementById('restoreFromBackupBtn');
+    const originalText = btn.innerHTML;
+    
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>恢复中...';
+    btn.disabled = true;
+    
+    fetch('/admin/api/restore-from-backup', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('input[name="csrf_token"]').value
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showSuccess('数据已从ClawCloud成功恢复');
+            loadSyncLog();
+        } else {
+            showError('恢复失败: ' + data.message);
+        }
+    })
+    .catch(error => {
+        console.error('恢复失败:', error);
+        showError('恢复操作失败');
+    })
+    .finally(() => {
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+    });
+}
+
+// 加载同步日志
+function loadSyncLog() {
+    fetch('/admin/api/sync-log')
+        .then(response => response.json())
+        .then(data => {
+            const container = document.getElementById('sync-log');
+            if (data.logs && data.logs.length > 0) {
+                let logHtml = '<div class="table-responsive"><table class="table table-sm">';
+                logHtml += '<thead><tr><th>时间</th><th>操作</th><th>状态</th><th>详情</th></tr></thead><tbody>';
+                
+                data.logs.slice(-10).reverse().forEach(log => {
+                    const statusClass = log.status === '成功' ? 'text-success' : 
+                                       log.status === '失败' ? 'text-danger' : 'text-warning';
+                    logHtml += `
+                        <tr>
+                            <td>${new Date(log.timestamp).toLocaleString()}</td>
+                            <td>${log.action}</td>
+                            <td class="${statusClass}">${log.status}</td>
+                            <td>${log.details || '-'}</td>
+                        </tr>
+                    `;
+                });
+                
+                logHtml += '</tbody></table></div>';
+                container.innerHTML = logHtml;
+            } else {
+                container.innerHTML = '<p class="text-muted">暂无同步日志</p>';
+            }
+        })
+        .catch(error => {
+            console.error('加载同步日志失败:', error);
+        });
+}
+
+// 显示成功消息
+function showSuccess(message) {
+    if (typeof showToast === 'function') {
+        showToast(message, 'success');
+    } else {
+        alert(message);
+    }
+}
+
+// 显示错误消息
+function showError(message) {
+    if (typeof showToast === 'function') {
+        showToast(message, 'error');
+    } else {
+        alert(message);
+    }
+}
+
+// 页面加载时检查状态
+document.addEventListener('DOMContentLoaded', function() {
+    checkDatabaseStatus();
+    loadSyncLog();
+    
+    // 每30秒自动刷新状态
+    setInterval(checkDatabaseStatus, 30000);
+});
+</script>
+{% endblock %}

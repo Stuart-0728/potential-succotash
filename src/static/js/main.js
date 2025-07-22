@@ -23,8 +23,8 @@ document.addEventListener('DOMContentLoaded', function() {
         // 获取未读重要通知
         fetchUnreadNotifications();
         
-        // 设置定时刷新（每5分钟）
-        setInterval(fetchUnreadNotifications, 5 * 60 * 1000);
+        // 设置定时刷新（每3分钟）
+        setInterval(fetchUnreadNotifications, 3 * 60 * 1000);
     }
     
     // 为所有通知关闭按钮添加事件监听
@@ -137,7 +137,7 @@ function initGlobalLoading() {
             window.loadingTimeout = setTimeout(() => {
                 window.hideLoading();
                 console.log('安全超时：自动隐藏加载动画');
-            }, 15000); // 15秒后自动隐藏
+            }, 5000); // 5秒后自动隐藏，减少等待时间
         }
     };
     
@@ -176,13 +176,13 @@ function initGlobalLoading() {
         if (document.visibilityState === 'visible') {
             // 如果页面变为可见，检查加载状态是否悬挂
             setTimeout(() => {
-                // 如果加载动画显示超过5秒，自动隐藏
+                // 如果加载动画显示超过3秒，自动隐藏
                 const loadingEl = document.querySelector('.global-loading');
                 if (loadingEl && loadingEl.classList.contains('show')) {
                     console.log('页面可见性变化：自动隐藏加载动画');
                     window.hideLoading();
                 }
-            }, 1000);
+            }, 500); // 减少检查延迟
         }
     });
 }
@@ -244,7 +244,7 @@ function setupFormLoading() {
             if (!isLoginForm) {
                 // 提交完成后恢复按钮状态
                 setTimeout(function() {
-                    // 如果10秒后表单还在页面上，恢复按钮状态
+                    // 如果5秒后表单还在页面上，恢复按钮状态
                     if (document.body.contains(submitBtn)) {
                         if (submitBtn.tagName === 'INPUT') {
                             submitBtn.value = originalContent;
@@ -253,14 +253,14 @@ function setupFormLoading() {
                         }
                         submitBtn.disabled = false;
                     }
-                }, 10000);
+                }, 5000); // 减少等待时间
             }
         } else {
             // 如果没有找到提交按钮，显示全局加载动画
             showLoading('提交中...');
-            
-            // 10秒后自动隐藏
-            setTimeout(hideLoading, 10000);
+
+            // 3秒后自动隐藏
+            setTimeout(hideLoading, 3000);
         }
     });
     
@@ -718,7 +718,7 @@ function updateActivityStatus(activityId, newStatus) {
             // 延迟刷新页面，让用户看到成功消息
             setTimeout(() => {
                 location.reload();
-            }, 1000);
+            }, 500); // 减少刷新延迟
         } else {
             // 恢复按钮状态
             button.innerHTML = originalContent;
@@ -795,7 +795,7 @@ function fetchUnreadNotifications() {
                         // 错开显示时间，避免所有通知同时出现
                         setTimeout(() => {
                             showNotificationBanner(notification);
-                        }, index * 1000); // 每个通知间隔1秒显示
+                        }, index * 200); // 每个通知间隔200ms显示，减少等待时间
                     });
                 }
             }
@@ -900,7 +900,7 @@ function showNotificationBanner(notification) {
     
     notificationContainer.appendChild(container);
     
-    // 设置自动关闭（15秒后）
+    // 设置自动关闭（8秒后）
     setTimeout(() => {
         if (container && container.parentNode) {
             container.style.animation = 'fadeOut 0.5s ease-out';
@@ -910,7 +910,7 @@ function showNotificationBanner(notification) {
                 }
             }, 500);
         }
-    }, 15000);
+    }, 8000); // 减少通知显示时间
 }
 
 // 移除所有通知横幅
@@ -1220,12 +1220,12 @@ function setupLoadingButtons() {
                     // 为下载链接添加特殊属性
                     this.setAttribute('data-no-loading', 'true');
                     
-                    // 为下载链接添加特殊处理，确保3秒后自动隐藏全局加载状态
+                    // 为下载链接添加特殊处理，确保1秒后自动隐藏全局加载状态
                     setTimeout(() => {
                         if (window.hideLoading) {
                             window.hideLoading();
                         }
-                        
+
                         // 恢复按钮状态
                         if (this.classList.contains('disabled')) {
                             this.classList.remove('disabled');
@@ -1234,7 +1234,7 @@ function setupLoadingButtons() {
                                 this.removeAttribute('data-original-text');
                             }
                         }
-                    }, 3000);
+                    }, 1000); // 减少下载链接等待时间
                     return;
                 }
                 
