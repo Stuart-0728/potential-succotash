@@ -636,21 +636,23 @@
                     document.addEventListener('DOMContentLoaded', function() {
                         {% for category, message in messages %}
                             // 将Flask的消息类别转换为Toast类型
-                            let toastType = '{{ category }}';
-                            if (toastType === 'danger') toastType = 'error';
-                            if (toastType === 'warning') toastType = 'warning';
-                            if (toastType === 'success') toastType = 'success';
-                            if (toastType === 'info') toastType = 'info';
+                            (function() {
+                                let toastType = '{{ category }}';
+                                if (toastType === 'danger') toastType = 'error';
+                                if (toastType === 'warning') toastType = 'warning';
+                                if (toastType === 'success') toastType = 'success';
+                                if (toastType === 'info') toastType = 'info';
                             
-                            // 使用较短延迟显示，避免所有消息同时出现
-                            setTimeout(function() {
-                                if (typeof showToast === 'function') {
-                                    showToast('{{ message }}', toastType);
-                                } else {
-                                    // 如果showToast函数还没准备好，使用传统alert
-                                    console.log('Toast系统未就绪，使用传统alert显示: {{ message }}');
-                                }
-                            }, {{ loop.index0 }} * 100); // 减少延迟时间
+                                // 使用较短延迟显示，避免所有消息同时出现
+                                setTimeout(function() {
+                                    if (typeof showToast === 'function') {
+                                        showToast('{{ message }}', toastType);
+                                    } else {
+                                        // 如果showToast函数还没准备好，使用传统alert
+                                        console.log('Toast系统未就绪，使用传统alert显示: {{ message }}');
+                                    }
+                                }, {{ loop.index0 }} * 100); // 减少延迟时间
+                            })();
                         {% endfor %}
                     });
                 </script>

@@ -405,15 +405,23 @@ function initToastSystem() {
         toast.style.padding = '0.25rem';
         
         // 设置不同类型的背景色
-        let bgClass = 'bg-primary';
         switch(type) {
-            case 'success': bgClass = 'bg-success'; break;
-            case 'error': bgClass = 'bg-danger'; break;
-            case 'warning': bgClass = 'bg-warning text-dark'; break;
-            case 'info': bgClass = 'bg-info text-dark'; break;
+            case 'success':
+                toast.classList.add('bg-success');
+                break;
+            case 'error':
+                toast.classList.add('bg-danger');
+                break;
+            case 'warning':
+                toast.classList.add('bg-warning', 'text-dark');
+                break;
+            case 'info':
+                toast.classList.add('bg-info', 'text-dark');
+                break;
+            default:
+                toast.classList.add('bg-primary');
+                break;
         }
-        
-        toast.classList.add(bgClass);
         
         toast.innerHTML = `
             <div class="d-flex">
