@@ -67,66 +67,93 @@ class DatabaseSyncer:
                 self.log_sync_action("数据库连接", "失败", f"连接错误: {str(e)}")
                 return False
 
-            # 获取要同步的表
+            # 获取要同步的表（按依赖关系排序，先删除依赖表，再删除主表）
             tables_to_sync = [
-                'users', 'roles', 'activities', 'activity_registrations',
-                'notifications', 'system_logs', 'messages', 'tags',
-                'user_tags', 'activity_tags', 'checkin_records'
+                # 先同步依赖表
+                'ai_chat_session', 'ai_chat_message',
+                'activity_registrations', 'user_tags', 'activity_tags', 'checkin_records',
+                'messages', 'notifications', 'system_logs',
+                # 再同步主表
+                'activities', 'tags', 'users', 'roles'
             ]
 
             synced_tables = 0
             total_rows = 0
 
             with primary_engine.connect() as primary_conn, backup_engine.connect() as backup_conn:
-                for table_name in tables_to_sync:
+                # 开始事务
+                backup_trans = backup_conn.begin()
+
+                try:
+                    for table_name in tables_to_sync:
+                        try:
+                            self.log_sync_action(f"同步表 {table_name}", "开始")
+
+                            # 检查表是否存在
+                            check_sql = text(f"SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = '{table_name}')")
+                            primary_exists = primary_conn.execute(check_sql).scalar()
+                            backup_exists = backup_conn.execute(check_sql).scalar()
+
+                            if not primary_exists:
+                                self.log_sync_action(f"跳过表 {table_name}", "跳过", "主数据库中不存在")
+                                continue
+
+                            if not backup_exists:
+                                self.log_sync_action(f"跳过表 {table_name}", "跳过", "备份数据库中不存在")
+                                continue
+
+                            # 清空备份表（使用TRUNCATE CASCADE处理外键约束）
+                            try:
+                                backup_conn.execute(text(f'TRUNCATE TABLE "{table_name}" CASCADE'))
+                            except Exception as truncate_error:
+                                # 如果TRUNCATE失败，尝试DELETE
+                                self.log_sync_action(f"TRUNCATE {table_name} 失败，尝试DELETE", "警告", str(truncate_error))
+                                backup_conn.execute(text(f'DELETE FROM "{table_name}"'))
+
+                            # 获取主表数据
+                            result = primary_conn.execute(text(f'SELECT * FROM "{table_name}"'))
+                            rows = result.fetchall()
+
+                            if rows:
+                                # 获取列名
+                                columns = result.keys()
+                                column_names = ', '.join([f'"{col}"' for col in columns])
+
+                                # 简单插入数据（避免复杂的批量操作）
+                                for row in rows:
+                                    placeholders = ', '.join(['%s'] * len(columns))
+                                    insert_sql = f'INSERT INTO "{table_name}" ({column_names}) VALUES ({placeholders})'
+                                    backup_conn.execute(text(insert_sql), tuple(row))
+
+                            synced_tables += 1
+                            total_rows += len(rows)
+                            self.log_sync_action(f"同步表 {table_name}", "成功", f"{len(rows)} 行数据")
+
+                        except Exception as e:
+                            self.log_sync_action(f"同步表 {table_name}", "失败", str(e))
+                            # 回滚事务并重新抛出异常
+                            backup_trans.rollback()
+                            raise e
+
+                    # 提交事务
+                    backup_trans.commit()
+
+                except Exception as e:
+                    # 确保事务被回滚
                     try:
-                        self.log_sync_action(f"同步表 {table_name}", "开始")
+                        backup_trans.rollback()
+                    except:
+                        pass
+                    raise e
 
-                        # 检查表是否存在
-                        check_sql = text(f"SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = '{table_name}')")
-                        primary_exists = primary_conn.execute(check_sql).scalar()
-                        backup_exists = backup_conn.execute(check_sql).scalar()
-
-                        if not primary_exists:
-                            self.log_sync_action(f"跳过表 {table_name}", "跳过", "主数据库中不存在")
-                            continue
-
-                        if not backup_exists:
-                            self.log_sync_action(f"跳过表 {table_name}", "跳过", "备份数据库中不存在")
-                            continue
-
-                        # 清空备份表
-                        backup_conn.execute(text(f'DELETE FROM "{table_name}"'))
-                        backup_conn.commit()
-
-                        # 获取主表数据
-                        result = primary_conn.execute(text(f'SELECT * FROM "{table_name}"'))
-                        rows = result.fetchall()
-
-                        if rows:
-                            # 获取列名
-                            columns = result.keys()
-                            column_names = ', '.join([f'"{col}"' for col in columns])
-
-                            # 简单插入数据（避免复杂的批量操作）
-                            for row in rows:
-                                placeholders = ', '.join(['%s'] * len(columns))
-                                insert_sql = f'INSERT INTO "{table_name}" ({column_names}) VALUES ({placeholders})'
-                                backup_conn.execute(text(insert_sql), tuple(row))
-
-                        backup_conn.commit()
-                        synced_tables += 1
-                        total_rows += len(rows)
-                        self.log_sync_action(f"同步表 {table_name}", "成功", f"{len(rows)} 行数据")
-
-                    except Exception as e:
-                        self.log_sync_action(f"同步表 {table_name}", "失败", str(e))
-                        # 继续处理下一个表，不中断整个过程
-                        continue
-
-            self.log_sync_action("备份到ClawCloud", "成功",
-                               f"同步了 {synced_tables} 个表，共 {total_rows} 行数据")
-            return True
+            if synced_tables > 0:
+                self.log_sync_action("备份到ClawCloud", "成功",
+                                   f"同步了 {synced_tables} 个表，共 {total_rows} 行数据")
+                return True
+            else:
+                self.log_sync_action("备份到ClawCloud", "失败",
+                                   "没有成功同步任何表，请检查数据库连接和权限")
+                return False
 
         except Exception as e:
             self.log_sync_action("备份到ClawCloud", "失败", str(e))
@@ -160,11 +187,14 @@ class DatabaseSyncer:
                 self.log_sync_action("数据库连接", "失败", f"连接错误: {str(e)}")
                 return False
 
-            # 获取要恢复的表
+            # 获取要恢复的表（按依赖关系排序）
             tables_to_restore = [
-                'users', 'roles', 'activities', 'activity_registrations',
-                'notifications', 'system_logs', 'messages', 'tags',
-                'user_tags', 'activity_tags', 'checkin_records'
+                # 先恢复依赖表
+                'ai_chat_session', 'ai_chat_message',
+                'activity_registrations', 'user_tags', 'activity_tags', 'checkin_records',
+                'messages', 'notifications', 'system_logs',
+                # 再恢复主表
+                'activities', 'tags', 'users', 'roles'
             ]
 
             restored_tables = 0
@@ -188,8 +218,13 @@ class DatabaseSyncer:
                             self.log_sync_action(f"跳过表 {table_name}", "跳过", "主数据库中不存在")
                             continue
 
-                        # 清空主表
-                        primary_conn.execute(text(f'DELETE FROM "{table_name}"'))
+                        # 清空主表（使用TRUNCATE CASCADE处理外键约束）
+                        try:
+                            primary_conn.execute(text(f'TRUNCATE TABLE "{table_name}" CASCADE'))
+                        except Exception as truncate_error:
+                            # 如果TRUNCATE失败，尝试DELETE
+                            self.log_sync_action(f"TRUNCATE {table_name} 失败，尝试DELETE", "警告", str(truncate_error))
+                            primary_conn.execute(text(f'DELETE FROM "{table_name}"'))
                         primary_conn.commit()
 
                         # 获取备份表数据
@@ -217,9 +252,14 @@ class DatabaseSyncer:
                         # 继续处理下一个表，不中断整个过程
                         continue
 
-            self.log_sync_action("从ClawCloud恢复", "成功",
-                               f"恢复了 {restored_tables} 个表，共 {total_rows} 行数据")
-            return True
+            if restored_tables > 0:
+                self.log_sync_action("从ClawCloud恢复", "成功",
+                                   f"恢复了 {restored_tables} 个表，共 {total_rows} 行数据")
+                return True
+            else:
+                self.log_sync_action("从ClawCloud恢复", "失败",
+                                   "没有成功恢复任何表，请检查数据库连接和权限")
+                return False
 
         except Exception as e:
             self.log_sync_action("从ClawCloud恢复", "失败", str(e))

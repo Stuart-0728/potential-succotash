@@ -3495,12 +3495,12 @@ def api_sync_log():
                 SystemLog.action.like('%备份%'),
                 SystemLog.action.like('%恢复%')
             )
-        ).order_by(desc(SystemLog.timestamp)).limit(20).all()
+        ).order_by(desc(SystemLog.created_at)).limit(20).all()
 
         logs = []
         for log in sync_logs:
             logs.append({
-                'timestamp': log.timestamp.isoformat(),
+                'timestamp': log.created_at.isoformat(),
                 'action': log.action,
                 'status': '成功' if '成功' in log.details else '失败',
                 'details': log.details
