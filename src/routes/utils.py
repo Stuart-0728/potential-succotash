@@ -31,17 +31,21 @@ def admin_required(f):
             
             # 检查用户角色
             if not hasattr(current_user, 'role') or not current_user.role:
-                logger.error(f"用户没有角色: {current_user.username}")
+                logger.error(f"用户没有角色: 用户名={current_user.username}, 用户ID={current_user.id}")
                 flash('您没有被分配角色', 'danger')
                 return redirect(url_for('main.index'))
-            
+
+            # 详细记录角色信息用于调试
+            role_name = getattr(current_user.role, 'name', None)
+            logger.info(f"权限检查: 用户={current_user.username}, 角色={role_name}, 路径={request.path}")
+
             # 检查角色名称
             if not hasattr(current_user.role, 'name') or current_user.role.name.lower() != 'admin':
                 # 特殊情况：允许所有用户访问/activities路由
                 if request.path == '/activities' or request.path.startswith('/activities/'):
                     return f(*args, **kwargs)
-                
-                logger.warning(f"非管理员访问尝试: {current_user.username}, 路径: {request.path}")
+
+                logger.warning(f"非管理员访问尝试: 用户={current_user.username}, 角色={role_name}, 路径={request.path}")
                 flash('您没有管理员权限', 'danger')
                 return redirect(url_for('main.index'))
             
@@ -772,3 +776,32 @@ def check_login_status():
         'is_logged_in': current_user.is_authenticated,
         'user_id': current_user.id if current_user.is_authenticated else None
     })
+
+@utils_bp.route('/debug/user_info')
+@login_required
+def debug_user_info():
+    """调试用户信息的API端点"""
+    try:
+        user_info = {
+            'user_id': current_user.id,
+            'username': current_user.username,
+            'is_authenticated': current_user.is_authenticated,
+            'role_id': getattr(current_user, 'role_id', None),
+            'role': None,
+            'is_admin': False,
+            'is_student': False
+        }
+
+        if hasattr(current_user, 'role') and current_user.role:
+            user_info['role'] = {
+                'id': current_user.role.id,
+                'name': current_user.role.name,
+                'description': getattr(current_user.role, 'description', None)
+            }
+            user_info['is_admin'] = current_user.role.name.lower() == 'admin'
+            user_info['is_student'] = current_user.role.name.lower() == 'student'
+
+        return jsonify(user_info)
+    except Exception as e:
+        logger.error(f"获取用户调试信息失败: {e}")
+        return jsonify({'error': str(e)}), 500
