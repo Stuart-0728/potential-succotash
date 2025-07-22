@@ -3,6 +3,9 @@
 {% block title %}数据库状态监控{% endblock %}
 
 {% block content %}
+<!-- CSRF Token for AJAX requests -->
+<meta name="csrf-token" content="{{ csrf_token() }}">
+
 <div class="container-fluid">
     <div class="row">
         <div class="col-12">
@@ -193,11 +196,21 @@ function syncToBackup() {
     btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>备份中...';
     btn.disabled = true;
     
+    // 获取CSRF token
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+
+    if (!csrfToken) {
+        showError('无法获取CSRF token');
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+        return;
+    }
+
     fetch('/admin/api/sync-to-backup', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
-            'X-CSRFToken': document.querySelector('input[name="csrf_token"]').value
+            'X-CSRFToken': csrfToken
         }
     })
     .then(response => response.json())
@@ -231,11 +244,21 @@ function restoreFromBackup() {
     btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>恢复中...';
     btn.disabled = true;
     
+    // 获取CSRF token
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+
+    if (!csrfToken) {
+        showError('无法获取CSRF token');
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+        return;
+    }
+
     fetch('/admin/api/restore-from-backup', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
-            'X-CSRFToken': document.querySelector('input[name="csrf_token"]').value
+            'X-CSRFToken': csrfToken
         }
     })
     .then(response => response.json())
