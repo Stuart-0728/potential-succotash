@@ -17,6 +17,7 @@ from psycopg2.extras import RealDictCursor
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.dual_db_config import dual_db
+from src.utils.time_helpers import get_beijing_time
 
 logger = logging.getLogger(__name__)
 
@@ -29,8 +30,10 @@ class DatabaseSyncer:
     
     def log_sync_action(self, action, status, details=None):
         """记录同步操作"""
+        # 使用北京时间
+        beijing_time = get_beijing_time()
         log_entry = {
-            'timestamp': datetime.now().isoformat(),
+            'timestamp': beijing_time.isoformat(),
             'action': action,
             'status': status,
             'details': details
@@ -128,15 +131,23 @@ class DatabaseSyncer:
                                 columns = result.keys()
                                 column_names = ', '.join([f'"{col}"' for col in columns])
 
-                                # 简单插入数据（修复SQL参数格式）
-                                for row in rows:
-                                    # 使用命名参数而不是位置参数
+                                # 批量插入数据（提高性能）
+                                batch_size = 100  # 每批处理100行
+                                for i in range(0, len(rows), batch_size):
+                                    batch_rows = rows[i:i + batch_size]
+
+                                    # 构建批量插入SQL
                                     placeholders = ', '.join([f':{col}' for col in columns])
                                     insert_sql = f'INSERT INTO "{table_name}" ({column_names}) VALUES ({placeholders})'
 
-                                    # 创建参数字典
-                                    params = {col: row[i] for i, col in enumerate(columns)}
-                                    backup_conn.execute(text(insert_sql), params)
+                                    # 批量执行
+                                    batch_params = []
+                                    for row in batch_rows:
+                                        params = {col: row[j] for j, col in enumerate(columns)}
+                                        batch_params.append(params)
+
+                                    backup_conn.execute(text(insert_sql), batch_params)
+                                    backup_conn.commit()  # 每批提交一次
 
                             synced_tables += 1
                             total_rows += len(rows)

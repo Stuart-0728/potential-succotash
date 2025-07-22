@@ -206,27 +206,67 @@ function syncToBackup() {
         return;
     }
 
+    // 创建AbortController用于超时控制
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 120000); // 2分钟超时
+
     fetch('/admin/api/sync-to-backup', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
             'X-CSRFToken': csrfToken
-        }
+        },
+        signal: controller.signal
     })
-    .then(response => response.json())
+    .then(response => {
+        clearTimeout(timeoutId);
+
+        // 检查响应状态
+        if (response.status === 524) {
+            throw new Error('请求超时，但备份可能仍在进行中，请稍后查看同步日志');
+        }
+
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        // 检查响应内容类型
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+            throw new Error('服务器返回了非JSON响应，可能是HTML错误页面');
+        }
+
+        return response.json();
+    })
     .then(data => {
         if (data.success) {
             showSuccess('数据已成功备份到ClawCloud');
             loadSyncLog();
         } else {
-            showError('备份失败: ' + data.message);
+            showError('备份失败: ' + (data.message || '未知错误'));
         }
     })
     .catch(error => {
+        clearTimeout(timeoutId);
         console.error('备份失败:', error);
-        showError('备份操作失败');
+
+        if (error.name === 'AbortError') {
+            showError('备份请求超时，但操作可能仍在后台进行，请稍后查看同步日志');
+        } else if (error.message.includes('524') || error.message.includes('超时')) {
+            showError('备份请求超时，请稍后查看同步日志确认结果');
+        } else if (error.message.includes('JSON')) {
+            showError('服务器响应格式错误，请检查服务器状态');
+        } else {
+            showError('备份操作失败: ' + error.message);
+        }
+
+        // 超时后刷新同步日志，可能操作已完成
+        setTimeout(() => {
+            loadSyncLog();
+        }, 5000);
     })
     .finally(() => {
+        clearTimeout(timeoutId);
         btn.innerHTML = originalText;
         btn.disabled = false;
     });
@@ -254,27 +294,67 @@ function restoreFromBackup() {
         return;
     }
 
+    // 创建AbortController用于超时控制
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 120000); // 2分钟超时
+
     fetch('/admin/api/restore-from-backup', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
             'X-CSRFToken': csrfToken
-        }
+        },
+        signal: controller.signal
     })
-    .then(response => response.json())
+    .then(response => {
+        clearTimeout(timeoutId);
+
+        // 检查响应状态
+        if (response.status === 524) {
+            throw new Error('请求超时，但恢复可能仍在进行中，请稍后查看同步日志');
+        }
+
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        // 检查响应内容类型
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+            throw new Error('服务器返回了非JSON响应，可能是HTML错误页面');
+        }
+
+        return response.json();
+    })
     .then(data => {
         if (data.success) {
             showSuccess('数据已从ClawCloud成功恢复');
             loadSyncLog();
         } else {
-            showError('恢复失败: ' + data.message);
+            showError('恢复失败: ' + (data.message || '未知错误'));
         }
     })
     .catch(error => {
+        clearTimeout(timeoutId);
         console.error('恢复失败:', error);
-        showError('恢复操作失败');
+
+        if (error.name === 'AbortError') {
+            showError('恢复请求超时，但操作可能仍在后台进行，请稍后查看同步日志');
+        } else if (error.message.includes('524') || error.message.includes('超时')) {
+            showError('恢复请求超时，请稍后查看同步日志确认结果');
+        } else if (error.message.includes('JSON')) {
+            showError('服务器响应格式错误，请检查服务器状态');
+        } else {
+            showError('恢复操作失败: ' + error.message);
+        }
+
+        // 超时后刷新同步日志，可能操作已完成
+        setTimeout(() => {
+            loadSyncLog();
+        }, 5000);
     })
     .finally(() => {
+        clearTimeout(timeoutId);
         btn.innerHTML = originalText;
         btn.disabled = false;
     });
