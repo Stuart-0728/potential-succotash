@@ -158,12 +158,14 @@ class Config:
             'application_name': 'cqnu_association',  # 应用名称，便于数据库监控
         }
     
-    # Flask-Session配置
-    SESSION_TYPE = 'filesystem'
-    SESSION_FILE_DIR = SESSION_FILE_DIR
+    # Flask-Session配置 - 使用内存存储以避免云环境文件系统问题
+    SESSION_TYPE = 'null'  # 使用Flask原生会话，不使用Flask-Session
     SESSION_PERMANENT = True
     SESSION_USE_SIGNER = True
     SESSION_COOKIE_NAME = 'cqnu_session'
+    SESSION_COOKIE_HTTPONLY = True
+    SESSION_COOKIE_SECURE = False  # 在开发环境中设为False，生产环境应为True
+    SESSION_COOKIE_SAMESITE = 'Lax'
     
     # Flask-Cache配置
     CACHE_TYPE = 'SimpleCache'

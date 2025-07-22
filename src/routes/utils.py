@@ -778,30 +778,65 @@ def check_login_status():
     })
 
 @utils_bp.route('/debug/user_info')
-@login_required
 def debug_user_info():
-    """调试用户信息的API端点"""
+    """调试用户信息的API端点（不需要登录）"""
     try:
-        user_info = {
-            'user_id': current_user.id,
-            'username': current_user.username,
-            'is_authenticated': current_user.is_authenticated,
-            'role_id': getattr(current_user, 'role_id', None),
-            'role': None,
-            'is_admin': False,
-            'is_student': False
+        from flask import session
+
+        debug_info = {
+            'session_data': dict(session),
+            'is_authenticated': current_user.is_authenticated if hasattr(current_user, 'is_authenticated') else False,
+            'user_info': None,
+            'session_id': session.get('_id', 'No session ID'),
+            'user_id_in_session': session.get('_user_id', 'No user ID in session')
         }
 
-        if hasattr(current_user, 'role') and current_user.role:
-            user_info['role'] = {
-                'id': current_user.role.id,
-                'name': current_user.role.name,
-                'description': getattr(current_user.role, 'description', None)
+        if current_user.is_authenticated:
+            debug_info['user_info'] = {
+                'user_id': current_user.id,
+                'username': current_user.username,
+                'role_id': getattr(current_user, 'role_id', None),
+                'role': None,
+                'is_admin': False,
+                'is_student': False
             }
-            user_info['is_admin'] = current_user.role.name.lower() == 'admin'
-            user_info['is_student'] = current_user.role.name.lower() == 'student'
 
-        return jsonify(user_info)
+            if hasattr(current_user, 'role') and current_user.role:
+                debug_info['user_info']['role'] = {
+                    'id': current_user.role.id,
+                    'name': current_user.role.name,
+                    'description': getattr(current_user.role, 'description', None)
+                }
+                debug_info['user_info']['is_admin'] = current_user.role.name.lower() == 'admin'
+                debug_info['user_info']['is_student'] = current_user.role.name.lower() == 'student'
+
+        return jsonify(debug_info)
     except Exception as e:
         logger.error(f"获取用户调试信息失败: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@utils_bp.route('/debug/force_login/<username>')
+def debug_force_login(username):
+    """强制登录指定用户（仅用于调试）"""
+    try:
+        from src.models import User
+        from flask_login import login_user
+
+        user = db.session.execute(db.select(User).filter_by(username=username)).scalar_one_or_none()
+        if user:
+            login_user(user, remember=True)
+            logger.info(f"强制登录用户: {username}")
+            return jsonify({
+                'success': True,
+                'message': f'已强制登录用户: {username}',
+                'user_id': user.id,
+                'role': user.role.name if user.role else None
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': f'用户不存在: {username}'
+            }), 404
+    except Exception as e:
+        logger.error(f"强制登录失败: {e}")
         return jsonify({'error': str(e)}), 500
