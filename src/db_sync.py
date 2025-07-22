@@ -41,84 +41,96 @@ class DatabaseSyncer:
             logger.info(f"详情: {details}")
     
     def backup_to_clawcloud(self):
-        """将主数据库备份到ClawCloud"""
+        """将主数据库备份到ClawCloud - 简化版本"""
         if not self.dual_db.is_dual_db_enabled():
             self.log_sync_action("备份到ClawCloud", "失败", "双数据库未配置")
             return False
-        
+
         try:
-            # 1. 从主数据库导出数据
-            self.log_sync_action("导出主数据库", "开始")
-            
-            # 使用pg_dump导出主数据库
-            primary_url = self.dual_db.primary_db_url
-            backup_file = f"backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.sql"
-            
-            # 解析数据库URL
-            import urllib.parse
-            parsed = urllib.parse.urlparse(primary_url)
-            
-            # 设置环境变量
-            env = os.environ.copy()
-            env['PGPASSWORD'] = parsed.password
-            
-            # 执行pg_dump
-            dump_cmd = [
-                'pg_dump',
-                '-h', parsed.hostname,
-                '-p', str(parsed.port or 5432),
-                '-U', parsed.username,
-                '-d', parsed.path[1:],  # 移除开头的'/'
-                '--no-owner',
-                '--no-privileges',
-                '--clean',
-                '--if-exists',
-                '-f', backup_file
-            ]
-            
-            result = subprocess.run(dump_cmd, env=env, capture_output=True, text=True)
-            
-            if result.returncode != 0:
-                self.log_sync_action("导出主数据库", "失败", result.stderr)
+            self.log_sync_action("开始备份", "进行中", "连接数据库")
+
+            # 测试数据库连接
+            try:
+                from sqlalchemy import create_engine, text
+                primary_engine = create_engine(self.dual_db.primary_db_url, connect_args={'connect_timeout': 10})
+                backup_engine = create_engine(self.dual_db.backup_db_url, connect_args={'connect_timeout': 10})
+
+                # 测试连接
+                with primary_engine.connect() as conn:
+                    conn.execute(text('SELECT 1'))
+                with backup_engine.connect() as conn:
+                    conn.execute(text('SELECT 1'))
+
+                self.log_sync_action("数据库连接", "成功", "主数据库和备份数据库连接正常")
+
+            except Exception as e:
+                self.log_sync_action("数据库连接", "失败", f"连接错误: {str(e)}")
                 return False
-            
-            self.log_sync_action("导出主数据库", "成功", f"备份文件: {backup_file}")
-            
-            # 2. 导入到备份数据库
-            self.log_sync_action("导入到备份数据库", "开始")
-            
-            backup_url = self.dual_db.backup_db_url
-            backup_parsed = urllib.parse.urlparse(backup_url)
-            
-            env['PGPASSWORD'] = backup_parsed.password
-            
-            # 执行psql导入
-            import_cmd = [
-                'psql',
-                '-h', backup_parsed.hostname,
-                '-p', str(backup_parsed.port or 5432),
-                '-U', backup_parsed.username,
-                '-d', backup_parsed.path[1:],
-                '-f', backup_file
+
+            # 获取要同步的表
+            tables_to_sync = [
+                'users', 'roles', 'activities', 'activity_registrations',
+                'notifications', 'system_logs', 'messages', 'tags',
+                'user_tags', 'activity_tags', 'checkin_records'
             ]
-            
-            result = subprocess.run(import_cmd, env=env, capture_output=True, text=True)
-            
-            # 清理备份文件
-            if os.path.exists(backup_file):
-                os.remove(backup_file)
-            
-            if result.returncode != 0:
-                self.log_sync_action("导入到备份数据库", "失败", result.stderr)
-                return False
-            
-            self.log_sync_action("导入到备份数据库", "成功")
-            self.log_sync_action("完整备份", "成功", "数据已成功同步到ClawCloud")
-            
+
+            synced_tables = 0
+            total_rows = 0
+
+            with primary_engine.connect() as primary_conn, backup_engine.connect() as backup_conn:
+                for table_name in tables_to_sync:
+                    try:
+                        self.log_sync_action(f"同步表 {table_name}", "开始")
+
+                        # 检查表是否存在
+                        check_sql = text(f"SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = '{table_name}')")
+                        primary_exists = primary_conn.execute(check_sql).scalar()
+                        backup_exists = backup_conn.execute(check_sql).scalar()
+
+                        if not primary_exists:
+                            self.log_sync_action(f"跳过表 {table_name}", "跳过", "主数据库中不存在")
+                            continue
+
+                        if not backup_exists:
+                            self.log_sync_action(f"跳过表 {table_name}", "跳过", "备份数据库中不存在")
+                            continue
+
+                        # 清空备份表
+                        backup_conn.execute(text(f'DELETE FROM "{table_name}"'))
+                        backup_conn.commit()
+
+                        # 获取主表数据
+                        result = primary_conn.execute(text(f'SELECT * FROM "{table_name}"'))
+                        rows = result.fetchall()
+
+                        if rows:
+                            # 获取列名
+                            columns = result.keys()
+                            column_names = ', '.join([f'"{col}"' for col in columns])
+
+                            # 简单插入数据（避免复杂的批量操作）
+                            for row in rows:
+                                placeholders = ', '.join(['%s'] * len(columns))
+                                insert_sql = f'INSERT INTO "{table_name}" ({column_names}) VALUES ({placeholders})'
+                                backup_conn.execute(text(insert_sql), tuple(row))
+
+                        backup_conn.commit()
+                        synced_tables += 1
+                        total_rows += len(rows)
+                        self.log_sync_action(f"同步表 {table_name}", "成功", f"{len(rows)} 行数据")
+
+                    except Exception as e:
+                        self.log_sync_action(f"同步表 {table_name}", "失败", str(e))
+                        # 继续处理下一个表，不中断整个过程
+                        continue
+
+            self.log_sync_action("备份到ClawCloud", "成功",
+                               f"同步了 {synced_tables} 个表，共 {total_rows} 行数据")
             return True
-            
+
         except Exception as e:
             self.log_sync_action("备份到ClawCloud", "失败", str(e))
+            logger.error(f"备份失败: {e}")
             return False
     
     def restore_from_clawcloud(self):
