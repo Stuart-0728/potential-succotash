@@ -139,9 +139,19 @@ class DatabaseSyncer:
         try:
             success = self._backup_with_progress(task_id)
             backup_status.complete_task(task_id, success=success)
+
+            # 记录完成日志到系统日志
+            if success:
+                task = backup_status.get_task(task_id)
+                total_rows = task['total_rows'] if task else 0
+                self.log_sync_action("异步备份完成", "成功", f"备份成功完成，共处理 {total_rows} 行数据")
+            else:
+                self.log_sync_action("异步备份完成", "失败", "备份执行失败")
+
         except Exception as e:
             logger.error(f"异步备份失败: {e}")
             backup_status.complete_task(task_id, success=False, error=str(e))
+            self.log_sync_action("异步备份完成", "失败", f"备份异常: {str(e)}")
 
     def get_backup_status(self, task_id):
         """获取备份任务状态"""
