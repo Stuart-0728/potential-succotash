@@ -3431,7 +3431,7 @@ def api_sync_to_backup():
         from src.db_sync import DatabaseSyncer
 
         syncer = DatabaseSyncer()
-        task_id = syncer.start_async_backup()
+        task_id = syncer.start_async_backup(user_id=current_user.id)
 
         log_action('数据库同步', f'启动异步备份，任务ID: {task_id}', current_user.id)
         return jsonify({

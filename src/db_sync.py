@@ -44,7 +44,8 @@ class BackupStatus:
             'start_time': datetime.now(),
             'end_time': None,
             'error': None,
-            'details': []
+            'details': [],
+            'user_id': None
         }
         return task_id
 
@@ -120,9 +121,13 @@ class DatabaseSyncer:
         if details:
             logger.info(f"详情: {details}")
     
-    def start_async_backup(self):
+    def start_async_backup(self, user_id=None):
         """启动异步备份，立即返回任务ID"""
         task_id = backup_status.create_task("backup")
+
+        # 保存用户ID到任务中，用于完成时记录日志
+        if user_id:
+            backup_status.update_task(task_id, user_id=user_id)
 
         # 在后台线程中执行备份
         backup_thread = threading.Thread(
@@ -140,18 +145,37 @@ class DatabaseSyncer:
             success = self._backup_with_progress(task_id)
             backup_status.complete_task(task_id, success=success)
 
-            # 记录完成日志到系统日志
+            # 获取任务信息，包括用户ID
+            task = backup_status.get_task(task_id)
+            user_id = task['user_id'] if task else None
+            total_rows = task['total_rows'] if task else 0
+
+            # 记录完成日志到系统日志（使用正确的log_action函数）
             if success:
-                task = backup_status.get_task(task_id)
-                total_rows = task['total_rows'] if task else 0
-                self.log_sync_action("异步备份完成", "成功", f"备份成功完成，共处理 {total_rows} 行数据")
+                self._log_to_system(
+                    action="数据库同步",
+                    details=f"异步备份成功完成，共处理 {total_rows} 行数据",
+                    user_id=user_id
+                )
             else:
-                self.log_sync_action("异步备份完成", "失败", "备份执行失败")
+                self._log_to_system(
+                    action="数据库同步",
+                    details="异步备份执行失败",
+                    user_id=user_id
+                )
 
         except Exception as e:
             logger.error(f"异步备份失败: {e}")
             backup_status.complete_task(task_id, success=False, error=str(e))
-            self.log_sync_action("异步备份完成", "失败", f"备份异常: {str(e)}")
+
+            # 记录异常日志
+            task = backup_status.get_task(task_id)
+            user_id = task['user_id'] if task else None
+            self._log_to_system(
+                action="数据库同步",
+                details=f"异步备份异常: {str(e)}",
+                user_id=user_id
+            )
 
     def get_backup_status(self, task_id):
         """获取备份任务状态"""
@@ -176,6 +200,23 @@ class DatabaseSyncer:
 
         logger.info(f"返回任务状态: {status_data}")
         return status_data
+
+    def _log_to_system(self, action, details, user_id=None):
+        """记录日志到系统日志表"""
+        try:
+            # 导入log_action函数
+            from src.routes.utils import log_action
+
+            if user_id:
+                log_action(action, details, user_id)
+                logger.info(f"系统日志记录成功: {action} - {details}")
+            else:
+                logger.warning(f"无用户ID，跳过系统日志记录: {action} - {details}")
+
+        except Exception as e:
+            logger.error(f"系统日志记录失败: {e}")
+            # 记录到同步日志作为备用
+            self.log_sync_action(action, "失败" if "失败" in details or "异常" in details else "成功", details)
 
     def backup_to_clawcloud(self):
         """将主数据库备份到ClawCloud - 同步版本（保持向后兼容）"""
