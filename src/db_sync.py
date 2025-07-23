@@ -70,18 +70,21 @@ class DatabaseSyncer:
                 self.log_sync_action("数据库连接", "失败", f"连接错误: {str(e)}")
                 return False
 
-            # 获取要同步的表（正确的依赖顺序：先同步主表，再同步依赖表）
+            # 获取要同步的表（按优先级和大小排序）
+            # 优先同步小表，最后同步大表
             tables_to_sync = [
-                # 第一阶段：基础表（无外键依赖）
+                # 第一阶段：基础小表（快速同步）
                 'roles', 'tags',
-                # 第二阶段：用户和活动表
+                # 第二阶段：用户和活动表（中等大小）
                 'users', 'activities',
-                # 第三阶段：关联表（有外键依赖）
-                'activity_tags', 'user_tags', 'system_logs',
-                # 第四阶段：会话和消息表
+                # 第三阶段：关联表（通常较小）
+                'activity_tags', 'user_tags',
+                # 第四阶段：会话表（中等大小）
                 'ai_chat_session', 'ai_chat_message',
-                # 第五阶段：其他依赖表
-                'activity_registrations', 'checkin_records', 'messages', 'notifications'
+                # 第五阶段：其他依赖表（较小）
+                'activity_registrations', 'checkin_records', 'messages', 'notifications',
+                # 最后阶段：大表（可能很慢）
+                'system_logs'  # 通常是最大的表，放在最后
             ]
 
             synced_tables = 0
@@ -97,9 +100,10 @@ class DatabaseSyncer:
                     self.log_sync_action("禁用外键约束", "警告", f"无法禁用外键约束: {str(e)}")
 
                 try:
-                    for table_name in tables_to_sync:
+                    total_tables = len(tables_to_sync)
+                    for index, table_name in enumerate(tables_to_sync, 1):
                         try:
-                            self.log_sync_action(f"同步表 {table_name}", "开始")
+                            self.log_sync_action(f"同步表 {table_name} ({index}/{total_tables})", "开始")
 
                             # 检查表是否存在
                             check_sql = text(f"SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = '{table_name}')")
@@ -131,23 +135,34 @@ class DatabaseSyncer:
                                 columns = result.keys()
                                 column_names = ', '.join([f'"{col}"' for col in columns])
 
-                                # 批量插入数据（提高性能）
-                                batch_size = 100  # 每批处理100行
-                                for i in range(0, len(rows), batch_size):
-                                    batch_rows = rows[i:i + batch_size]
+                                # 使用更高效的批量插入
+                                if len(rows) > 1000:
+                                    # 大量数据使用COPY命令（PostgreSQL特有）
+                                    try:
+                                        import io
+                                        import csv
 
-                                    # 构建批量插入SQL
-                                    placeholders = ', '.join([f':{col}' for col in columns])
-                                    insert_sql = f'INSERT INTO "{table_name}" ({column_names}) VALUES ({placeholders})'
+                                        # 创建CSV数据
+                                        output = io.StringIO()
+                                        writer = csv.writer(output)
+                                        for row in rows:
+                                            writer.writerow([row[i] for i in range(len(columns))])
 
-                                    # 批量执行
-                                    batch_params = []
-                                    for row in batch_rows:
-                                        params = {col: row[j] for j, col in enumerate(columns)}
-                                        batch_params.append(params)
+                                        # 使用COPY命令
+                                        copy_sql = f'COPY "{table_name}" ({column_names}) FROM STDIN WITH CSV'
+                                        raw_conn = backup_conn.connection
+                                        cursor = raw_conn.cursor()
+                                        output.seek(0)
+                                        cursor.copy_expert(copy_sql, output)
+                                        raw_conn.commit()
 
-                                    backup_conn.execute(text(insert_sql), batch_params)
-                                    backup_conn.commit()  # 每批提交一次
+                                    except Exception as copy_error:
+                                        # COPY失败时回退到批量插入
+                                        self.log_sync_action(f"COPY {table_name} 失败，使用批量插入", "警告", str(copy_error))
+                                        self._batch_insert_fallback(backup_conn, table_name, columns, column_names, rows)
+                                else:
+                                    # 少量数据使用批量插入
+                                    self._batch_insert_fallback(backup_conn, table_name, columns, column_names, rows)
 
                             synced_tables += 1
                             total_rows += len(rows)
@@ -271,15 +286,8 @@ class DatabaseSyncer:
                             columns = result.keys()
                             column_names = ', '.join([f'"{col}"' for col in columns])
 
-                            # 简单插入数据（修复SQL参数格式）
-                            for row in rows:
-                                # 使用命名参数而不是位置参数
-                                placeholders = ', '.join([f':{col}' for col in columns])
-                                insert_sql = f'INSERT INTO "{table_name}" ({column_names}) VALUES ({placeholders})'
-
-                                # 创建参数字典
-                                params = {col: row[i] for i, col in enumerate(columns)}
-                                primary_conn.execute(text(insert_sql), params)
+                            # 使用批量插入优化恢复性能
+                            self._batch_insert_fallback(primary_conn, table_name, columns, column_names, rows)
 
                         primary_conn.commit()
                         restored_tables += 1
@@ -305,6 +313,25 @@ class DatabaseSyncer:
             logger.error(f"恢复失败: {e}")
             return False
     
+    def _batch_insert_fallback(self, conn, table_name, columns, column_names, rows):
+        """批量插入的回退方法"""
+        batch_size = 500  # 增加批次大小
+        for i in range(0, len(rows), batch_size):
+            batch_rows = rows[i:i + batch_size]
+
+            # 构建批量插入SQL
+            placeholders = ', '.join([f':{col}' for col in columns])
+            insert_sql = f'INSERT INTO "{table_name}" ({column_names}) VALUES ({placeholders})'
+
+            # 批量执行
+            batch_params = []
+            for row in batch_rows:
+                params = {col: row[j] for j, col in enumerate(columns)}
+                batch_params.append(params)
+
+            conn.execute(text(insert_sql), batch_params)
+            conn.commit()  # 每批提交一次
+
     def get_sync_log(self):
         """获取同步日志"""
         return self.sync_log

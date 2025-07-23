@@ -767,23 +767,81 @@
         }
 
         document.addEventListener('DOMContentLoaded', function() {
+            // 请求去重和频率控制
+            let isUpdatingMessages = false;
+            let lastMessageUpdate = 0;
+            const MESSAGE_UPDATE_COOLDOWN = 30000; // 30秒冷却时间
+
             function updateUnreadMessages() {
+                const now = Date.now();
+
+                // 防止重复请求
+                if (isUpdatingMessages) {
+                    console.log('消息更新正在进行中，跳过此次请求');
+                    return;
+                }
+
+                // 频率限制
+                if (now - lastMessageUpdate < MESSAGE_UPDATE_COOLDOWN) {
+                    console.log('消息更新频率限制，跳过此次请求');
+                    return;
+                }
+
+                isUpdatingMessages = true;
+                lastMessageUpdate = now;
+
                 fetch("{{ url_for('student.unread_message_count') }}")
-                    .then(response => response.json())
+                    .then(response => {
+                        if (response.status === 429) {
+                            throw new Error('请求过于频繁，请稍后再试');
+                        }
+
+                        if (!response.ok) {
+                            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                        }
+
+                        return response.json();
+                    })
                     .then(data => {
                         if (data.success && data.count > 0) {
                             const badge = document.getElementById('unread-messages-badge');
-                            badge.textContent = data.count;
-                            badge.style.display = 'inline';
+                            if (badge) {
+                                badge.textContent = data.count;
+                                badge.style.display = 'inline';
+                            }
                         } else {
-                            document.getElementById('unread-messages-badge').style.display = 'none';
+                            const badge = document.getElementById('unread-messages-badge');
+                            if (badge) {
+                                badge.style.display = 'none';
+                            }
                         }
+                    })
+                    .catch(error => {
+                        console.error('更新未读消息失败:', error);
+
+                        if (error.message.includes('429') || error.message.includes('频繁')) {
+                            console.log('API请求频率过高，暂停消息更新');
+                            // 暂停更长时间
+                            lastMessageUpdate = now + 60000; // 额外暂停1分钟
+                        }
+                    })
+                    .finally(() => {
+                        isUpdatingMessages = false;
                     });
             }
 
             if (document.body.dataset.userLoggedIn === 'true') {
                 updateUnreadMessages();
-                setInterval(updateUnreadMessages, 60000); // 每分钟更新一次
+                // 每5分钟更新一次（减少频率）
+                setInterval(updateUnreadMessages, 300000);
+
+                // 页面可见性变化时更新
+                document.addEventListener('visibilitychange', function() {
+                    if (document.visibilityState === 'visible') {
+                        // 页面变为可见时，延迟10秒后更新
+                        setTimeout(updateUnreadMessages, 10000);
+                    }
+                });
             }
 
             $(document).ajaxError(function(event, jqxhr, settings, thrownError) {

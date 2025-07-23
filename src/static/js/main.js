@@ -22,9 +22,9 @@ document.addEventListener('DOMContentLoaded', function() {
     if (userMenu) {
         // 获取未读重要通知
         fetchUnreadNotifications();
-        
-        // 设置定时刷新（每3分钟）
-        setInterval(fetchUnreadNotifications, 3 * 60 * 1000);
+
+        // 设置定时刷新（每10分钟，减少频率）
+        setInterval(fetchUnreadNotifications, 10 * 60 * 1000);
     }
     
     // 为所有通知关闭按钮添加事件监听
@@ -733,10 +733,36 @@ function updateRegistrationStatus(registrationId, newStatus) {
 }
 
 // 通知系统
+// 请求去重和频率控制
+let isFetchingNotifications = false;
+let lastNotificationFetch = 0;
+const NOTIFICATION_FETCH_COOLDOWN = 60000; // 1分钟冷却时间
+
 // 获取未读通知
 function fetchUnreadNotifications() {
+    const now = Date.now();
+
+    // 防止重复请求
+    if (isFetchingNotifications) {
+        console.log('通知获取正在进行中，跳过此次请求');
+        return;
+    }
+
+    // 频率限制
+    if (now - lastNotificationFetch < NOTIFICATION_FETCH_COOLDOWN) {
+        console.log('通知获取频率限制，跳过此次请求');
+        return;
+    }
+
+    isFetchingNotifications = true;
+    lastNotificationFetch = now;
+
     fetch('/api/notifications/unread')
         .then(response => {
+            if (response.status === 429) {
+                throw new Error('请求过于频繁，请稍后再试');
+            }
+
             if (!response.ok) {
                 throw new Error('网络响应异常');
             }
@@ -746,12 +772,12 @@ function fetchUnreadNotifications() {
             if (data.success) {
                 // 更新通知徽章
                 updateNotificationBadge(data.notifications.length);
-                
+
                 // 显示通知横幅
                 if (data.notifications.length > 0) {
                     // 移除旧的通知横幅
                     removeNotificationBanner();
-                    
+
                     // 添加新的通知横幅
                     data.notifications.forEach((notification, index) => {
                         // 错开显示时间，避免所有通知同时出现
@@ -764,6 +790,15 @@ function fetchUnreadNotifications() {
         })
         .catch(error => {
             console.error('获取未读通知失败:', error);
+
+            if (error.message.includes('429') || error.message.includes('频繁')) {
+                console.log('API请求频率过高，暂停通知获取');
+                // 暂停更长时间
+                lastNotificationFetch = now + 300000; // 额外暂停5分钟
+            }
+        })
+        .finally(() => {
+            isFetchingNotifications = false;
         });
 }
 

@@ -108,17 +108,66 @@ function refreshStatus() {
     checkDatabaseStatus();
 }
 
+// 请求去重和频率控制
+let isCheckingStatus = false;
+let lastStatusCheck = 0;
+const STATUS_CHECK_COOLDOWN = 10000; // 10秒冷却时间
+
 // 检查数据库状态
 function checkDatabaseStatus() {
+    const now = Date.now();
+
+    // 防止重复请求
+    if (isCheckingStatus) {
+        console.log('数据库状态检查正在进行中，跳过此次请求');
+        return;
+    }
+
+    // 频率限制
+    if (now - lastStatusCheck < STATUS_CHECK_COOLDOWN) {
+        console.log('数据库状态检查频率限制，跳过此次请求');
+        return;
+    }
+
+    isCheckingStatus = true;
+    lastStatusCheck = now;
+
     fetch('/admin/api/database-status')
-        .then(response => response.json())
+        .then(response => {
+            if (response.status === 429) {
+                throw new Error('请求过于频繁，请稍后再试');
+            }
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+
+            // 检查响应内容类型
+            const contentType = response.headers.get('content-type');
+            if (!contentType || !contentType.includes('application/json')) {
+                throw new Error('服务器返回了非JSON响应');
+            }
+
+            return response.json();
+        })
         .then(data => {
             updatePrimaryStatus(data);
             updateBackupStatus(data);
         })
         .catch(error => {
             console.error('获取数据库状态失败:', error);
-            showError('获取数据库状态失败');
+
+            if (error.message.includes('429') || error.message.includes('频繁')) {
+                console.log('API请求频率过高，暂停状态检查');
+                // 暂停更长时间
+                lastStatusCheck = now + 30000; // 额外暂停30秒
+            } else if (!error.message.includes('JSON')) {
+                // 只在非JSON错误时显示错误信息
+                showError('获取数据库状态失败: ' + error.message);
+            }
+        })
+        .finally(() => {
+            isCheckingStatus = false;
         });
 }
 
@@ -371,11 +420,24 @@ function loadSyncLog() {
                 logHtml += '<thead><tr><th>时间</th><th>操作</th><th>状态</th><th>详情</th></tr></thead><tbody>';
                 
                 data.logs.slice(-10).reverse().forEach(log => {
-                    const statusClass = log.status === '成功' ? 'text-success' : 
+                    const statusClass = log.status === '成功' ? 'text-success' :
                                        log.status === '失败' ? 'text-danger' : 'text-warning';
+
+                    // 确保显示北京时间
+                    const timestamp = new Date(log.timestamp);
+                    const beijingTime = timestamp.toLocaleString('zh-CN', {
+                        timeZone: 'Asia/Shanghai',
+                        year: 'numeric',
+                        month: '2-digit',
+                        day: '2-digit',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        second: '2-digit'
+                    });
+
                     logHtml += `
                         <tr>
-                            <td>${new Date(log.timestamp).toLocaleString()}</td>
+                            <td>${beijingTime}</td>
                             <td>${log.action}</td>
                             <td class="${statusClass}">${log.status}</td>
                             <td>${log.details || '-'}</td>
@@ -416,9 +478,17 @@ function showError(message) {
 document.addEventListener('DOMContentLoaded', function() {
     checkDatabaseStatus();
     loadSyncLog();
-    
-    // 每30秒自动刷新状态
-    setInterval(checkDatabaseStatus, 30000);
+
+    // 每2分钟自动刷新状态（减少API请求频率）
+    setInterval(checkDatabaseStatus, 120000);
+
+    // 页面可见性变化时检查状态
+    document.addEventListener('visibilitychange', function() {
+        if (document.visibilityState === 'visible') {
+            // 页面变为可见时，延迟5秒后检查状态
+            setTimeout(checkDatabaseStatus, 5000);
+        }
+    });
 });
 </script>
 {% endblock %}
