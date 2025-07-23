@@ -12,7 +12,7 @@
             <div class="d-flex justify-content-between align-items-center mb-4">
                 <h2><i class="fas fa-database me-2"></i>数据库状态监控</h2>
                 <div>
-                    <button class="btn btn-outline-primary" onclick="refreshStatus()">
+                    <button class="btn btn-outline-primary" onclick="refreshStatus()" data-no-loading="true">
                         <i class="fas fa-sync-alt me-2"></i>刷新状态
                     </button>
                     <a href="{{ url_for('admin.dashboard') }}" class="btn btn-secondary">
@@ -69,7 +69,7 @@
                     <div class="row">
                         <div class="col-md-6">
                             <div class="d-grid gap-2">
-                                <button class="btn btn-success" onclick="syncToBackup()" id="syncToBackupBtn">
+                                <button class="btn btn-success" onclick="syncToBackup()" id="syncToBackupBtn" data-no-loading="true">
                                     <i class="fas fa-cloud-upload-alt me-2"></i>备份到ClawCloud
                                 </button>
                                 <small class="text-muted">将主数据库的数据备份到ClawCloud</small>
@@ -77,7 +77,7 @@
                         </div>
                         <div class="col-md-6">
                             <div class="d-grid gap-2">
-                                <button class="btn btn-warning" onclick="restoreFromBackup()" id="restoreFromBackupBtn">
+                                <button class="btn btn-warning" onclick="restoreFromBackup()" id="restoreFromBackupBtn" data-no-loading="true">
                                     <i class="fas fa-cloud-download-alt me-2"></i>从ClawCloud恢复
                                 </button>
                                 <small class="text-muted">从ClawCloud恢复数据到主数据库</small>

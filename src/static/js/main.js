@@ -201,12 +201,20 @@ function setupButtonLoading() {
                 return; // 避免重复设置
             }
 
+            // 检查按钮是否已经在加载状态
+            if (button.classList.contains('btn-loading') ||
+                button.classList.contains('btn-loading-active') ||
+                button.hasAttribute('data-loading-setup')) {
+                return; // 避免与现有加载系统冲突
+            }
+
             // 保存原始状态
             const originalText = button.innerHTML;
             const originalDisabled = button.disabled;
 
-            button.setAttribute('data-original-text', originalText);
-            button.setAttribute('data-original-disabled', originalDisabled);
+            // 使用不同的属性名避免冲突
+            button.setAttribute('data-unified-original-text', originalText);
+            button.setAttribute('data-unified-original-disabled', originalDisabled);
 
             // 设置加载状态
             button.innerHTML = `<span class="spinner-border spinner-border-sm me-2"></span>${loadingText}`;
@@ -227,8 +235,8 @@ function setupButtonLoading() {
             }
 
             // 恢复原始状态
-            const originalText = button.getAttribute('data-original-text');
-            const originalDisabled = button.getAttribute('data-original-disabled') === 'true';
+            const originalText = button.getAttribute('data-unified-original-text');
+            const originalDisabled = button.getAttribute('data-unified-original-disabled') === 'true';
 
             if (originalText) {
                 button.innerHTML = originalText;
@@ -237,8 +245,8 @@ function setupButtonLoading() {
             button.classList.remove('btn-loading-active');
 
             // 清理属性
-            button.removeAttribute('data-original-text');
-            button.removeAttribute('data-original-disabled');
+            button.removeAttribute('data-unified-original-text');
+            button.removeAttribute('data-unified-original-disabled');
 
             this.loadingButtons.delete(button);
         },
@@ -250,16 +258,59 @@ function setupButtonLoading() {
         }
     };
 
-    // 为按钮添加加载处理
+    // 为按钮添加加载处理 - 更精确的检测
     document.addEventListener('click', function(e) {
         const button = e.target.closest('button, a.btn');
         if (!button) return;
 
-        // 跳过特定按钮
+        // 跳过特定按钮 - 更严格的过滤
         if (button.hasAttribute('data-no-loading') ||
             button.getAttribute('data-bs-toggle') === 'modal' ||
+            button.getAttribute('data-bs-toggle') === 'dropdown' ||
+            button.getAttribute('data-bs-toggle') === 'collapse' ||
             button.closest('.pagination') ||
-            button.type === 'button' && !button.classList.contains('btn-primary', 'btn-success', 'btn-info')) {
+            button.closest('.dropdown') ||
+            button.classList.contains('dropdown-toggle') ||
+            button.classList.contains('btn-close') ||
+            button.classList.contains('btn-outline-secondary') ||
+            button.classList.contains('btn-secondary') ||
+            button.classList.contains('btn-outline-primary') ||
+            button.classList.contains('btn-outline-danger') ||
+            button.classList.contains('btn-sm') ||
+            button.hasAttribute('onclick') ||  // 跳过所有有onclick的按钮
+            button.hasAttribute('data-loading-setup') ||  // 跳过已有加载处理的按钮
+            button.closest('.btn-group') ||  // 跳过按钮组中的按钮
+            button.closest('.card-header') ||  // 跳过卡片头部的按钮
+            button.getAttribute('href') && button.getAttribute('href').startsWith('#') ||  // 跳过锚点链接
+            button.getAttribute('download') ||  // 跳过下载按钮
+            button.textContent.includes('打印') ||
+            button.textContent.includes('刷新') ||
+            button.textContent.includes('返回') ||
+            button.textContent.includes('关闭') ||
+            button.textContent.includes('取消')) {
+            return;
+        }
+
+        // 只对特定类型的按钮应用加载状态
+        const shouldApplyLoading =
+            button.type === 'submit' ||
+            button.classList.contains('btn-primary') ||
+            button.classList.contains('btn-success') ||
+            button.classList.contains('btn-danger') ||
+            button.classList.contains('btn-warning') ||
+            button.classList.contains('btn-info') ||
+            button.textContent.includes('登录') ||
+            button.textContent.includes('注册') ||
+            button.textContent.includes('保存') ||
+            button.textContent.includes('删除') ||
+            button.textContent.includes('导出') ||
+            button.textContent.includes('提交') ||
+            button.textContent.includes('确认') ||
+            button.textContent.includes('发送') ||
+            button.textContent.includes('上传') ||
+            button.textContent.includes('下载');
+
+        if (!shouldApplyLoading) {
             return;
         }
 
@@ -270,6 +321,11 @@ function setupButtonLoading() {
         else if (button.textContent.includes('保存')) loadingText = '保存中...';
         else if (button.textContent.includes('删除')) loadingText = '删除中...';
         else if (button.textContent.includes('导出')) loadingText = '导出中...';
+        else if (button.textContent.includes('提交')) loadingText = '提交中...';
+        else if (button.textContent.includes('确认')) loadingText = '确认中...';
+        else if (button.textContent.includes('发送')) loadingText = '发送中...';
+        else if (button.textContent.includes('上传')) loadingText = '上传中...';
+        else if (button.textContent.includes('下载')) loadingText = '下载中...';
 
         // 设置加载状态
         window.ButtonLoadingManager.setLoading(button, loadingText);
@@ -1170,8 +1226,11 @@ function startCountdown(elementId, targetDateStr) {
     setInterval(update, 60000);
 }
 
-// 为所有按钮添加加载状态
+// 为所有按钮添加加载状态 - 已被统一加载系统替代
 function setupLoadingButtons() {
+    // 此函数已被统一加载系统替代，暂时禁用以避免冲突
+    console.log('setupLoadingButtons已被统一加载系统替代');
+    return;
     // 选择所有可能需要加载状态的按钮
     const actionButtons = document.querySelectorAll('.btn-primary, .btn-outline-primary, .btn-success, .btn-outline-success, .btn-info, .btn-outline-info, .btn-secondary, .btn-outline-secondary');
     
@@ -1399,6 +1458,15 @@ function resetAllButtonStates() {
         if (button.hasAttribute('data-original-value')) {
             button.value = button.getAttribute('data-original-value');
             button.removeAttribute('data-original-value');
+        }
+
+        // 清理新的统一加载系统属性
+        if (button.hasAttribute('data-unified-original-text')) {
+            button.innerHTML = button.getAttribute('data-unified-original-text');
+            button.removeAttribute('data-unified-original-text');
+        }
+        if (button.hasAttribute('data-unified-original-disabled')) {
+            button.removeAttribute('data-unified-original-disabled');
         }
     });
 
