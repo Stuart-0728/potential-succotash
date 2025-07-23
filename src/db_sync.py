@@ -316,117 +316,71 @@ class DatabaseSyncer:
         """
 
     def safe_restore_from_clawcloud(self):
-        """智能一键恢复 - 简化调试版本"""
+        """智能一键恢复 - 完整版本"""
+        if not self.dual_db.is_dual_db_enabled():
+            self.log_sync_action("智能恢复", "失败", "双数据库未配置")
+            return False
+
         try:
-            self.log_sync_action("开始智能恢复", "进行中", "初始化恢复流程")
+            import time
+            start_time = time.time()
+            max_duration = 180  # 最大3分钟执行时间
 
-            if not self.dual_db.is_dual_db_enabled():
-                self.log_sync_action("智能恢复", "失败", "双数据库未配置")
-                return False
-
-            self.log_sync_action("配置检查", "成功", "双数据库配置正常")
+            self.log_sync_action("开始智能恢复", "进行中", "使用完整分级恢复策略")
 
             # 测试数据库连接
             from sqlalchemy import create_engine, text
-
-            try:
-                primary_engine = create_engine(self.dual_db.primary_db_url, connect_args={'connect_timeout': 10})
-                backup_engine = create_engine(self.dual_db.backup_db_url, connect_args={'connect_timeout': 10})
-                self.log_sync_action("引擎创建", "成功", "数据库引擎创建完成")
-            except Exception as engine_error:
-                self.log_sync_action("引擎创建", "失败", f"创建数据库引擎失败: {str(engine_error)}")
-                return False
+            primary_engine = create_engine(self.dual_db.primary_db_url, connect_args={'connect_timeout': 10})
+            backup_engine = create_engine(self.dual_db.backup_db_url, connect_args={'connect_timeout': 10})
 
             # 测试连接
-            try:
-                with primary_engine.connect() as conn:
-                    conn.execute(text('SELECT 1'))
-                self.log_sync_action("主数据库连接", "成功", "主数据库连接测试通过")
-            except Exception as primary_error:
-                self.log_sync_action("主数据库连接", "失败", f"主数据库连接失败: {str(primary_error)}")
-                return False
+            with primary_engine.connect() as conn:
+                conn.execute(text('SELECT 1'))
+            with backup_engine.connect() as conn:
+                conn.execute(text('SELECT 1'))
 
-            try:
-                with backup_engine.connect() as conn:
-                    conn.execute(text('SELECT 1'))
-                self.log_sync_action("备份数据库连接", "成功", "备份数据库连接测试通过")
-            except Exception as backup_error:
-                self.log_sync_action("备份数据库连接", "失败", f"备份数据库连接失败: {str(backup_error)}")
-                return False
+            self.log_sync_action("数据库连接", "成功", "主数据库和备份数据库连接正常")
 
-            # 简化恢复：只恢复tags表
+            # 完整的分级恢复策略
             restored_tables = 0
             total_rows = 0
 
-            try:
-                with backup_engine.connect() as backup_conn, primary_engine.connect() as primary_conn:
-                    self.log_sync_action("开始恢复tags", "进行中", "恢复标签配置")
+            with backup_engine.connect() as backup_conn, primary_engine.connect() as primary_conn:
+                # 级别1：安全恢复（tags）
+                self.log_sync_action("级别1恢复", "开始", "安全恢复标签配置")
+                success, rows = self._restore_table_safe(backup_conn, primary_conn, 'tags', start_time, max_duration)
+                if success:
+                    restored_tables += 1
+                    total_rows += rows
 
-                    # 检查表是否存在
-                    check_sql = text("SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'tags')")
-                    backup_exists = backup_conn.execute(check_sql).scalar()
-                    primary_exists = primary_conn.execute(check_sql).scalar()
+                # 级别2：智能恢复roles（处理外键约束）
+                self.log_sync_action("级别2恢复", "开始", "智能恢复角色数据")
+                success, rows = self._restore_table_with_constraints(backup_conn, primary_conn, 'roles', start_time, max_duration)
+                if success:
+                    restored_tables += 1
+                    total_rows += rows
 
-                    if not backup_exists:
-                        self.log_sync_action("检查备份表", "跳过", "备份数据库中不存在tags表")
-                        return False
+                # 级别3：谨慎恢复activities（保留现有数据，只添加新的）
+                self.log_sync_action("级别3恢复", "开始", "增量恢复活动数据")
+                success, rows = self._restore_table_additive(backup_conn, primary_conn, 'activities', start_time, max_duration)
+                if success:
+                    restored_tables += 1
+                    total_rows += rows
 
-                    if not primary_exists:
-                        self.log_sync_action("检查主表", "跳过", "主数据库中不存在tags表")
-                        return False
-
-                    # 获取备份数据
-                    backup_result = backup_conn.execute(text('SELECT * FROM "tags"'))
-                    backup_rows = backup_result.fetchall()
-
-                    if not backup_rows:
-                        self.log_sync_action("获取备份数据", "跳过", "备份数据为空")
-                        return False
-
-                    self.log_sync_action("获取备份数据", "成功", f"找到 {len(backup_rows)} 行标签数据")
-
-                    # 使用简单的UPSERT
-                    updated_count = 0
-                    for row in backup_rows:
-                        try:
-                            upsert_sql = text('''
-                                INSERT INTO "tags" (id, name, color)
-                                VALUES (:id, :name, :color)
-                                ON CONFLICT (id) DO UPDATE SET
-                                    name = EXCLUDED.name,
-                                    color = EXCLUDED.color
-                            ''')
-                            primary_conn.execute(upsert_sql, {
-                                'id': row[0],
-                                'name': row[1],
-                                'color': row[2] if len(row) > 2 else None
-                            })
-                            updated_count += 1
-                        except Exception as row_error:
-                            self.log_sync_action("更新标签行", "警告", f"跳过问题行: {str(row_error)}")
-                            continue
-
-                    primary_conn.commit()
-                    restored_tables = 1
-                    total_rows = updated_count
-                    self.log_sync_action("恢复tags", "成功", f"更新了 {updated_count} 行标签数据")
-
-            except Exception as restore_error:
-                self.log_sync_action("恢复过程", "失败", f"恢复过程出错: {str(restore_error)}")
-                return False
+                # 级别4：跳过用户数据（太危险）
+                self.log_sync_action("级别4保护", "跳过", "用户数据过于重要，跳过恢复")
 
             if restored_tables > 0:
-                self.log_sync_action("智能恢复", "成功", f"恢复了 {restored_tables} 个表，共 {total_rows} 行数据")
+                self.log_sync_action("智能恢复", "成功",
+                                   f"完整恢复了 {restored_tables} 个表，共 {total_rows} 行数据")
                 return True
             else:
                 self.log_sync_action("智能恢复", "失败", "没有成功恢复任何表")
                 return False
 
         except Exception as e:
-            self.log_sync_action("智能恢复", "失败", f"未知错误: {str(e)}")
+            self.log_sync_action("智能恢复", "失败", str(e))
             logger.error(f"智能恢复失败: {e}")
-            import traceback
-            logger.error(f"错误堆栈: {traceback.format_exc()}")
             return False
 
     def _restore_table_safe(self, backup_conn, primary_conn, table_name, start_time, max_duration):
