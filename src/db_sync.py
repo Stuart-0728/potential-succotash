@@ -316,17 +316,17 @@ class DatabaseSyncer:
         """
 
     def safe_restore_from_clawcloud(self):
-        """安全的从ClawCloud恢复到主数据库 - 简化版本"""
+        """智能一键恢复 - 分级恢复策略"""
         if not self.dual_db.is_dual_db_enabled():
-            self.log_sync_action("安全恢复", "失败", "双数据库未配置")
+            self.log_sync_action("智能恢复", "失败", "双数据库未配置")
             return False
 
         try:
             import time
             start_time = time.time()
-            max_duration = 120  # 最大2分钟执行时间
+            max_duration = 180  # 最大3分钟执行时间
 
-            self.log_sync_action("开始安全恢复", "进行中", "使用简化恢复策略")
+            self.log_sync_action("开始智能恢复", "进行中", "使用分级恢复策略")
 
             # 测试数据库连接
             from sqlalchemy import create_engine, text
@@ -341,79 +341,209 @@ class DatabaseSyncer:
 
             self.log_sync_action("数据库连接", "成功", "主数据库和备份数据库连接正常")
 
-            # 简化的恢复策略 - 只恢复tags表（相对安全）
+            # 分级恢复策略
             restored_tables = 0
             total_rows = 0
 
-            # 只恢复tags表，避免roles表的外键约束问题
-            safe_tables = ['tags']
+            # 定义恢复优先级（从安全到危险）
+            restore_levels = {
+                'safe': ['tags'],  # 安全：配置数据
+                'moderate': ['roles'],  # 中等：系统角色
+                'careful': ['activities'],  # 谨慎：活动数据
+                'dangerous': ['users']  # 危险：用户数据
+            }
 
             with backup_engine.connect() as backup_conn, primary_engine.connect() as primary_conn:
-                for table_name in safe_tables:
-                    try:
-                        # 检查超时
-                        if time.time() - start_time > max_duration:
-                            self.log_sync_action("恢复超时", "警告", f"已运行{max_duration}秒，停止恢复")
-                            break
+                # 级别1：安全恢复（tags）
+                for table_name in restore_levels['safe']:
+                    success, rows = self._restore_table_safe(backup_conn, primary_conn, table_name, start_time, max_duration)
+                    if success:
+                        restored_tables += 1
+                        total_rows += rows
 
-                        self.log_sync_action(f"恢复表 {table_name}", "开始")
+                # 级别2：智能恢复roles（处理外键约束）
+                for table_name in restore_levels['moderate']:
+                    success, rows = self._restore_table_with_constraints(backup_conn, primary_conn, table_name, start_time, max_duration)
+                    if success:
+                        restored_tables += 1
+                        total_rows += rows
 
-                        # 检查表是否存在
-                        check_sql = text(f"SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = '{table_name}')")
-                        backup_exists = backup_conn.execute(check_sql).scalar()
-                        primary_exists = primary_conn.execute(check_sql).scalar()
+                # 级别3：谨慎恢复activities（保留现有数据，只添加新的）
+                for table_name in restore_levels['careful']:
+                    success, rows = self._restore_table_additive(backup_conn, primary_conn, table_name, start_time, max_duration)
+                    if success:
+                        restored_tables += 1
+                        total_rows += rows
 
-                        if not backup_exists:
-                            self.log_sync_action(f"跳过表 {table_name}", "跳过", "备份数据库中不存在")
-                            continue
-
-                        if not primary_exists:
-                            self.log_sync_action(f"跳过表 {table_name}", "跳过", "主数据库中不存在")
-                            continue
-
-                        # 简化策略：直接使用UPSERT，避免删除操作
-                        backup_result = backup_conn.execute(text(f'SELECT * FROM "{table_name}"'))
-                        backup_rows = backup_result.fetchall()
-
-                        if backup_rows:
-                            for row in backup_rows:
-                                if table_name == 'tags':
-                                    # 对tags表使用UPSERT
-                                    upsert_sql = text('''
-                                        INSERT INTO "tags" (id, name, color)
-                                        VALUES (:id, :name, :color)
-                                        ON CONFLICT (id) DO UPDATE SET
-                                            name = EXCLUDED.name,
-                                            color = EXCLUDED.color
-                                    ''')
-                                    primary_conn.execute(upsert_sql, {
-                                        'id': row[0],
-                                        'name': row[1],
-                                        'color': row[2] if len(row) > 2 else None
-                                    })
-
-                            primary_conn.commit()
-                            restored_tables += 1
-                            total_rows += len(backup_rows)
-                            self.log_sync_action(f"恢复表 {table_name}", "成功", f"更新了 {len(backup_rows)} 行数据")
-
-                    except Exception as e:
-                        self.log_sync_action(f"恢复表 {table_name}", "失败", str(e))
-                        # 继续处理下一个表
-                        continue
+                # 级别4：跳过用户数据（太危险）
+                self.log_sync_action("跳过用户数据", "安全", "用户数据过于重要，跳过恢复")
 
             if restored_tables > 0:
-                self.log_sync_action("安全恢复", "成功",
-                                   f"恢复了 {restored_tables} 个配置表，共 {total_rows} 行数据")
+                self.log_sync_action("智能恢复", "成功",
+                                   f"恢复了 {restored_tables} 个表，共 {total_rows} 行数据")
                 return True
             else:
-                self.log_sync_action("安全恢复", "失败", "没有成功恢复任何表")
+                self.log_sync_action("智能恢复", "失败", "没有成功恢复任何表")
                 return False
 
         except Exception as e:
-            self.log_sync_action("安全恢复", "失败", str(e))
-            logger.error(f"安全恢复失败: {e}")
+            self.log_sync_action("智能恢复", "失败", str(e))
+            logger.error(f"智能恢复失败: {e}")
             return False
+
+    def _restore_table_safe(self, backup_conn, primary_conn, table_name, start_time, max_duration):
+        """安全恢复表（使用UPSERT）"""
+        try:
+            if time.time() - start_time > max_duration:
+                return False, 0
+
+            self.log_sync_action(f"安全恢复 {table_name}", "开始")
+
+            # 检查表是否存在
+            check_sql = text(f"SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = '{table_name}')")
+            if not backup_conn.execute(check_sql).scalar() or not primary_conn.execute(check_sql).scalar():
+                self.log_sync_action(f"跳过 {table_name}", "跳过", "表不存在")
+                return False, 0
+
+            # 获取备份数据
+            backup_result = backup_conn.execute(text(f'SELECT * FROM "{table_name}"'))
+            backup_rows = backup_result.fetchall()
+
+            if not backup_rows:
+                self.log_sync_action(f"跳过 {table_name}", "跳过", "备份数据为空")
+                return False, 0
+
+            # 使用UPSERT策略
+            for row in backup_rows:
+                if table_name == 'tags':
+                    upsert_sql = text('''
+                        INSERT INTO "tags" (id, name, color)
+                        VALUES (:id, :name, :color)
+                        ON CONFLICT (id) DO UPDATE SET
+                            name = EXCLUDED.name,
+                            color = EXCLUDED.color
+                    ''')
+                    primary_conn.execute(upsert_sql, {
+                        'id': row[0],
+                        'name': row[1],
+                        'color': row[2] if len(row) > 2 else None
+                    })
+
+            primary_conn.commit()
+            self.log_sync_action(f"安全恢复 {table_name}", "成功", f"更新了 {len(backup_rows)} 行数据")
+            return True, len(backup_rows)
+
+        except Exception as e:
+            self.log_sync_action(f"安全恢复 {table_name}", "失败", str(e))
+            return False, 0
+
+    def _restore_table_with_constraints(self, backup_conn, primary_conn, table_name, start_time, max_duration):
+        """智能恢复有外键约束的表"""
+        try:
+            if time.time() - start_time > max_duration:
+                return False, 0
+
+            self.log_sync_action(f"智能恢复 {table_name}", "开始")
+
+            # 检查表是否存在
+            check_sql = text(f"SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = '{table_name}')")
+            if not backup_conn.execute(check_sql).scalar() or not primary_conn.execute(check_sql).scalar():
+                self.log_sync_action(f"跳过 {table_name}", "跳过", "表不存在")
+                return False, 0
+
+            if table_name == 'roles':
+                # 检查是否有用户引用
+                user_count = primary_conn.execute(text('SELECT COUNT(*) FROM users')).scalar()
+
+                if user_count > 0:
+                    # 有用户存在，使用UPSERT更新角色
+                    backup_roles = backup_conn.execute(text('SELECT * FROM "roles"')).fetchall()
+
+                    for role_row in backup_roles:
+                        upsert_sql = text('''
+                            INSERT INTO "roles" (id, name, description)
+                            VALUES (:id, :name, :description)
+                            ON CONFLICT (id) DO UPDATE SET
+                                name = EXCLUDED.name,
+                                description = EXCLUDED.description
+                        ''')
+                        primary_conn.execute(upsert_sql, {
+                            'id': role_row[0],
+                            'name': role_row[1],
+                            'description': role_row[2] if len(role_row) > 2 else None
+                        })
+
+                    primary_conn.commit()
+                    self.log_sync_action(f"智能恢复 {table_name}", "成功", f"更新了 {len(backup_roles)} 行角色数据")
+                    return True, len(backup_roles)
+                else:
+                    # 没有用户，可以安全重建
+                    primary_conn.execute(text(f'DELETE FROM "{table_name}"'))
+
+                    backup_roles = backup_conn.execute(text('SELECT * FROM "roles"')).fetchall()
+                    for role_row in backup_roles:
+                        insert_sql = text('INSERT INTO "roles" (id, name, description) VALUES (:id, :name, :description)')
+                        primary_conn.execute(insert_sql, {
+                            'id': role_row[0],
+                            'name': role_row[1],
+                            'description': role_row[2] if len(role_row) > 2 else None
+                        })
+
+                    primary_conn.commit()
+                    self.log_sync_action(f"智能恢复 {table_name}", "成功", f"重建了 {len(backup_roles)} 行角色数据")
+                    return True, len(backup_roles)
+
+        except Exception as e:
+            self.log_sync_action(f"智能恢复 {table_name}", "失败", str(e))
+            return False, 0
+
+    def _restore_table_additive(self, backup_conn, primary_conn, table_name, start_time, max_duration):
+        """增量恢复表（只添加不存在的数据）"""
+        try:
+            if time.time() - start_time > max_duration:
+                return False, 0
+
+            self.log_sync_action(f"增量恢复 {table_name}", "开始")
+
+            # 检查表是否存在
+            check_sql = text(f"SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = '{table_name}')")
+            if not backup_conn.execute(check_sql).scalar() or not primary_conn.execute(check_sql).scalar():
+                self.log_sync_action(f"跳过 {table_name}", "跳过", "表不存在")
+                return False, 0
+
+            if table_name == 'activities':
+                # 获取现有活动ID
+                existing_ids = set()
+                existing_result = primary_conn.execute(text('SELECT id FROM activities'))
+                for row in existing_result:
+                    existing_ids.add(row[0])
+
+                # 获取备份活动
+                backup_activities = backup_conn.execute(text('SELECT * FROM "activities"')).fetchall()
+                new_activities = 0
+
+                for activity_row in backup_activities:
+                    activity_id = activity_row[0]
+                    if activity_id not in existing_ids:
+                        # 只添加不存在的活动
+                        columns = ['id', 'title', 'description', 'start_time', 'end_time', 'location', 'max_participants', 'created_by', 'created_at', 'updated_at', 'poster_data']
+                        placeholders = ', '.join([f':{col}' for col in columns])
+                        insert_sql = text(f'INSERT INTO "activities" ({", ".join(columns)}) VALUES ({placeholders})')
+
+                        params = {}
+                        for i, col in enumerate(columns):
+                            params[col] = activity_row[i] if i < len(activity_row) else None
+
+                        primary_conn.execute(insert_sql, params)
+                        new_activities += 1
+
+                primary_conn.commit()
+                self.log_sync_action(f"增量恢复 {table_name}", "成功", f"添加了 {new_activities} 个新活动")
+                return True, new_activities
+
+        except Exception as e:
+            self.log_sync_action(f"增量恢复 {table_name}", "失败", str(e))
+            return False, 0
 
     def _batch_insert_fallback(self, conn, table_name, columns, column_names, rows):
         """批量插入的优化方法"""

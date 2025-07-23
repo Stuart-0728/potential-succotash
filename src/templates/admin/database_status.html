@@ -78,14 +78,14 @@
                         <div class="col-md-6">
                             <div class="d-grid gap-2">
                                 <button class="btn btn-warning" onclick="restoreFromBackup()" id="restoreFromBackupBtn" data-no-loading="true">
-                                    <i class="fas fa-cloud-download-alt me-2"></i>安全恢复配置
+                                    <i class="fas fa-magic me-2"></i>智能一键恢复
                                 </button>
                                 <button class="btn btn-outline-warning btn-sm" onclick="showAdvancedRestore()" data-no-loading="true">
                                     <i class="fas fa-cogs me-1"></i>高级恢复选项
                                 </button>
                                 <small class="text-muted">
                                     <i class="fas fa-info-circle me-1"></i>
-                                    仅恢复角色和标签等配置数据，保护用户数据安全
+                                    智能分级恢复：标签→角色→活动，自动处理外键约束，保护用户数据
                                 </small>
                             </div>
                         </div>
@@ -391,16 +391,22 @@ function syncToBackup() {
     });
 }
 
-// 从备份数据库恢复配置数据
+// 智能一键恢复
 function restoreFromBackup() {
-    const confirmMessage = `安全恢复配置数据
+    const confirmMessage = `智能一键恢复
 
-⚠️ 重要说明：
-• 仅恢复角色和标签等配置数据
-• 不会影响用户账户和活动数据
-• 这是一个安全的配置同步操作
+🔄 恢复策略：
+• 级别1：安全恢复标签配置（UPSERT）
+• 级别2：智能恢复角色数据（处理外键约束）
+• 级别3：增量恢复活动数据（只添加新活动）
+• 级别4：跳过用户数据（保护账户安全）
 
-确定要继续吗？`;
+✅ 安全保障：
+• 自动处理外键约束冲突
+• 保护现有用户数据不被覆盖
+• 使用增量策略避免数据丢失
+
+确定要执行智能恢复吗？`;
 
     if (!confirm(confirmMessage)) {
         return;
