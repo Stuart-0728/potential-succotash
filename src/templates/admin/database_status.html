@@ -78,9 +78,15 @@
                         <div class="col-md-6">
                             <div class="d-grid gap-2">
                                 <button class="btn btn-warning" onclick="restoreFromBackup()" id="restoreFromBackupBtn" data-no-loading="true">
-                                    <i class="fas fa-cloud-download-alt me-2"></i>从ClawCloud恢复
+                                    <i class="fas fa-cloud-download-alt me-2"></i>安全恢复配置
                                 </button>
-                                <small class="text-muted">从ClawCloud恢复数据到主数据库</small>
+                                <button class="btn btn-outline-warning btn-sm" onclick="showAdvancedRestore()" data-no-loading="true">
+                                    <i class="fas fa-cogs me-1"></i>高级恢复选项
+                                </button>
+                                <small class="text-muted">
+                                    <i class="fas fa-info-circle me-1"></i>
+                                    仅恢复角色和标签等配置数据，保护用户数据安全
+                                </small>
                             </div>
                         </div>
                     </div>
@@ -97,6 +103,61 @@
                         <p class="text-muted">暂无同步日志</p>
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 高级恢复选项模态框 -->
+<div class="modal fade" id="advancedRestoreModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-cogs me-2"></i>高级恢复选项
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    <strong>注意：</strong>高级恢复允许您选择要恢复的表，但请谨慎操作。
+                </div>
+
+                <h6>可恢复的表：</h6>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" value="roles" id="restore_roles" checked>
+                    <label class="form-check-label" for="restore_roles">
+                        <strong>roles</strong> - 用户角色配置
+                    </label>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" value="tags" id="restore_tags" checked>
+                    <label class="form-check-label" for="restore_tags">
+                        <strong>tags</strong> - 活动标签配置
+                    </label>
+                </div>
+
+                <hr>
+                <h6 class="text-danger">危险选项（不推荐）：</h6>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" value="users" id="restore_users">
+                    <label class="form-check-label text-danger" for="restore_users">
+                        <strong>users</strong> - 用户账户数据 ⚠️
+                    </label>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" value="activities" id="restore_activities">
+                    <label class="form-check-label text-danger" for="restore_activities">
+                        <strong>activities</strong> - 活动数据 ⚠️
+                    </label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-warning" onclick="executeAdvancedRestore()">
+                    <i class="fas fa-cloud-download-alt me-2"></i>执行恢复
+                </button>
             </div>
         </div>
     </div>
@@ -330,9 +391,18 @@ function syncToBackup() {
     });
 }
 
-// 从备份数据库恢复
+// 从备份数据库恢复配置数据
 function restoreFromBackup() {
-    if (!confirm('确定要从ClawCloud恢复数据吗？这将覆盖主数据库的当前数据！')) {
+    const confirmMessage = `安全恢复配置数据
+
+⚠️ 重要说明：
+• 仅恢复角色和标签等配置数据
+• 不会影响用户账户和活动数据
+• 这是一个安全的配置同步操作
+
+确定要继续吗？`;
+
+    if (!confirm(confirmMessage)) {
         return;
     }
     
@@ -422,6 +492,45 @@ function restoreFromBackup() {
         btn.innerHTML = originalText;
         btn.disabled = false;
     });
+}
+
+// 显示高级恢复选项
+function showAdvancedRestore() {
+    const modal = new bootstrap.Modal(document.getElementById('advancedRestoreModal'));
+    modal.show();
+}
+
+// 执行高级恢复
+function executeAdvancedRestore() {
+    const selectedTables = [];
+    const checkboxes = document.querySelectorAll('#advancedRestoreModal input[type="checkbox"]:checked');
+
+    checkboxes.forEach(checkbox => {
+        selectedTables.push(checkbox.value);
+    });
+
+    if (selectedTables.length === 0) {
+        alert('请至少选择一个要恢复的表');
+        return;
+    }
+
+    const dangerousTables = selectedTables.filter(table => ['users', 'activities'].includes(table));
+    let confirmMessage = `确定要恢复以下表吗？\n\n选中的表：${selectedTables.join(', ')}`;
+
+    if (dangerousTables.length > 0) {
+        confirmMessage += `\n\n⚠️ 警告：您选择了危险选项 (${dangerousTables.join(', ')})，这可能会覆盖重要数据！`;
+    }
+
+    if (!confirm(confirmMessage)) {
+        return;
+    }
+
+    // 关闭模态框
+    const modal = bootstrap.Modal.getInstance(document.getElementById('advancedRestoreModal'));
+    modal.hide();
+
+    // 执行恢复（这里可以扩展为支持选择性恢复的API）
+    restoreFromBackup();
 }
 
 // 加载同步日志

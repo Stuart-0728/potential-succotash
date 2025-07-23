@@ -316,13 +316,98 @@ class DatabaseSyncer:
         """
 
     def safe_restore_from_clawcloud(self):
-        """安全的从ClawCloud恢复到主数据库 - 简化版本"""
-        try:
-            self.log_sync_action("安全恢复", "暂停", "恢复功能暂时禁用，防止数据丢失风险")
-            logger.info("安全恢复功能被调用，但已暂时禁用")
+        """安全的从ClawCloud恢复到主数据库 - 增量恢复版本"""
+        if not self.dual_db.is_dual_db_enabled():
+            self.log_sync_action("安全恢复", "失败", "双数据库未配置")
             return False
+
+        try:
+            import time
+            start_time = time.time()
+            max_duration = 120  # 最大2分钟执行时间
+
+            self.log_sync_action("开始安全恢复", "进行中", "使用增量恢复策略")
+
+            # 测试数据库连接
+            from sqlalchemy import create_engine, text
+            primary_engine = create_engine(self.dual_db.primary_db_url, connect_args={'connect_timeout': 10})
+            backup_engine = create_engine(self.dual_db.backup_db_url, connect_args={'connect_timeout': 10})
+
+            # 测试连接
+            with primary_engine.connect() as conn:
+                conn.execute(text('SELECT 1'))
+            with backup_engine.connect() as conn:
+                conn.execute(text('SELECT 1'))
+
+            self.log_sync_action("数据库连接", "成功", "主数据库和备份数据库连接正常")
+
+            # 安全的增量恢复策略
+            restored_tables = 0
+            total_rows = 0
+
+            # 只恢复关键配置表，避免用户数据丢失
+            safe_tables = ['roles', 'tags']  # 只恢复配置类表
+
+            with backup_engine.connect() as backup_conn, primary_engine.connect() as primary_conn:
+                for table_name in safe_tables:
+                    try:
+                        # 检查超时
+                        if time.time() - start_time > max_duration:
+                            self.log_sync_action("恢复超时", "警告", f"已运行{max_duration}秒，停止恢复")
+                            break
+
+                        self.log_sync_action(f"恢复表 {table_name}", "开始")
+
+                        # 检查表是否存在
+                        check_sql = text(f"SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = '{table_name}')")
+                        backup_exists = backup_conn.execute(check_sql).scalar()
+                        primary_exists = primary_conn.execute(check_sql).scalar()
+
+                        if not backup_exists:
+                            self.log_sync_action(f"跳过表 {table_name}", "跳过", "备份数据库中不存在")
+                            continue
+
+                        if not primary_exists:
+                            self.log_sync_action(f"跳过表 {table_name}", "跳过", "主数据库中不存在")
+                            continue
+
+                        # 安全策略：只删除当前表的数据，不使用CASCADE
+                        primary_conn.execute(text(f'DELETE FROM "{table_name}"'))
+                        primary_conn.commit()
+
+                        # 获取备份表数据
+                        result = backup_conn.execute(text(f'SELECT * FROM "{table_name}"'))
+                        rows = result.fetchall()
+
+                        if rows:
+                            # 获取列名
+                            columns = result.keys()
+                            column_names = ', '.join([f'"{col}"' for col in columns])
+
+                            # 使用批量插入
+                            self._batch_insert_fallback(primary_conn, table_name, columns, column_names, rows)
+
+                        primary_conn.commit()
+                        restored_tables += 1
+                        total_rows += len(rows)
+                        self.log_sync_action(f"恢复表 {table_name}", "成功", f"{len(rows)} 行数据")
+
+                    except Exception as e:
+                        self.log_sync_action(f"恢复表 {table_name}", "失败", str(e))
+                        # 继续处理下一个表
+                        continue
+
+            if restored_tables > 0:
+                self.log_sync_action("安全恢复", "成功",
+                                   f"恢复了 {restored_tables} 个配置表，共 {total_rows} 行数据")
+                return True
+            else:
+                self.log_sync_action("安全恢复", "失败", "没有成功恢复任何表")
+                return False
+
         except Exception as e:
-            logger.error(f"安全恢复方法调用失败: {e}")
+            self.log_sync_action("安全恢复", "失败", str(e))
+            logger.error(f"安全恢复失败: {e}")
             return False
 
     def _batch_insert_fallback(self, conn, table_name, columns, column_names, rows):
