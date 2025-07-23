@@ -410,7 +410,10 @@ function checkBackupStatus(taskId) {
 
             if (data.status.status === 'completed' || data.status.status === 'failed') {
                 stopBackupStatusPolling();
-                handleBackupComplete(data.status);
+                // 延迟一点再处理完成，确保最后的进度更新显示
+                setTimeout(() => {
+                    handleBackupComplete(data.status);
+                }, 1000);
             }
         }
     })
@@ -432,6 +435,12 @@ function updateBackupProgress(status) {
         statusText: !!statusText,
         detailsText: !!detailsText
     });
+
+    // 如果元素不存在，可能已经被移除，直接返回
+    if (!progressBar && !statusText && !detailsText) {
+        console.log('进度元素已被移除，跳过更新');
+        return;
+    }
 
     if (progressBar) {
         const progress = status.progress || 0;

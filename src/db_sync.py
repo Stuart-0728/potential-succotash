@@ -52,11 +52,14 @@ class BackupStatus:
         """更新任务状态"""
         if task_id in self.tasks:
             self.tasks[task_id].update(kwargs)
-            if 'completed_tables' in kwargs and 'total_tables' in kwargs:
+            # 只要有completed_tables或total_tables更新，就重新计算进度
+            if 'completed_tables' in kwargs or 'total_tables' in kwargs:
                 total = self.tasks[task_id]['total_tables']
                 completed = self.tasks[task_id]['completed_tables']
                 if total > 0:
-                    self.tasks[task_id]['progress'] = int((completed / total) * 100)
+                    progress = int((completed / total) * 100)
+                    self.tasks[task_id]['progress'] = progress
+                    logger.info(f"任务 {task_id} 进度更新: {completed}/{total} = {progress}%")
 
     def complete_task(self, task_id, success=True, error=None):
         """完成任务"""
