@@ -316,7 +316,59 @@ class DatabaseSyncer:
             logger.error(f"恢复失败: {e}")
             return False
         """
-    
+
+    def safe_restore_from_clawcloud(self):
+        """安全的从ClawCloud恢复到主数据库 - 重新设计版本"""
+        if not self.dual_db.is_dual_db_enabled():
+            self.log_sync_action("安全恢复", "失败", "双数据库未配置")
+            return False
+
+        try:
+            self.log_sync_action("开始安全恢复", "进行中", "验证备份数据")
+
+            # 测试数据库连接
+            from sqlalchemy import create_engine, text
+            primary_engine = create_engine(self.dual_db.primary_db_url, connect_args={'connect_timeout': 10})
+            backup_engine = create_engine(self.dual_db.backup_db_url, connect_args={'connect_timeout': 10})
+
+            # 测试连接
+            with primary_engine.connect() as conn:
+                conn.execute(text('SELECT 1'))
+            with backup_engine.connect() as conn:
+                conn.execute(text('SELECT 1'))
+
+            self.log_sync_action("数据库连接", "成功", "主数据库和备份数据库连接正常")
+
+            # 验证备份数据完整性
+            with backup_engine.connect() as backup_conn:
+                # 检查关键表是否存在且有数据
+                critical_tables = ['users', 'roles', 'activities']
+                for table in critical_tables:
+                    try:
+                        result = backup_conn.execute(text(f'SELECT COUNT(*) FROM "{table}"'))
+                        count = result.scalar()
+                        if count == 0:
+                            self.log_sync_action("数据验证", "警告", f"备份中{table}表为空")
+                    except Exception as e:
+                        self.log_sync_action("数据验证", "失败", f"无法验证{table}表: {str(e)}")
+                        return False
+
+            self.log_sync_action("数据验证", "成功", "备份数据完整性验证通过")
+
+            # TODO: 实现安全的增量恢复逻辑
+            # 1. 创建临时备份表
+            # 2. 逐表比较差异
+            # 3. 只恢复有变化的数据
+            # 4. 使用事务保护
+
+            self.log_sync_action("安全恢复", "暂停", "安全恢复功能正在开发中，请使用备份功能")
+            return False
+
+        except Exception as e:
+            self.log_sync_action("安全恢复", "失败", str(e))
+            logger.error(f"安全恢复失败: {e}")
+            return False
+
     def _batch_insert_fallback(self, conn, table_name, columns, column_names, rows):
         """批量插入的优化方法"""
         if not rows:

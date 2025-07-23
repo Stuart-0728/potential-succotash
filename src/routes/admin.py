@@ -3461,7 +3461,8 @@ def api_restore_from_backup():
         from src.db_sync import DatabaseSyncer
 
         syncer = DatabaseSyncer()
-        success = syncer.restore_from_clawcloud()
+        # 使用安全的恢复方法
+        success = syncer.safe_restore_from_clawcloud()
 
         if success:
             log_action('数据库恢复', f'成功从ClawCloud恢复', current_user.id)

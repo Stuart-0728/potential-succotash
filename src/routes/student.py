@@ -1218,14 +1218,22 @@ def get_unread_notifications():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @student_bp.route('/api/messages/unread_count')
-@student_required
+@login_required
 def unread_message_count():
     try:
+        # 检查用户是否有权限访问消息
+        if not current_user.is_authenticated:
+            return jsonify({'success': False, 'count': 0, 'error': '未登录'})
+
+        # 管理员可能没有消息，返回0
+        if hasattr(current_user, 'role') and current_user.role and current_user.role.name == 'Admin':
+            return jsonify({'success': True, 'count': 0})
+
         count = db.session.query(func.count(Message.id)).filter(
             Message.receiver_id == current_user.id,
             Message.is_read == False
         ).scalar()
-        return jsonify({'success': True, 'count': count})
+        return jsonify({'success': True, 'count': count or 0})
     except Exception as e:
         logger.error(f"Error getting unread message count: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'count': 0, 'error': str(e)}), 500
