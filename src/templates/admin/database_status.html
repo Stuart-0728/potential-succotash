@@ -257,7 +257,7 @@ function syncToBackup() {
 
     // 创建AbortController用于超时控制
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 120000); // 2分钟超时
+    const timeoutId = setTimeout(() => controller.abort(), 180000); // 3分钟超时
 
     fetch('/admin/api/sync-to-backup', {
         method: 'POST',
@@ -351,7 +351,7 @@ function restoreFromBackup() {
 
     // 创建AbortController用于超时控制
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 120000); // 2分钟超时
+    const timeoutId = setTimeout(() => controller.abort(), 180000); // 3分钟超时
 
     fetch('/admin/api/restore-from-backup', {
         method: 'POST',
@@ -435,17 +435,48 @@ function loadSyncLog() {
                     const statusClass = log.status === '成功' ? 'text-success' :
                                        log.status === '失败' ? 'text-danger' : 'text-warning';
 
-                    // 确保显示北京时间
-                    const timestamp = new Date(log.timestamp);
-                    const beijingTime = timestamp.toLocaleString('zh-CN', {
-                        timeZone: 'Asia/Shanghai',
-                        year: 'numeric',
-                        month: '2-digit',
-                        day: '2-digit',
-                        hour: '2-digit',
-                        minute: '2-digit',
-                        second: '2-digit'
-                    });
+                    // 智能时间解析和显示
+                    let beijingTime;
+                    try {
+                        let timestamp;
+
+                        // 处理不同的时间戳格式
+                        if (log.timestamp.includes('+08:00') || log.timestamp.includes('+0800')) {
+                            // 已包含时区信息，直接解析
+                            timestamp = new Date(log.timestamp);
+                        } else if (log.timestamp.includes('T')) {
+                            // ISO格式但可能缺少时区，假设是北京时间
+                            timestamp = new Date(log.timestamp + '+08:00');
+                        } else {
+                            // 简单格式，添加时区信息
+                            timestamp = new Date(log.timestamp.replace(' ', 'T') + '+08:00');
+                        }
+
+                        // 验证时间戳是否有效
+                        if (isNaN(timestamp.getTime())) {
+                            throw new Error('无效的时间戳');
+                        }
+
+                        // 强制显示为北京时间，使用更清晰的格式
+                        beijingTime = timestamp.toLocaleString('zh-CN', {
+                            timeZone: 'Asia/Shanghai',
+                            year: 'numeric',
+                            month: '2-digit',
+                            day: '2-digit',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            second: '2-digit',
+                            hour12: false
+                        });
+
+                        // 添加调试信息
+                        console.log('时间转换:', log.timestamp, '->', beijingTime);
+
+                    } catch (e) {
+                        // 如果解析失败，直接显示原始时间戳
+                        console.error('时间解析失败:', log.timestamp, e);
+                        beijingTime = log.timestamp;
+                    }
 
                     logHtml += `
                         <tr>

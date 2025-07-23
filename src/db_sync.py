@@ -32,8 +32,8 @@ class DatabaseSyncer:
         """记录同步操作"""
         # 使用北京时间
         beijing_time = get_beijing_time()
-        # 确保时间戳包含时区信息
-        timestamp_str = beijing_time.strftime('%Y-%m-%d %H:%M:%S') + '+08:00'
+        # 使用ISO 8601标准格式，确保时区信息正确
+        timestamp_str = beijing_time.isoformat()
         log_entry = {
             'timestamp': timestamp_str,
             'action': action,
@@ -51,7 +51,7 @@ class DatabaseSyncer:
         """将主数据库备份到ClawCloud - 优化版本"""
         import time
         start_time = time.time()
-        max_duration = 90  # 最大90秒执行时间
+        max_duration = 150  # 最大150秒执行时间（2.5分钟，确保在前端3分钟超时前完成）
 
         if not self.dual_db.is_dual_db_enabled():
             self.log_sync_action("备份到ClawCloud", "失败", "双数据库未配置")
