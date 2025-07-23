@@ -582,58 +582,91 @@ class DatabaseSyncer:
             return False, 0
 
     def _check_if_empty_database(self, primary_conn):
-        """检测数据库是否为空"""
+        """检测数据库是否需要完整迁移（考虑自动创建的管理员账号）"""
         try:
             from sqlalchemy import text
 
-            # 检查关键表是否有数据
-            key_tables = ['users', 'activities', 'roles']
+            # 检查业务数据表是否基本为空（允许有基础的管理员数据）
 
-            for table_name in key_tables:
+            # 1. 检查活动数据（最重要的业务指标）
+            try:
+                check_sql = text("SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'activities')")
+                if primary_conn.execute(check_sql).scalar():
+                    count_sql = text('SELECT COUNT(*) FROM "activities"')
+                    activities_count = primary_conn.execute(count_sql).scalar()
+
+                    if activities_count > 0:
+                        self.log_sync_action("业务数据检测", "发现", f"发现 {activities_count} 个活动，判断为有业务数据")
+                        return False  # 有活动数据，不是新部署
+            except Exception as e:
+                self.log_sync_action("检测活动表", "警告", f"检测失败: {str(e)}")
+
+            # 2. 检查用户数量（排除基础管理员）
+            try:
+                check_sql = text("SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'users')")
+                if primary_conn.execute(check_sql).scalar():
+                    count_sql = text('SELECT COUNT(*) FROM "users"')
+                    users_count = primary_conn.execute(count_sql).scalar()
+
+                    # 如果用户数量 > 2（通常只有1-2个管理员），认为有业务数据
+                    if users_count > 2:
+                        self.log_sync_action("用户数据检测", "发现", f"发现 {users_count} 个用户，判断为有业务数据")
+                        return False
+                    else:
+                        self.log_sync_action("用户数据检测", "基础", f"只有 {users_count} 个用户，可能是基础管理员")
+            except Exception as e:
+                self.log_sync_action("检测用户表", "警告", f"检测失败: {str(e)}")
+
+            # 3. 检查其他业务表
+            business_tables = ['registrations', 'checkin_records', 'activity_tags']
+            has_business_data = False
+
+            for table_name in business_tables:
                 try:
-                    # 检查表是否存在
                     check_sql = text(f"SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = '{table_name}')")
-                    if not primary_conn.execute(check_sql).scalar():
-                        continue
+                    if primary_conn.execute(check_sql).scalar():
+                        count_sql = text(f'SELECT COUNT(*) FROM "{table_name}"')
+                        count = primary_conn.execute(count_sql).scalar()
 
-                    # 检查表是否有数据
-                    count_sql = text(f'SELECT COUNT(*) FROM "{table_name}"')
-                    count = primary_conn.execute(count_sql).scalar()
-
-                    if count > 0:
-                        return False  # 有数据，不是空数据库
-
+                        if count > 0:
+                            self.log_sync_action("业务数据检测", "发现", f"{table_name}表有 {count} 条记录")
+                            has_business_data = True
+                            break
                 except Exception as e:
-                    self.log_sync_action("检测表", "警告", f"检测{table_name}表失败: {str(e)}")
                     continue
 
-            return True  # 所有关键表都为空或不存在
+            if has_business_data:
+                return False
+
+            # 如果没有活动、业务用户很少、没有业务关联数据，认为是新部署
+            self.log_sync_action("数据库状态", "判断", "判断为新部署数据库，适合完整迁移")
+            return True
 
         except Exception as e:
             self.log_sync_action("数据库检测", "失败", f"检测失败: {str(e)}")
-            return False  # 出错时假设不是空数据库，使用安全策略
+            return False  # 出错时假设不是新部署，使用安全策略
 
     def _perform_full_migration(self, backup_conn, primary_conn, start_time, max_duration):
-        """执行完整迁移（适用于空数据库）"""
+        """执行完整迁移（适用于新部署数据库，智能处理已存在的管理员）"""
         try:
             import time
             from sqlalchemy import text
 
-            # 定义迁移顺序（按依赖关系）
-            migration_order = [
-                'roles',           # 基础：角色定义
-                'tags',            # 基础：标签定义
-                'users',           # 核心：用户数据
-                'activities',      # 核心：活动数据
-                'activity_tags',   # 关联：活动标签
-                'registrations',   # 业务：报名数据
-                'checkin_records'  # 业务：签到数据
-            ]
+            # 定义迁移策略：配置数据用UPSERT，业务数据用INSERT
+            migration_plan = {
+                'roles': 'upsert',        # 角色：可能已存在Admin等，用UPSERT
+                'tags': 'insert',         # 标签：直接插入
+                'users': 'smart',         # 用户：智能处理，避免管理员冲突
+                'activities': 'insert',   # 活动：直接插入
+                'activity_tags': 'insert', # 关联：直接插入
+                'registrations': 'insert', # 报名：直接插入
+                'checkin_records': 'insert' # 签到：直接插入
+            }
 
             restored_count = 0
             total_rows = 0
 
-            for table_name in migration_order:
+            for table_name, strategy in migration_plan.items():
                 if time.time() - start_time > max_duration:
                     self.log_sync_action("迁移超时", "警告", f"已运行{max_duration}秒，停止迁移")
                     break
@@ -656,25 +689,18 @@ class DatabaseSyncer:
                         self.log_sync_action(f"跳过 {table_name}", "跳过", "备份数据为空")
                         continue
 
-                    # 获取列信息
-                    columns = backup_result.keys()
+                    # 根据策略执行迁移
+                    if strategy == 'upsert':
+                        success, rows = self._migrate_table_upsert(primary_conn, table_name, backup_rows, backup_result.keys())
+                    elif strategy == 'smart':
+                        success, rows = self._migrate_users_smart(primary_conn, backup_conn, backup_rows, backup_result.keys())
+                    else:  # insert
+                        success, rows = self._migrate_table_insert(primary_conn, table_name, backup_rows, backup_result.keys())
 
-                    # 批量插入（空数据库不需要删除）
-                    for row in backup_rows:
-                        column_names = ', '.join([f'"{col}"' for col in columns])
-                        placeholders = ', '.join([f':{col}' for col in columns])
-                        insert_sql = text(f'INSERT INTO "{table_name}" ({column_names}) VALUES ({placeholders})')
-
-                        params = {}
-                        for i, col in enumerate(columns):
-                            params[col] = row[i] if i < len(row) else None
-
-                        primary_conn.execute(insert_sql, params)
-
-                    primary_conn.commit()
-                    restored_count += 1
-                    total_rows += len(backup_rows)
-                    self.log_sync_action(f"完整迁移 {table_name}", "成功", f"迁移了 {len(backup_rows)} 行数据")
+                    if success:
+                        restored_count += 1
+                        total_rows += rows
+                        self.log_sync_action(f"完整迁移 {table_name}", "成功", f"迁移了 {rows} 行数据")
 
                 except Exception as e:
                     self.log_sync_action(f"完整迁移 {table_name}", "失败", str(e))
@@ -685,6 +711,94 @@ class DatabaseSyncer:
         except Exception as e:
             self.log_sync_action("完整迁移", "失败", str(e))
             return 0, 0
+
+    def _migrate_table_upsert(self, primary_conn, table_name, backup_rows, columns):
+        """使用UPSERT策略迁移表"""
+        try:
+            from sqlalchemy import text
+
+            for row in backup_rows:
+                if table_name == 'roles':
+                    upsert_sql = text('''
+                        INSERT INTO "roles" (id, name, description)
+                        VALUES (:id, :name, :description)
+                        ON CONFLICT (id) DO UPDATE SET
+                            name = EXCLUDED.name,
+                            description = EXCLUDED.description
+                    ''')
+                    primary_conn.execute(upsert_sql, {
+                        'id': row[0],
+                        'name': row[1],
+                        'description': row[2] if len(row) > 2 else None
+                    })
+
+            primary_conn.commit()
+            return True, len(backup_rows)
+
+        except Exception as e:
+            self.log_sync_action(f"UPSERT迁移 {table_name}", "失败", str(e))
+            return False, 0
+
+    def _migrate_users_smart(self, primary_conn, backup_conn, backup_rows, columns):
+        """智能迁移用户数据，避免管理员冲突"""
+        try:
+            from sqlalchemy import text
+
+            # 获取现有用户的用户名
+            existing_usernames = set()
+            existing_result = primary_conn.execute(text('SELECT username FROM users'))
+            for row in existing_result:
+                existing_usernames.add(row[0])
+
+            migrated_count = 0
+
+            for row in backup_rows:
+                username = row[1] if len(row) > 1 else None  # 假设username是第二列
+
+                if username and username not in existing_usernames:
+                    # 只迁移不存在的用户
+                    column_names = ', '.join([f'"{col}"' for col in columns])
+                    placeholders = ', '.join([f':{col}' for col in columns])
+                    insert_sql = text(f'INSERT INTO "users" ({column_names}) VALUES ({placeholders})')
+
+                    params = {}
+                    for i, col in enumerate(columns):
+                        params[col] = row[i] if i < len(row) else None
+
+                    primary_conn.execute(insert_sql, params)
+                    migrated_count += 1
+                else:
+                    self.log_sync_action("跳过用户", "跳过", f"用户 {username} 已存在")
+
+            primary_conn.commit()
+            return True, migrated_count
+
+        except Exception as e:
+            self.log_sync_action("智能用户迁移", "失败", str(e))
+            return False, 0
+
+    def _migrate_table_insert(self, primary_conn, table_name, backup_rows, columns):
+        """使用INSERT策略迁移表"""
+        try:
+            from sqlalchemy import text
+
+            for row in backup_rows:
+                column_names = ', '.join([f'"{col}"' for col in columns])
+                placeholders = ', '.join([f':{col}' for col in columns])
+                insert_sql = text(f'INSERT INTO "{table_name}" ({column_names}) VALUES ({placeholders})')
+
+                params = {}
+                for i, col in enumerate(columns):
+                    params[col] = row[i] if i < len(row) else None
+
+                primary_conn.execute(insert_sql, params)
+
+            primary_conn.commit()
+            return True, len(backup_rows)
+
+        except Exception as e:
+            self.log_sync_action(f"INSERT迁移 {table_name}", "失败", str(e))
+            return False, 0
 
     def _perform_incremental_sync(self, backup_conn, primary_conn, start_time, max_duration):
         """执行增量同步（适用于有数据的数据库）"""
