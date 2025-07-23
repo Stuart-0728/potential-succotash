@@ -144,10 +144,11 @@ class DatabaseSyncer:
         """获取备份任务状态"""
         task = backup_status.get_task(task_id)
         if not task:
+            logger.warning(f"任务 {task_id} 不存在")
             return None
 
         # 转换为前端友好的格式
-        return {
+        status_data = {
             'id': task['id'],
             'status': task['status'],
             'progress': task['progress'],
@@ -159,6 +160,9 @@ class DatabaseSyncer:
             'start_time': task['start_time'].isoformat() if task['start_time'] else None,
             'end_time': task['end_time'].isoformat() if task['end_time'] else None
         }
+
+        logger.info(f"返回任务状态: {status_data}")
+        return status_data
 
     def backup_to_clawcloud(self):
         """将主数据库备份到ClawCloud - 同步版本（保持向后兼容）"""
@@ -241,6 +245,7 @@ class DatabaseSyncer:
                                 current_table=table_name,
                                 completed_tables=index-1
                             )
+                            logger.info(f"更新备份进度: {table_name} ({index-1}/{total_tables})")
 
                         # 检查超时
                         if time.time() - start_time > max_duration:

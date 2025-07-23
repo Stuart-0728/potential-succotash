@@ -393,9 +393,19 @@ function startBackupStatusPolling(taskId) {
 // 检查备份状态
 function checkBackupStatus(taskId) {
     fetch(`/admin/api/backup-status/${taskId}`)
-    .then(response => response.json())
+    .then(response => {
+        if (!response.ok) {
+            if (response.status === 404) {
+                console.log('任务还未创建，继续等待...');
+                return null;
+            }
+            throw new Error(`HTTP ${response.status}`);
+        }
+        return response.json();
+    })
     .then(data => {
-        if (data.success) {
+        if (data && data.success) {
+            console.log('备份状态:', data.status);
             updateBackupProgress(data.status);
 
             if (data.status.status === 'completed' || data.status.status === 'failed') {
@@ -411,25 +421,44 @@ function checkBackupStatus(taskId) {
 
 // 更新备份进度显示
 function updateBackupProgress(status) {
+    console.log('更新进度:', status);
+
     const progressBar = document.getElementById('backup-progress-bar');
     const statusText = document.getElementById('backup-status-text');
     const detailsText = document.getElementById('backup-details');
 
+    console.log('进度元素:', {
+        progressBar: !!progressBar,
+        statusText: !!statusText,
+        detailsText: !!detailsText
+    });
+
     if (progressBar) {
-        progressBar.style.width = status.progress + '%';
-        progressBar.textContent = status.progress + '%';
+        const progress = status.progress || 0;
+        progressBar.style.width = progress + '%';
+        progressBar.textContent = progress + '%';
+        console.log('设置进度条:', progress + '%');
     }
 
     if (statusText) {
+        let statusMessage = '';
         if (status.current_table) {
-            statusText.textContent = `正在同步: ${status.current_table} (${status.completed_tables}/${status.total_tables})`;
+            statusMessage = `正在同步: ${status.current_table} (${status.completed_tables || 0}/${status.total_tables || 0})`;
         } else {
-            statusText.textContent = status.status === 'running' ? '正在执行...' : '准备中...';
+            statusMessage = status.status === 'running' ? '正在执行...' : '准备中...';
         }
+        statusText.textContent = statusMessage;
+        console.log('设置状态文本:', statusMessage);
     }
 
-    if (detailsText && status.total_rows > 0) {
-        detailsText.textContent = `已处理 ${status.total_rows} 行数据`;
+    if (detailsText) {
+        const totalRows = status.total_rows || 0;
+        if (totalRows > 0) {
+            detailsText.textContent = `已处理 ${totalRows} 行数据`;
+        } else {
+            detailsText.textContent = '准备中...';
+        }
+        console.log('设置详情文本:', detailsText.textContent);
     }
 }
 
