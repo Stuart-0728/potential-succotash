@@ -316,7 +316,7 @@ class DatabaseSyncer:
         """
 
     def safe_restore_from_clawcloud(self):
-        """智能一键恢复 - 完整版本"""
+        """智能一键恢复 - 新版本2025-07-23"""
         if not self.dual_db.is_dual_db_enabled():
             self.log_sync_action("智能恢复", "失败", "双数据库未配置")
             return False
@@ -326,7 +326,7 @@ class DatabaseSyncer:
             start_time = time.time()
             max_duration = 180  # 最大3分钟执行时间
 
-            self.log_sync_action("开始智能恢复", "进行中", "使用完整分级恢复策略")
+            self.log_sync_action("开始智能恢复", "进行中", "新版本2025-07-23 - 智能检测数据库状态")
 
             # 测试数据库连接
             from sqlalchemy import create_engine, text
@@ -347,24 +347,24 @@ class DatabaseSyncer:
 
             with backup_engine.connect() as backup_conn, primary_engine.connect() as primary_conn:
                 # 检测数据库状态
-                is_empty_db = self._check_if_empty_database(primary_conn)
+                is_new_deployment = self._check_if_new_deployment(primary_conn)
 
-                if is_empty_db:
-                    self.log_sync_action("数据库检测", "成功", "检测到空数据库，使用完整迁移策略")
-                    # 空数据库：使用完整迁移
+                if is_new_deployment:
+                    self.log_sync_action("数据库检测", "成功", "检测到新部署数据库，使用完整迁移策略")
+                    # 新部署：使用完整迁移
                     success, rows = self._perform_full_migration(backup_conn, primary_conn, start_time, max_duration)
                     restored_tables = success
                     total_rows = rows
                 else:
-                    self.log_sync_action("数据库检测", "成功", "检测到有数据库，使用增量同步策略")
-                    # 有数据：使用安全的增量同步
+                    self.log_sync_action("数据库检测", "成功", "检测到有业务数据，使用安全同步策略")
+                    # 有业务数据：使用安全的增量同步
                     success, rows = self._perform_incremental_sync(backup_conn, primary_conn, start_time, max_duration)
                     restored_tables = success
                     total_rows = rows
 
             if restored_tables > 0:
                 self.log_sync_action("智能恢复", "成功",
-                                   f"完整恢复了 {restored_tables} 个表，共 {total_rows} 行数据")
+                                   f"恢复了 {restored_tables} 个表，共 {total_rows} 行数据")
                 return True
             else:
                 self.log_sync_action("智能恢复", "失败", "没有成功恢复任何表")
@@ -581,7 +581,7 @@ class DatabaseSyncer:
             self.log_sync_action(f"完整恢复 {table_name}", "失败", str(e))
             return False, 0
 
-    def _check_if_empty_database(self, primary_conn):
+    def _check_if_new_deployment(self, primary_conn):
         """检测数据库是否需要完整迁移（考虑自动创建的管理员账号）"""
         try:
             from sqlalchemy import text
