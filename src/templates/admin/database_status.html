@@ -301,94 +301,169 @@ function updateBackupStatus(data) {
     container.innerHTML = statusHtml;
 }
 
-// 同步到备份数据库
+// 全局变量存储当前备份任务
+let currentBackupTask = null;
+let backupStatusInterval = null;
+
+// 同步到备份数据库 - 异步版本
 function syncToBackup() {
     const btn = document.getElementById('syncToBackupBtn');
     const originalText = btn.innerHTML;
-    
-    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>备份中...';
-    btn.disabled = true;
-    
+
     // 获取CSRF token
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
 
     if (!csrfToken) {
         showError('无法获取CSRF token');
-        btn.innerHTML = originalText;
-        btn.disabled = false;
         return;
     }
 
-    // 创建AbortController用于超时控制
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 180000); // 3分钟超时
-
+    // 启动异步备份
     fetch('/admin/api/sync-to-backup', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
             'X-CSRFToken': csrfToken
-        },
-        signal: controller.signal
+        }
     })
     .then(response => {
-        clearTimeout(timeoutId);
-
-        // 检查响应状态
-        if (response.status === 524) {
-            throw new Error('请求超时，但备份可能仍在进行中，请稍后查看同步日志');
-        }
-
-        if (response.status === 523) {
-            throw new Error('服务器暂时不可达，备份可能仍在后台进行，请稍后查看同步日志');
-        }
-
         if (!response.ok) {
             throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
-
-        // 检查响应内容类型
-        const contentType = response.headers.get('content-type');
-        if (!contentType || !contentType.includes('application/json')) {
-            throw new Error('服务器返回了非JSON响应，可能是HTML错误页面');
-        }
-
         return response.json();
     })
     .then(data => {
         if (data.success) {
-            showSuccess('数据已成功备份到ClawCloud');
-            loadSyncLog();
+            currentBackupTask = data.task_id;
+            showBackupProgress();
+            startBackupStatusPolling(data.task_id);
+            showSuccess('备份任务已启动，正在后台执行...');
         } else {
-            showError('备份失败: ' + (data.message || '未知错误'));
+            showError('启动备份失败: ' + (data.message || '未知错误'));
         }
     })
     .catch(error => {
-        clearTimeout(timeoutId);
-        console.error('备份失败:', error);
-
-        if (error.name === 'AbortError') {
-            showError('备份请求超时，但操作可能仍在后台进行，请稍后查看同步日志');
-        } else if (error.message.includes('524') || error.message.includes('超时')) {
-            showError('备份请求超时，请稍后查看同步日志确认结果');
-        } else if (error.message.includes('523') || error.message.includes('不可达')) {
-            showError('服务器暂时不可达，备份可能仍在后台进行，请稍后查看同步日志');
-        } else if (error.message.includes('JSON')) {
-            showError('服务器响应格式错误，请检查服务器状态');
-        } else {
-            showError('备份操作失败: ' + error.message);
-        }
-
-        // 超时后刷新同步日志，可能操作已完成
-        setTimeout(() => {
-            loadSyncLog();
-        }, 5000);
-    })
-    .finally(() => {
-        clearTimeout(timeoutId);
-        btn.innerHTML = originalText;
-        btn.disabled = false;
+        console.error('启动备份失败:', error);
+        showError('启动备份失败: ' + error.message);
     });
+}
+
+// 显示备份进度界面
+function showBackupProgress() {
+    const btn = document.getElementById('syncToBackupBtn');
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>备份中...';
+    btn.disabled = true;
+
+    // 创建进度显示区域
+    const progressContainer = document.getElementById('backup-progress-container');
+    if (!progressContainer) {
+        const container = document.createElement('div');
+        container.id = 'backup-progress-container';
+        container.className = 'mt-3';
+        container.innerHTML = `
+            <div class="card">
+                <div class="card-body">
+                    <h6 class="card-title">
+                        <i class="fas fa-cloud-upload-alt me-2"></i>备份进度
+                    </h6>
+                    <div class="progress mb-2">
+                        <div id="backup-progress-bar" class="progress-bar progress-bar-striped progress-bar-animated"
+                             role="progressbar" style="width: 0%"></div>
+                    </div>
+                    <div id="backup-status-text" class="text-muted small">准备开始...</div>
+                    <div id="backup-details" class="mt-2 small text-muted"></div>
+                </div>
+            </div>
+        `;
+        btn.parentNode.appendChild(container);
+    }
+}
+
+// 开始轮询备份状态
+function startBackupStatusPolling(taskId) {
+    if (backupStatusInterval) {
+        clearInterval(backupStatusInterval);
+    }
+
+    backupStatusInterval = setInterval(() => {
+        checkBackupStatus(taskId);
+    }, 2000); // 每2秒检查一次
+}
+
+// 检查备份状态
+function checkBackupStatus(taskId) {
+    fetch(`/admin/api/backup-status/${taskId}`)
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            updateBackupProgress(data.status);
+
+            if (data.status.status === 'completed' || data.status.status === 'failed') {
+                stopBackupStatusPolling();
+                handleBackupComplete(data.status);
+            }
+        }
+    })
+    .catch(error => {
+        console.error('获取备份状态失败:', error);
+    });
+}
+
+// 更新备份进度显示
+function updateBackupProgress(status) {
+    const progressBar = document.getElementById('backup-progress-bar');
+    const statusText = document.getElementById('backup-status-text');
+    const detailsText = document.getElementById('backup-details');
+
+    if (progressBar) {
+        progressBar.style.width = status.progress + '%';
+        progressBar.textContent = status.progress + '%';
+    }
+
+    if (statusText) {
+        if (status.current_table) {
+            statusText.textContent = `正在同步: ${status.current_table} (${status.completed_tables}/${status.total_tables})`;
+        } else {
+            statusText.textContent = status.status === 'running' ? '正在执行...' : '准备中...';
+        }
+    }
+
+    if (detailsText && status.total_rows > 0) {
+        detailsText.textContent = `已处理 ${status.total_rows} 行数据`;
+    }
+}
+
+// 停止状态轮询
+function stopBackupStatusPolling() {
+    if (backupStatusInterval) {
+        clearInterval(backupStatusInterval);
+        backupStatusInterval = null;
+    }
+}
+
+// 处理备份完成
+function handleBackupComplete(status) {
+    const btn = document.getElementById('syncToBackupBtn');
+    const progressContainer = document.getElementById('backup-progress-container');
+
+    // 恢复按钮状态
+    btn.innerHTML = '<i class="fas fa-cloud-upload-alt me-2"></i>备份到ClawCloud';
+    btn.disabled = false;
+
+    // 移除进度显示
+    if (progressContainer) {
+        progressContainer.remove();
+    }
+
+    // 显示结果
+    if (status.status === 'completed') {
+        showSuccess(`备份成功完成！同步了 ${status.total_rows} 行数据`);
+        loadSyncLog();
+    } else {
+        showError('备份失败: ' + (status.error || '未知错误'));
+    }
+
+    currentBackupTask = null;
 }
 
 // 智能数据库迁移

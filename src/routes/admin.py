@@ -3431,22 +3431,46 @@ def api_sync_to_backup():
         from src.db_sync import DatabaseSyncer
 
         syncer = DatabaseSyncer()
-        success = syncer.backup_to_clawcloud()
+        task_id = syncer.start_async_backup()
 
-        if success:
-            log_action('数据库同步', f'成功备份到ClawCloud', current_user.id)
-            return jsonify({
-                'success': True,
-                'message': '数据已成功备份到ClawCloud'
-            })
-        else:
-            return jsonify({
-                'success': False,
-                'message': '备份失败，请查看日志'
-            }), 500
+        log_action('数据库同步', f'启动异步备份，任务ID: {task_id}', current_user.id)
+        return jsonify({
+            'success': True,
+            'message': '备份任务已启动',
+            'task_id': task_id
+        })
 
     except Exception as e:
         logger.error(f"备份到ClawCloud失败: {e}")
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 500
+
+@admin_bp.route('/api/backup-status/<task_id>', methods=['GET'])
+@login_required
+@admin_required
+def api_backup_status(task_id):
+    """获取备份任务状态API"""
+    try:
+        from src.db_sync import DatabaseSyncer
+
+        syncer = DatabaseSyncer()
+        status = syncer.get_backup_status(task_id)
+
+        if status is None:
+            return jsonify({
+                'success': False,
+                'message': '任务不存在'
+            }), 404
+
+        return jsonify({
+            'success': True,
+            'status': status
+        })
+
+    except Exception as e:
+        logger.error(f"获取备份状态失败: {e}")
         return jsonify({
             'success': False,
             'message': str(e)

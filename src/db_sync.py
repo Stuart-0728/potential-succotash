@@ -7,7 +7,10 @@ import sys
 import logging
 import json
 import subprocess
-from datetime import datetime
+import threading
+import time
+import uuid
+from datetime import datetime, timedelta
 from sqlalchemy import create_engine, text, MetaData, Table
 from sqlalchemy.orm import sessionmaker
 import psycopg2
@@ -20,6 +23,67 @@ from src.dual_db_config import dual_db
 from src.utils.time_helpers import get_beijing_time
 
 logger = logging.getLogger(__name__)
+
+class BackupStatus:
+    """备份状态管理"""
+    def __init__(self):
+        self.tasks = {}  # task_id -> status_info
+
+    def create_task(self, task_type="backup"):
+        """创建新的备份任务"""
+        task_id = str(uuid.uuid4())
+        self.tasks[task_id] = {
+            'id': task_id,
+            'type': task_type,
+            'status': 'running',
+            'progress': 0,
+            'current_table': '',
+            'total_tables': 0,
+            'completed_tables': 0,
+            'total_rows': 0,
+            'start_time': datetime.now(),
+            'end_time': None,
+            'error': None,
+            'details': []
+        }
+        return task_id
+
+    def update_task(self, task_id, **kwargs):
+        """更新任务状态"""
+        if task_id in self.tasks:
+            self.tasks[task_id].update(kwargs)
+            if 'completed_tables' in kwargs and 'total_tables' in kwargs:
+                total = self.tasks[task_id]['total_tables']
+                completed = self.tasks[task_id]['completed_tables']
+                if total > 0:
+                    self.tasks[task_id]['progress'] = int((completed / total) * 100)
+
+    def complete_task(self, task_id, success=True, error=None):
+        """完成任务"""
+        if task_id in self.tasks:
+            self.tasks[task_id].update({
+                'status': 'completed' if success else 'failed',
+                'progress': 100 if success else self.tasks[task_id]['progress'],
+                'end_time': datetime.now(),
+                'error': error
+            })
+
+    def get_task(self, task_id):
+        """获取任务状态"""
+        return self.tasks.get(task_id)
+
+    def cleanup_old_tasks(self, max_age_hours=24):
+        """清理旧任务"""
+        cutoff = datetime.now() - timedelta(hours=max_age_hours)
+        to_remove = []
+        for task_id, task in self.tasks.items():
+            if task['start_time'] < cutoff:
+                to_remove.append(task_id)
+        for task_id in to_remove:
+            del self.tasks[task_id]
+
+# 全局备份状态管理器
+backup_status = BackupStatus()
 
 class DatabaseSyncer:
     """数据库同步器"""
@@ -53,17 +117,68 @@ class DatabaseSyncer:
         if details:
             logger.info(f"详情: {details}")
     
+    def start_async_backup(self):
+        """启动异步备份，立即返回任务ID"""
+        task_id = backup_status.create_task("backup")
+
+        # 在后台线程中执行备份
+        backup_thread = threading.Thread(
+            target=self._async_backup_worker,
+            args=(task_id,),
+            daemon=True
+        )
+        backup_thread.start()
+
+        return task_id
+
+    def _async_backup_worker(self, task_id):
+        """异步备份工作线程"""
+        try:
+            success = self._backup_with_progress(task_id)
+            backup_status.complete_task(task_id, success=success)
+        except Exception as e:
+            logger.error(f"异步备份失败: {e}")
+            backup_status.complete_task(task_id, success=False, error=str(e))
+
+    def get_backup_status(self, task_id):
+        """获取备份任务状态"""
+        task = backup_status.get_task(task_id)
+        if not task:
+            return None
+
+        # 转换为前端友好的格式
+        return {
+            'id': task['id'],
+            'status': task['status'],
+            'progress': task['progress'],
+            'current_table': task['current_table'],
+            'completed_tables': task['completed_tables'],
+            'total_tables': task['total_tables'],
+            'total_rows': task['total_rows'],
+            'error': task['error'],
+            'start_time': task['start_time'].isoformat() if task['start_time'] else None,
+            'end_time': task['end_time'].isoformat() if task['end_time'] else None
+        }
+
     def backup_to_clawcloud(self):
-        """将主数据库备份到ClawCloud - 优化版本"""
+        """将主数据库备份到ClawCloud - 同步版本（保持向后兼容）"""
+        return self._backup_with_progress(None)
+
+    def _backup_with_progress(self, task_id):
+        """带进度反馈的备份实现"""
         import time
         start_time = time.time()
         max_duration = 150  # 最大150秒执行时间（2.5分钟，确保在前端3分钟超时前完成）
 
         if not self.dual_db.is_dual_db_enabled():
+            if task_id:
+                backup_status.update_task(task_id, error="双数据库未配置")
             self.log_sync_action("备份到ClawCloud", "失败", "双数据库未配置")
             return False
 
         try:
+            if task_id:
+                backup_status.update_task(task_id, current_table="连接数据库")
             self.log_sync_action("开始备份", "进行中", "连接数据库")
 
             # 测试数据库连接
@@ -104,6 +219,9 @@ class DatabaseSyncer:
             synced_tables = 0
             total_rows = 0
 
+            if task_id:
+                backup_status.update_task(task_id, total_tables=len(tables_to_sync))
+
             with primary_engine.connect() as primary_conn, backup_engine.connect() as backup_conn:
                 # 禁用外键约束检查（PostgreSQL）
                 try:
@@ -116,6 +234,14 @@ class DatabaseSyncer:
                 try:
                     total_tables = len(tables_to_sync)
                     for index, table_name in enumerate(tables_to_sync, 1):
+                        # 更新进度
+                        if task_id:
+                            backup_status.update_task(
+                                task_id,
+                                current_table=table_name,
+                                completed_tables=index-1
+                            )
+
                         # 检查超时
                         if time.time() - start_time > max_duration:
                             self.log_sync_action("同步超时", "警告", f"已运行{max_duration}秒，停止同步")
@@ -184,6 +310,14 @@ class DatabaseSyncer:
 
                     self.log_sync_action("数据库同步", "失败", f"同步过程失败: {str(e)}")
                     synced_tables = 0  # 确保返回失败状态
+
+            # 更新最终进度
+            if task_id:
+                backup_status.update_task(
+                    task_id,
+                    completed_tables=len(tables_to_sync),
+                    total_rows=total_rows
+                )
 
             if synced_tables > 0:
                 self.log_sync_action("备份到ClawCloud", "成功",
