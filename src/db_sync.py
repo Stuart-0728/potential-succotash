@@ -46,6 +46,7 @@ class DatabaseSyncer:
             logger.info(f"详情: {details}")
         # 调试信息
         logger.info(f"记录时间戳: {timestamp_str} (北京时间: {beijing_time})")
+        logger.info(f"时间戳格式检查: 包含+08:00={'+08:00' in timestamp_str}, ISO格式={timestamp_str}")
     
     def backup_to_clawcloud(self):
         """将主数据库备份到ClawCloud - 优化版本"""

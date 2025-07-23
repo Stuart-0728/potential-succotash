@@ -15,6 +15,9 @@
                     <button class="btn btn-outline-primary" onclick="refreshStatus()" data-no-loading="true">
                         <i class="fas fa-sync-alt me-2"></i>刷新状态
                     </button>
+                    <button class="btn btn-outline-info btn-sm ms-2" onclick="testTimeConversion()" data-no-loading="true">
+                        测试时间转换
+                    </button>
                     <a href="{{ url_for('admin.dashboard') }}" class="btn btn-secondary">
                         <i class="fas fa-arrow-left me-2"></i>返回管理面板
                     </a>
@@ -106,6 +109,50 @@
 // 刷新数据库状态
 function refreshStatus() {
     checkDatabaseStatus();
+    loadSyncLog();
+}
+
+// 测试时间转换函数
+function testTimeConversion() {
+    const testTimestamps = [
+        '2025-07-23T01:37:29+08:00',
+        '2025-07-23 01:37:29',
+        '2025/07/23 01:37:29',
+        '2025-07-23T01:37:29',
+        '2025-07-23 09:37:29+08:00'
+    ];
+
+    console.log('=== 时间转换测试 ===');
+    testTimestamps.forEach(timestamp => {
+        try {
+            let ts;
+            if (timestamp.includes('+08:00') || timestamp.includes('+0800')) {
+                ts = new Date(timestamp);
+            } else {
+                let timeStr = timestamp.replace(' ', 'T').replace(/\//g, '-');
+                if (!timeStr.includes('+')) {
+                    timeStr += '+08:00';
+                }
+                ts = new Date(timeStr);
+            }
+
+            const beijingTime = ts.toLocaleString('zh-CN', {
+                timeZone: 'Asia/Shanghai',
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: false
+            });
+
+            console.log(`${timestamp} -> ${beijingTime}`);
+        } catch (e) {
+            console.error(`${timestamp} -> 解析失败:`, e);
+        }
+    });
+    console.log('=== 测试完成 ===');
 }
 
 // 请求去重和频率控制
@@ -435,29 +482,49 @@ function loadSyncLog() {
                     const statusClass = log.status === '成功' ? 'text-success' :
                                        log.status === '失败' ? 'text-danger' : 'text-warning';
 
-                    // 智能时间解析和显示
+                    // 强制北京时间显示 - 简化且更可靠的方法
                     let beijingTime;
                     try {
                         let timestamp;
 
-                        // 处理不同的时间戳格式
+                        console.log('原始时间戳:', log.timestamp);
+
+                        // 强制处理：假设所有时间戳都是北京时间
                         if (log.timestamp.includes('+08:00') || log.timestamp.includes('+0800')) {
-                            // 已包含时区信息，直接解析
+                            // 已包含时区信息
                             timestamp = new Date(log.timestamp);
-                        } else if (log.timestamp.includes('T')) {
-                            // ISO格式但可能缺少时区，假设是北京时间
-                            timestamp = new Date(log.timestamp + '+08:00');
                         } else {
-                            // 简单格式，添加时区信息
-                            timestamp = new Date(log.timestamp.replace(' ', 'T') + '+08:00');
+                            // 没有时区信息，强制假设是北京时间
+                            let timeStr = log.timestamp;
+
+                            // 标准化格式
+                            if (!timeStr.includes('T')) {
+                                timeStr = timeStr.replace(' ', 'T');
+                            }
+
+                            // 添加北京时区
+                            if (!timeStr.includes('+')) {
+                                timeStr += '+08:00';
+                            }
+
+                            timestamp = new Date(timeStr);
                         }
 
-                        // 验证时间戳是否有效
+                        // 如果解析失败，尝试另一种方法
                         if (isNaN(timestamp.getTime())) {
-                            throw new Error('无效的时间戳');
+                            // 解析为UTC时间，然后加8小时转为北京时间
+                            timestamp = new Date(log.timestamp);
+                            if (!isNaN(timestamp.getTime())) {
+                                timestamp.setHours(timestamp.getHours() + 8);
+                            }
                         }
 
-                        // 强制显示为北京时间，使用更清晰的格式
+                        // 最终验证
+                        if (isNaN(timestamp.getTime())) {
+                            throw new Error('无法解析时间戳');
+                        }
+
+                        // 强制显示为北京时间
                         beijingTime = timestamp.toLocaleString('zh-CN', {
                             timeZone: 'Asia/Shanghai',
                             year: 'numeric',
@@ -469,12 +536,11 @@ function loadSyncLog() {
                             hour12: false
                         });
 
-                        // 添加调试信息
-                        console.log('时间转换:', log.timestamp, '->', beijingTime);
+                        console.log('时间转换结果:', log.timestamp, '->', beijingTime);
 
                     } catch (e) {
-                        // 如果解析失败，直接显示原始时间戳
                         console.error('时间解析失败:', log.timestamp, e);
+                        // 如果所有方法都失败，直接显示原始时间戳
                         beijingTime = log.timestamp;
                     }
 
