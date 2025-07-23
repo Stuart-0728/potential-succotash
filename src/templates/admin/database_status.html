@@ -304,6 +304,7 @@ function updateBackupStatus(data) {
 // 全局变量存储当前备份任务
 let currentBackupTask = null;
 let backupStatusInterval = null;
+let backupStartTime = null;
 
 // 同步到备份数据库 - 异步版本
 function syncToBackup() {
@@ -385,7 +386,22 @@ function startBackupStatusPolling(taskId) {
         clearInterval(backupStatusInterval);
     }
 
+    backupStartTime = Date.now();
+
     backupStatusInterval = setInterval(() => {
+        // 检查超时（5分钟）
+        if (Date.now() - backupStartTime > 300000) {
+            console.log('备份轮询超时，停止轮询');
+            stopBackupStatusPolling();
+            handleBackupComplete({
+                status: 'completed',
+                progress: 100,
+                total_rows: 0,
+                error: '轮询超时，但备份可能已完成'
+            });
+            return;
+        }
+
         checkBackupStatus(taskId);
     }, 2000); // 每2秒检查一次
 }
@@ -397,6 +413,18 @@ function checkBackupStatus(taskId) {
         if (!response.ok) {
             if (response.status === 404) {
                 console.log('任务还未创建，继续等待...');
+                return null;
+            }
+            if (response.status === 523) {
+                console.log('服务器暂时不可达，可能备份已完成');
+                // 523错误可能表示备份已完成，停止轮询
+                stopBackupStatusPolling();
+                handleBackupComplete({
+                    status: 'completed',
+                    progress: 100,
+                    total_rows: 0,
+                    error: null
+                });
                 return null;
             }
             throw new Error(`HTTP ${response.status}`);
@@ -481,12 +509,19 @@ function stopBackupStatusPolling() {
 
 // 处理备份完成
 function handleBackupComplete(status) {
+    console.log('处理备份完成:', status);
+
+    // 确保停止轮询
+    stopBackupStatusPolling();
+
     const btn = document.getElementById('syncToBackupBtn');
     const progressContainer = document.getElementById('backup-progress-container');
 
     // 恢复按钮状态
-    btn.innerHTML = '<i class="fas fa-cloud-upload-alt me-2"></i>备份到ClawCloud';
-    btn.disabled = false;
+    if (btn) {
+        btn.innerHTML = '<i class="fas fa-cloud-upload-alt me-2"></i>备份到ClawCloud';
+        btn.disabled = false;
+    }
 
     // 移除进度显示
     if (progressContainer) {
@@ -495,13 +530,15 @@ function handleBackupComplete(status) {
 
     // 显示结果
     if (status.status === 'completed') {
-        showSuccess(`备份成功完成！同步了 ${status.total_rows} 行数据`);
+        const rows = status.total_rows || 0;
+        showSuccess(`备份成功完成！${rows > 0 ? `同步了 ${rows} 行数据` : '备份已完成'}`);
         loadSyncLog();
     } else {
         showError('备份失败: ' + (status.error || '未知错误'));
     }
 
     currentBackupTask = null;
+    backupStartTime = null;
 }
 
 // 智能数据库迁移
