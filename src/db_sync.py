@@ -32,8 +32,10 @@ class DatabaseSyncer:
         """记录同步操作"""
         # 使用北京时间
         beijing_time = get_beijing_time()
+        # 确保时间戳包含时区信息
+        timestamp_str = beijing_time.strftime('%Y-%m-%d %H:%M:%S') + '+08:00'
         log_entry = {
-            'timestamp': beijing_time.isoformat(),
+            'timestamp': timestamp_str,
             'action': action,
             'status': status,
             'details': details
@@ -42,9 +44,15 @@ class DatabaseSyncer:
         logger.info(f"同步操作: {action} - {status}")
         if details:
             logger.info(f"详情: {details}")
+        # 调试信息
+        logger.info(f"记录时间戳: {timestamp_str} (北京时间: {beijing_time})")
     
     def backup_to_clawcloud(self):
-        """将主数据库备份到ClawCloud - 简化版本"""
+        """将主数据库备份到ClawCloud - 优化版本"""
+        import time
+        start_time = time.time()
+        max_duration = 90  # 最大90秒执行时间
+
         if not self.dual_db.is_dual_db_enabled():
             self.log_sync_action("备份到ClawCloud", "失败", "双数据库未配置")
             return False
@@ -102,6 +110,10 @@ class DatabaseSyncer:
                 try:
                     total_tables = len(tables_to_sync)
                     for index, table_name in enumerate(tables_to_sync, 1):
+                        # 检查超时
+                        if time.time() - start_time > max_duration:
+                            self.log_sync_action("同步超时", "警告", f"已运行{max_duration}秒，停止同步")
+                            break
                         try:
                             self.log_sync_action(f"同步表 {table_name} ({index}/{total_tables})", "开始")
 
@@ -135,34 +147,9 @@ class DatabaseSyncer:
                                 columns = result.keys()
                                 column_names = ', '.join([f'"{col}"' for col in columns])
 
-                                # 使用更高效的批量插入
-                                if len(rows) > 1000:
-                                    # 大量数据使用COPY命令（PostgreSQL特有）
-                                    try:
-                                        import io
-                                        import csv
-
-                                        # 创建CSV数据
-                                        output = io.StringIO()
-                                        writer = csv.writer(output)
-                                        for row in rows:
-                                            writer.writerow([row[i] for i in range(len(columns))])
-
-                                        # 使用COPY命令
-                                        copy_sql = f'COPY "{table_name}" ({column_names}) FROM STDIN WITH CSV'
-                                        raw_conn = backup_conn.connection
-                                        cursor = raw_conn.cursor()
-                                        output.seek(0)
-                                        cursor.copy_expert(copy_sql, output)
-                                        raw_conn.commit()
-
-                                    except Exception as copy_error:
-                                        # COPY失败时回退到批量插入
-                                        self.log_sync_action(f"COPY {table_name} 失败，使用批量插入", "警告", str(copy_error))
-                                        self._batch_insert_fallback(backup_conn, table_name, columns, column_names, rows)
-                                else:
-                                    # 少量数据使用批量插入
-                                    self._batch_insert_fallback(backup_conn, table_name, columns, column_names, rows)
+                                # 使用更高效的批量插入 - 简化版本
+                                # 直接使用批量插入，避免COPY的复杂性
+                                self._batch_insert_fallback(backup_conn, table_name, columns, column_names, rows)
 
                             synced_tables += 1
                             total_rows += len(rows)
@@ -314,23 +301,50 @@ class DatabaseSyncer:
             return False
     
     def _batch_insert_fallback(self, conn, table_name, columns, column_names, rows):
-        """批量插入的回退方法"""
-        batch_size = 500  # 增加批次大小
-        for i in range(0, len(rows), batch_size):
+        """批量插入的优化方法"""
+        if not rows:
+            return
+
+        # 根据数据量调整批次大小
+        if len(rows) > 1000:
+            batch_size = 1000  # 大数据集使用更大批次
+        else:
+            batch_size = len(rows)  # 小数据集一次性插入
+
+        total_batches = (len(rows) + batch_size - 1) // batch_size
+
+        for batch_num, i in enumerate(range(0, len(rows), batch_size), 1):
             batch_rows = rows[i:i + batch_size]
 
-            # 构建批量插入SQL
-            placeholders = ', '.join([f':{col}' for col in columns])
-            insert_sql = f'INSERT INTO "{table_name}" ({column_names}) VALUES ({placeholders})'
+            try:
+                # 使用executemany进行批量插入
+                placeholders = ', '.join([f':{col}' for col in columns])
+                insert_sql = f'INSERT INTO "{table_name}" ({column_names}) VALUES ({placeholders})'
 
-            # 批量执行
-            batch_params = []
-            for row in batch_rows:
-                params = {col: row[j] for j, col in enumerate(columns)}
-                batch_params.append(params)
+                # 准备批量参数
+                batch_params = []
+                for row in batch_rows:
+                    params = {col: row[j] for j, col in enumerate(columns)}
+                    batch_params.append(params)
 
-            conn.execute(text(insert_sql), batch_params)
-            conn.commit()  # 每批提交一次
+                # 执行批量插入
+                conn.execute(text(insert_sql), batch_params)
+
+                # 只在最后一批或每10批提交一次，减少提交频率
+                if batch_num == total_batches or batch_num % 10 == 0:
+                    conn.commit()
+
+            except Exception as e:
+                # 批量插入失败时，尝试逐行插入
+                self.log_sync_action(f"批量插入 {table_name} 失败，尝试逐行插入", "警告", str(e))
+                for row in batch_rows:
+                    try:
+                        params = {col: row[j] for j, col in enumerate(columns)}
+                        conn.execute(text(insert_sql), params)
+                    except Exception as row_error:
+                        self.log_sync_action(f"跳过 {table_name} 中的问题行", "警告", str(row_error))
+                        continue
+                conn.commit()
 
     def get_sync_log(self):
         """获取同步日志"""

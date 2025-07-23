@@ -275,6 +275,10 @@ function syncToBackup() {
             throw new Error('请求超时，但备份可能仍在进行中，请稍后查看同步日志');
         }
 
+        if (response.status === 523) {
+            throw new Error('服务器暂时不可达，备份可能仍在后台进行，请稍后查看同步日志');
+        }
+
         if (!response.ok) {
             throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
@@ -303,6 +307,8 @@ function syncToBackup() {
             showError('备份请求超时，但操作可能仍在后台进行，请稍后查看同步日志');
         } else if (error.message.includes('524') || error.message.includes('超时')) {
             showError('备份请求超时，请稍后查看同步日志确认结果');
+        } else if (error.message.includes('523') || error.message.includes('不可达')) {
+            showError('服务器暂时不可达，备份可能仍在后台进行，请稍后查看同步日志');
         } else if (error.message.includes('JSON')) {
             showError('服务器响应格式错误，请检查服务器状态');
         } else {
@@ -363,6 +369,10 @@ function restoreFromBackup() {
             throw new Error('请求超时，但恢复可能仍在进行中，请稍后查看同步日志');
         }
 
+        if (response.status === 523) {
+            throw new Error('服务器暂时不可达，恢复可能仍在后台进行，请稍后查看同步日志');
+        }
+
         if (!response.ok) {
             throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
@@ -391,6 +401,8 @@ function restoreFromBackup() {
             showError('恢复请求超时，但操作可能仍在后台进行，请稍后查看同步日志');
         } else if (error.message.includes('524') || error.message.includes('超时')) {
             showError('恢复请求超时，请稍后查看同步日志确认结果');
+        } else if (error.message.includes('523') || error.message.includes('不可达')) {
+            showError('服务器暂时不可达，恢复可能仍在后台进行，请稍后查看同步日志');
         } else if (error.message.includes('JSON')) {
             showError('服务器响应格式错误，请检查服务器状态');
         } else {
