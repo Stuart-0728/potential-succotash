@@ -202,21 +202,84 @@ class DatabaseSyncer:
         return status_data
 
     def _log_to_system(self, action, details, user_id=None):
-        """记录日志到系统日志表"""
+        """记录日志到系统日志表（在应用上下文中）"""
         try:
-            # 导入log_action函数
+            if not user_id:
+                logger.warning(f"无用户ID，跳过系统日志记录: {action} - {details}")
+                return
+
+            # 获取Flask应用实例并创建应用上下文
+            from flask import current_app
             from src.routes.utils import log_action
 
-            if user_id:
+            # 尝试在当前上下文中记录
+            try:
                 log_action(action, details, user_id)
                 logger.info(f"系统日志记录成功: {action} - {details}")
-            else:
-                logger.warning(f"无用户ID，跳过系统日志记录: {action} - {details}")
+                return
+            except RuntimeError as e:
+                if "application context" in str(e) or "request context" in str(e):
+                    # 需要创建应用上下文
+                    pass
+                else:
+                    raise
+
+            # 创建应用上下文并记录日志
+            try:
+                # 获取应用实例
+                from src import create_app
+                app = create_app()
+
+                with app.app_context():
+                    log_action(action, details, user_id)
+                    logger.info(f"系统日志记录成功（新上下文）: {action} - {details}")
+
+            except Exception as ctx_error:
+                logger.error(f"创建应用上下文失败: {ctx_error}")
+                # 使用直接数据库操作作为备用方案
+                self._log_to_database_direct(action, details, user_id)
 
         except Exception as e:
             logger.error(f"系统日志记录失败: {e}")
             # 记录到同步日志作为备用
             self.log_sync_action(action, "失败" if "失败" in details or "异常" in details else "成功", details)
+
+    def _log_to_database_direct(self, action, details, user_id):
+        """直接操作数据库记录日志（备用方案）"""
+        try:
+            from sqlalchemy import create_engine, text
+            from datetime import datetime
+            import os
+
+            # 使用主数据库URL
+            database_url = os.getenv('DATABASE_URL')
+            if not database_url:
+                logger.error("无法获取数据库URL，跳过直接日志记录")
+                return
+
+            engine = create_engine(database_url)
+
+            with engine.connect() as conn:
+                # 直接插入系统日志
+                insert_sql = text("""
+                    INSERT INTO system_logs (action, details, user_id, created_at)
+                    VALUES (:action, :details, :user_id, :created_at)
+                """)
+
+                conn.execute(insert_sql, {
+                    'action': action,
+                    'details': details,
+                    'user_id': user_id,
+                    'created_at': datetime.now()
+                })
+
+                conn.commit()
+                logger.info(f"直接数据库日志记录成功: {action} - {details}")
+
+        except Exception as e:
+            logger.error(f"直接数据库日志记录失败: {e}")
+            # 最后的备用：只记录到应用日志
+            logger.info(f"备用日志记录: {action} - {details} (用户ID: {user_id})")
 
     def backup_to_clawcloud(self):
         """将主数据库备份到ClawCloud - 同步版本（保持向后兼容）"""
