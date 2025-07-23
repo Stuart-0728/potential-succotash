@@ -371,26 +371,112 @@ class DatabaseSyncer:
                             self.log_sync_action(f"跳过表 {table_name}", "跳过", "主数据库中不存在")
                             continue
 
-                        # 安全策略：只删除当前表的数据，不使用CASCADE
-                        primary_conn.execute(text(f'DELETE FROM "{table_name}"'))
-                        primary_conn.commit()
+                        # 安全策略：使用事务和智能删除策略
+                        # 开始事务
+                        trans = primary_conn.begin()
+                        user_count = 0  # 初始化变量
+                        tag_ref_count = 0  # 初始化变量
 
-                        # 获取备份表数据
-                        result = backup_conn.execute(text(f'SELECT * FROM "{table_name}"'))
-                        rows = result.fetchall()
+                        try:
+                            # 对于有外键约束的表，使用更智能的策略
+                            if table_name == 'roles':
+                                # 检查是否有用户引用这些角色
+                                result = primary_conn.execute(text('SELECT COUNT(*) FROM users'))
+                                user_count = result.scalar()
 
-                        if rows:
-                            # 获取列名
-                            columns = result.keys()
-                            column_names = ', '.join([f'"{col}"' for col in columns])
+                                if user_count > 0:
+                                    # 如果有用户存在，只更新角色数据而不删除
+                                    self.log_sync_action(f"更新表 {table_name}", "进行中", "检测到用户数据，使用更新策略")
 
-                            # 使用批量插入
-                            self._batch_insert_fallback(primary_conn, table_name, columns, column_names, rows)
+                                    # 获取备份中的角色数据
+                                    backup_roles = backup_conn.execute(text('SELECT * FROM "roles"')).fetchall()
 
-                        primary_conn.commit()
-                        restored_tables += 1
-                        total_rows += len(rows)
-                        self.log_sync_action(f"恢复表 {table_name}", "成功", f"{len(rows)} 行数据")
+                                    for role_row in backup_roles:
+                                        # 使用 UPSERT 策略（INSERT ... ON CONFLICT UPDATE）
+                                        upsert_sql = text('''
+                                            INSERT INTO "roles" (id, name, description)
+                                            VALUES (:id, :name, :description)
+                                            ON CONFLICT (id) DO UPDATE SET
+                                                name = EXCLUDED.name,
+                                                description = EXCLUDED.description
+                                        ''')
+                                        primary_conn.execute(upsert_sql, {
+                                            'id': role_row[0],
+                                            'name': role_row[1],
+                                            'description': role_row[2] if len(role_row) > 2 else None
+                                        })
+
+                                    trans.commit()
+                                    restored_tables += 1
+                                    total_rows += len(backup_roles)
+                                    self.log_sync_action(f"更新表 {table_name}", "成功", f"更新了 {len(backup_roles)} 行数据")
+                                    continue
+                                else:
+                                    # 没有用户，可以安全删除
+                                    primary_conn.execute(text(f'DELETE FROM "{table_name}"'))
+
+                            elif table_name == 'tags':
+                                # 检查是否有活动引用这些标签
+                                result = primary_conn.execute(text('SELECT COUNT(*) FROM activity_tags'))
+                                tag_ref_count = result.scalar()
+
+                                if tag_ref_count > 0:
+                                    # 如果有引用，使用UPSERT策略
+                                    self.log_sync_action(f"更新表 {table_name}", "进行中", "检测到标签引用，使用更新策略")
+
+                                    backup_tags = backup_conn.execute(text('SELECT * FROM "tags"')).fetchall()
+
+                                    for tag_row in backup_tags:
+                                        upsert_sql = text('''
+                                            INSERT INTO "tags" (id, name, color)
+                                            VALUES (:id, :name, :color)
+                                            ON CONFLICT (id) DO UPDATE SET
+                                                name = EXCLUDED.name,
+                                                color = EXCLUDED.color
+                                        ''')
+                                        primary_conn.execute(upsert_sql, {
+                                            'id': tag_row[0],
+                                            'name': tag_row[1],
+                                            'color': tag_row[2] if len(tag_row) > 2 else None
+                                        })
+
+                                    trans.commit()
+                                    restored_tables += 1
+                                    total_rows += len(backup_tags)
+                                    self.log_sync_action(f"更新表 {table_name}", "成功", f"更新了 {len(backup_tags)} 行数据")
+                                    continue
+                                else:
+                                    # 没有引用，可以安全删除
+                                    primary_conn.execute(text(f'DELETE FROM "{table_name}"'))
+
+                            else:
+                                # 其他表直接删除
+                                primary_conn.execute(text(f'DELETE FROM "{table_name}"'))
+
+                            trans.commit()
+
+                        except Exception as delete_error:
+                            trans.rollback()
+                            raise delete_error
+
+                        # 对于非特殊表或没有外键约束的情况，继续正常的恢复流程
+                        if table_name not in ['roles', 'tags'] or (table_name == 'roles' and user_count == 0) or (table_name == 'tags' and tag_ref_count == 0):
+                            # 获取备份表数据
+                            result = backup_conn.execute(text(f'SELECT * FROM "{table_name}"'))
+                            rows = result.fetchall()
+
+                            if rows:
+                                # 获取列名
+                                columns = result.keys()
+                                column_names = ', '.join([f'"{col}"' for col in columns])
+
+                                # 使用批量插入
+                                self._batch_insert_fallback(primary_conn, table_name, columns, column_names, rows)
+
+                            primary_conn.commit()
+                            restored_tables += 1
+                            total_rows += len(rows)
+                            self.log_sync_action(f"恢复表 {table_name}", "成功", f"{len(rows)} 行数据")
 
                     except Exception as e:
                         self.log_sync_action(f"恢复表 {table_name}", "失败", str(e))
