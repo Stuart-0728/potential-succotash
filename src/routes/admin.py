@@ -3524,10 +3524,23 @@ def api_sync_log():
 
         logs = []
         for log in sync_logs:
+            # 改进状态判断逻辑
+            status = '失败'
+            if '成功' in log.details:
+                status = '成功'
+            elif '启动' in log.details or '任务ID' in log.details:
+                status = '进行中'
+            elif '失败' in log.details or '错误' in log.details:
+                status = '失败'
+            else:
+                # 默认根据关键词判断
+                if any(word in log.details for word in ['完成', '备份', '恢复', '同步']):
+                    status = '成功'
+
             logs.append({
                 'timestamp': log.created_at.isoformat(),
                 'action': log.action,
-                'status': '成功' if '成功' in log.details else '失败',
+                'status': status,
                 'details': log.details
             })
 
