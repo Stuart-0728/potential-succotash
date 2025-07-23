@@ -202,11 +202,19 @@ class DatabaseSyncer:
             return False
     
     def restore_from_clawcloud(self):
-        """从ClawCloud恢复到主数据库 - 简化版本"""
+        """从ClawCloud恢复到主数据库 - 紧急禁用版本"""
+        self.log_sync_action("从ClawCloud恢复", "失败", "恢复功能已紧急禁用，防止数据丢失")
+        logger.error("恢复功能已紧急禁用：TRUNCATE CASCADE操作过于危险")
+        return False
+
+        # 原始代码已注释，防止意外执行
+        """
         if not self.dual_db.is_dual_db_enabled():
             self.log_sync_action("从ClawCloud恢复", "失败", "双数据库未配置")
             return False
 
+        # 危险代码已注释 - TRUNCATE CASCADE会清空所有数据
+        """
         try:
             self.log_sync_action("开始恢复", "进行中", "连接数据库")
 
@@ -307,6 +315,7 @@ class DatabaseSyncer:
             self.log_sync_action("从ClawCloud恢复", "失败", str(e))
             logger.error(f"恢复失败: {e}")
             return False
+        """
     
     def _batch_insert_fallback(self, conn, table_name, columns, column_names, rows):
         """批量插入的优化方法"""
