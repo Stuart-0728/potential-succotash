@@ -341,40 +341,26 @@ class DatabaseSyncer:
 
             self.log_sync_action("数据库连接", "成功", "主数据库和备份数据库连接正常")
 
-            # 重新设计的恢复优先级 - 核心业务数据优先
+            # 智能迁移策略 - 检测数据库状态并选择合适的策略
             restored_tables = 0
             total_rows = 0
 
             with backup_engine.connect() as backup_conn, primary_engine.connect() as primary_conn:
-                # 级别1：最高优先级 - 用户数据（核心）
-                self.log_sync_action("级别1恢复", "开始", "恢复用户账户数据（最高优先级）")
-                success, rows = self._restore_table_full(backup_conn, primary_conn, 'users', start_time, max_duration)
-                if success:
-                    restored_tables += 1
-                    total_rows += rows
+                # 检测数据库状态
+                is_empty_db = self._check_if_empty_database(primary_conn)
 
-                # 级别2：次高优先级 - 活动数据（核心业务）
-                self.log_sync_action("级别2恢复", "开始", "恢复活动数据（次高优先级）")
-                success, rows = self._restore_table_full(backup_conn, primary_conn, 'activities', start_time, max_duration)
-                if success:
-                    restored_tables += 1
-                    total_rows += rows
-
-                # 级别3：中等优先级 - 关联数据
-                self.log_sync_action("级别3恢复", "开始", "恢复关联数据")
-                for table_name in ['activity_tags', 'user_tags', 'activity_registrations', 'checkin_records']:
-                    success, rows = self._restore_table_safe(backup_conn, primary_conn, table_name, start_time, max_duration)
-                    if success:
-                        restored_tables += 1
-                        total_rows += rows
-
-                # 级别4：最低优先级 - 配置数据（可重建）
-                self.log_sync_action("级别4恢复", "开始", "恢复配置数据（最低优先级）")
-                for table_name in ['roles', 'tags']:
-                    success, rows = self._restore_table_safe(backup_conn, primary_conn, table_name, start_time, max_duration)
-                    if success:
-                        restored_tables += 1
-                        total_rows += rows
+                if is_empty_db:
+                    self.log_sync_action("数据库检测", "成功", "检测到空数据库，使用完整迁移策略")
+                    # 空数据库：使用完整迁移
+                    success, rows = self._perform_full_migration(backup_conn, primary_conn, start_time, max_duration)
+                    restored_tables = success
+                    total_rows = rows
+                else:
+                    self.log_sync_action("数据库检测", "成功", "检测到有数据库，使用增量同步策略")
+                    # 有数据：使用安全的增量同步
+                    success, rows = self._perform_incremental_sync(backup_conn, primary_conn, start_time, max_duration)
+                    restored_tables = success
+                    total_rows = rows
 
             if restored_tables > 0:
                 self.log_sync_action("智能恢复", "成功",
@@ -594,6 +580,137 @@ class DatabaseSyncer:
         except Exception as e:
             self.log_sync_action(f"完整恢复 {table_name}", "失败", str(e))
             return False, 0
+
+    def _check_if_empty_database(self, primary_conn):
+        """检测数据库是否为空"""
+        try:
+            from sqlalchemy import text
+
+            # 检查关键表是否有数据
+            key_tables = ['users', 'activities', 'roles']
+
+            for table_name in key_tables:
+                try:
+                    # 检查表是否存在
+                    check_sql = text(f"SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = '{table_name}')")
+                    if not primary_conn.execute(check_sql).scalar():
+                        continue
+
+                    # 检查表是否有数据
+                    count_sql = text(f'SELECT COUNT(*) FROM "{table_name}"')
+                    count = primary_conn.execute(count_sql).scalar()
+
+                    if count > 0:
+                        return False  # 有数据，不是空数据库
+
+                except Exception as e:
+                    self.log_sync_action("检测表", "警告", f"检测{table_name}表失败: {str(e)}")
+                    continue
+
+            return True  # 所有关键表都为空或不存在
+
+        except Exception as e:
+            self.log_sync_action("数据库检测", "失败", f"检测失败: {str(e)}")
+            return False  # 出错时假设不是空数据库，使用安全策略
+
+    def _perform_full_migration(self, backup_conn, primary_conn, start_time, max_duration):
+        """执行完整迁移（适用于空数据库）"""
+        try:
+            import time
+            from sqlalchemy import text
+
+            # 定义迁移顺序（按依赖关系）
+            migration_order = [
+                'roles',           # 基础：角色定义
+                'tags',            # 基础：标签定义
+                'users',           # 核心：用户数据
+                'activities',      # 核心：活动数据
+                'activity_tags',   # 关联：活动标签
+                'registrations',   # 业务：报名数据
+                'checkin_records'  # 业务：签到数据
+            ]
+
+            restored_count = 0
+            total_rows = 0
+
+            for table_name in migration_order:
+                if time.time() - start_time > max_duration:
+                    self.log_sync_action("迁移超时", "警告", f"已运行{max_duration}秒，停止迁移")
+                    break
+
+                try:
+                    # 检查表是否存在
+                    check_sql = text(f"SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = '{table_name}')")
+                    backup_exists = backup_conn.execute(check_sql).scalar()
+                    primary_exists = primary_conn.execute(check_sql).scalar()
+
+                    if not backup_exists or not primary_exists:
+                        self.log_sync_action(f"跳过 {table_name}", "跳过", "表不存在")
+                        continue
+
+                    # 获取备份数据
+                    backup_result = backup_conn.execute(text(f'SELECT * FROM "{table_name}"'))
+                    backup_rows = backup_result.fetchall()
+
+                    if not backup_rows:
+                        self.log_sync_action(f"跳过 {table_name}", "跳过", "备份数据为空")
+                        continue
+
+                    # 获取列信息
+                    columns = backup_result.keys()
+
+                    # 批量插入（空数据库不需要删除）
+                    for row in backup_rows:
+                        column_names = ', '.join([f'"{col}"' for col in columns])
+                        placeholders = ', '.join([f':{col}' for col in columns])
+                        insert_sql = text(f'INSERT INTO "{table_name}" ({column_names}) VALUES ({placeholders})')
+
+                        params = {}
+                        for i, col in enumerate(columns):
+                            params[col] = row[i] if i < len(row) else None
+
+                        primary_conn.execute(insert_sql, params)
+
+                    primary_conn.commit()
+                    restored_count += 1
+                    total_rows += len(backup_rows)
+                    self.log_sync_action(f"完整迁移 {table_name}", "成功", f"迁移了 {len(backup_rows)} 行数据")
+
+                except Exception as e:
+                    self.log_sync_action(f"完整迁移 {table_name}", "失败", str(e))
+                    continue
+
+            return restored_count, total_rows
+
+        except Exception as e:
+            self.log_sync_action("完整迁移", "失败", str(e))
+            return 0, 0
+
+    def _perform_incremental_sync(self, backup_conn, primary_conn, start_time, max_duration):
+        """执行增量同步（适用于有数据的数据库）"""
+        try:
+            import time
+
+            # 只同步安全的配置数据
+            safe_tables = ['roles', 'tags']
+
+            restored_count = 0
+            total_rows = 0
+
+            for table_name in safe_tables:
+                if time.time() - start_time > max_duration:
+                    break
+
+                success, rows = self._restore_table_safe(backup_conn, primary_conn, table_name, start_time, max_duration)
+                if success:
+                    restored_count += 1
+                    total_rows += rows
+
+            return restored_count, total_rows
+
+        except Exception as e:
+            self.log_sync_action("增量同步", "失败", str(e))
+            return 0, 0
 
     def _batch_insert_fallback(self, conn, table_name, columns, column_names, rows):
         """批量插入的优化方法"""

@@ -78,14 +78,14 @@
                         <div class="col-md-6">
                             <div class="d-grid gap-2">
                                 <button class="btn btn-warning" onclick="restoreFromBackup()" id="restoreFromBackupBtn" data-no-loading="true">
-                                    <i class="fas fa-database me-2"></i>完整数据库迁移
+                                    <i class="fas fa-brain me-2"></i>智能数据库迁移
                                 </button>
                                 <button class="btn btn-outline-warning btn-sm" onclick="showAdvancedRestore()" data-no-loading="true">
                                     <i class="fas fa-cogs me-1"></i>高级恢复选项
                                 </button>
                                 <small class="text-muted">
                                     <i class="fas fa-info-circle me-1"></i>
-                                    完整数据库迁移：用户→活动→关联→配置，适用于数据库过期迁移
+                                    智能检测数据库状态：空数据库完整迁移，有数据安全同步
                                 </small>
                             </div>
                         </div>
@@ -391,24 +391,29 @@ function syncToBackup() {
     });
 }
 
-// 完整数据库迁移
+// 智能数据库迁移
 function restoreFromBackup() {
-    const confirmMessage = `完整数据库迁移
+    const confirmMessage = `智能数据库迁移
 
-🎯 适用场景：Render数据库过期，迁移到全新数据库
+🧠 智能检测策略：
+系统会自动检测当前数据库状态并选择最佳策略
 
-🔄 迁移优先级：
-• 级别1：用户账户数据（最高优先级）
-• 级别2：活动数据（核心业务）
-• 级别3：关联数据（报名、签到、标签关联）
-• 级别4：配置数据（角色、标签定义）
+📊 空数据库（如新部署）：
+• 完整迁移：角色→标签→用户→活动→关联数据
+• 按依赖顺序迁移，避免外键约束问题
+• 适用于Render数据库过期后的全新部署
 
-⚠️ 重要提醒：
-• 这是完整的数据库迁移，会覆盖现有数据
-• 适用于从备份恢复到全新数据库
-• 包含所有用户账户和活动数据
+📊 有数据库（如现有系统）：
+• 安全同步：只同步配置数据（角色、标签）
+• 使用UPSERT策略，不影响现有用户和活动
+• 保护现有业务数据安全
 
-确定要执行完整数据库迁移吗？`;
+✅ 安全保障：
+• 智能检测，自动选择合适策略
+• 外键约束智能处理
+• 详细的操作日志反馈
+
+确定要执行智能数据库迁移吗？`;
 
     if (!confirm(confirmMessage)) {
         return;
