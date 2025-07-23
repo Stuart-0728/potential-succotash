@@ -78,14 +78,14 @@
                         <div class="col-md-6">
                             <div class="d-grid gap-2">
                                 <button class="btn btn-warning" onclick="restoreFromBackup()" id="restoreFromBackupBtn" data-no-loading="true">
-                                    <i class="fas fa-magic me-2"></i>智能一键恢复
+                                    <i class="fas fa-database me-2"></i>完整数据库迁移
                                 </button>
                                 <button class="btn btn-outline-warning btn-sm" onclick="showAdvancedRestore()" data-no-loading="true">
                                     <i class="fas fa-cogs me-1"></i>高级恢复选项
                                 </button>
                                 <small class="text-muted">
                                     <i class="fas fa-info-circle me-1"></i>
-                                    智能分级恢复：标签→角色→活动，自动处理外键约束，保护用户数据
+                                    完整数据库迁移：用户→活动→关联→配置，适用于数据库过期迁移
                                 </small>
                             </div>
                         </div>
@@ -391,22 +391,24 @@ function syncToBackup() {
     });
 }
 
-// 智能一键恢复
+// 完整数据库迁移
 function restoreFromBackup() {
-    const confirmMessage = `智能一键恢复
+    const confirmMessage = `完整数据库迁移
 
-🔄 恢复策略：
-• 级别1：安全恢复标签配置（UPSERT）
-• 级别2：智能恢复角色数据（处理外键约束）
-• 级别3：增量恢复活动数据（只添加新活动）
-• 级别4：跳过用户数据（保护账户安全）
+🎯 适用场景：Render数据库过期，迁移到全新数据库
 
-✅ 安全保障：
-• 自动处理外键约束冲突
-• 保护现有用户数据不被覆盖
-• 使用增量策略避免数据丢失
+🔄 迁移优先级：
+• 级别1：用户账户数据（最高优先级）
+• 级别2：活动数据（核心业务）
+• 级别3：关联数据（报名、签到、标签关联）
+• 级别4：配置数据（角色、标签定义）
 
-确定要执行智能恢复吗？`;
+⚠️ 重要提醒：
+• 这是完整的数据库迁移，会覆盖现有数据
+• 适用于从备份恢复到全新数据库
+• 包含所有用户账户和活动数据
+
+确定要执行完整数据库迁移吗？`;
 
     if (!confirm(confirmMessage)) {
         return;

@@ -341,34 +341,40 @@ class DatabaseSyncer:
 
             self.log_sync_action("数据库连接", "成功", "主数据库和备份数据库连接正常")
 
-            # 完整的分级恢复策略
+            # 重新设计的恢复优先级 - 核心业务数据优先
             restored_tables = 0
             total_rows = 0
 
             with backup_engine.connect() as backup_conn, primary_engine.connect() as primary_conn:
-                # 级别1：安全恢复（tags）
-                self.log_sync_action("级别1恢复", "开始", "安全恢复标签配置")
-                success, rows = self._restore_table_safe(backup_conn, primary_conn, 'tags', start_time, max_duration)
+                # 级别1：最高优先级 - 用户数据（核心）
+                self.log_sync_action("级别1恢复", "开始", "恢复用户账户数据（最高优先级）")
+                success, rows = self._restore_table_full(backup_conn, primary_conn, 'users', start_time, max_duration)
                 if success:
                     restored_tables += 1
                     total_rows += rows
 
-                # 级别2：智能恢复roles（处理外键约束）
-                self.log_sync_action("级别2恢复", "开始", "智能恢复角色数据")
-                success, rows = self._restore_table_with_constraints(backup_conn, primary_conn, 'roles', start_time, max_duration)
+                # 级别2：次高优先级 - 活动数据（核心业务）
+                self.log_sync_action("级别2恢复", "开始", "恢复活动数据（次高优先级）")
+                success, rows = self._restore_table_full(backup_conn, primary_conn, 'activities', start_time, max_duration)
                 if success:
                     restored_tables += 1
                     total_rows += rows
 
-                # 级别3：谨慎恢复activities（保留现有数据，只添加新的）
-                self.log_sync_action("级别3恢复", "开始", "增量恢复活动数据")
-                success, rows = self._restore_table_additive(backup_conn, primary_conn, 'activities', start_time, max_duration)
-                if success:
-                    restored_tables += 1
-                    total_rows += rows
+                # 级别3：中等优先级 - 关联数据
+                self.log_sync_action("级别3恢复", "开始", "恢复关联数据")
+                for table_name in ['activity_tags', 'user_tags', 'activity_registrations', 'checkin_records']:
+                    success, rows = self._restore_table_safe(backup_conn, primary_conn, table_name, start_time, max_duration)
+                    if success:
+                        restored_tables += 1
+                        total_rows += rows
 
-                # 级别4：跳过用户数据（太危险）
-                self.log_sync_action("级别4保护", "跳过", "用户数据过于重要，跳过恢复")
+                # 级别4：最低优先级 - 配置数据（可重建）
+                self.log_sync_action("级别4恢复", "开始", "恢复配置数据（最低优先级）")
+                for table_name in ['roles', 'tags']:
+                    success, rows = self._restore_table_safe(backup_conn, primary_conn, table_name, start_time, max_duration)
+                    if success:
+                        restored_tables += 1
+                        total_rows += rows
 
             if restored_tables > 0:
                 self.log_sync_action("智能恢复", "成功",
@@ -538,6 +544,55 @@ class DatabaseSyncer:
 
         except Exception as e:
             self.log_sync_action(f"增量恢复 {table_name}", "失败", str(e))
+            return False, 0
+
+    def _restore_table_full(self, backup_conn, primary_conn, table_name, start_time, max_duration):
+        """完整恢复表（用于核心业务数据）"""
+        try:
+            import time
+            if time.time() - start_time > max_duration:
+                return False, 0
+
+            self.log_sync_action(f"完整恢复 {table_name}", "开始")
+
+            # 检查表是否存在
+            check_sql = text(f"SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = '{table_name}')")
+            if not backup_conn.execute(check_sql).scalar() or not primary_conn.execute(check_sql).scalar():
+                self.log_sync_action(f"跳过 {table_name}", "跳过", "表不存在")
+                return False, 0
+
+            # 获取备份数据
+            backup_result = backup_conn.execute(text(f'SELECT * FROM "{table_name}"'))
+            backup_rows = backup_result.fetchall()
+
+            if not backup_rows:
+                self.log_sync_action(f"跳过 {table_name}", "跳过", "备份数据为空")
+                return False, 0
+
+            # 获取列信息
+            columns = backup_result.keys()
+
+            # 清空现有数据（完整恢复）
+            primary_conn.execute(text(f'DELETE FROM "{table_name}"'))
+
+            # 批量插入备份数据
+            for row in backup_rows:
+                column_names = ', '.join([f'"{col}"' for col in columns])
+                placeholders = ', '.join([f':{col}' for col in columns])
+                insert_sql = text(f'INSERT INTO "{table_name}" ({column_names}) VALUES ({placeholders})')
+
+                params = {}
+                for i, col in enumerate(columns):
+                    params[col] = row[i] if i < len(row) else None
+
+                primary_conn.execute(insert_sql, params)
+
+            primary_conn.commit()
+            self.log_sync_action(f"完整恢复 {table_name}", "成功", f"恢复了 {len(backup_rows)} 行数据")
+            return True, len(backup_rows)
+
+        except Exception as e:
+            self.log_sync_action(f"完整恢复 {table_name}", "失败", str(e))
             return False, 0
 
     def _batch_insert_fallback(self, conn, table_name, columns, column_names, rows):
