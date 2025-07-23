@@ -115,25 +115,36 @@ function refreshStatus() {
 // 测试时间转换函数
 function testTimeConversion() {
     const testTimestamps = [
-        '2025-07-23T01:37:29+08:00',
-        '2025-07-23 01:37:29',
-        '2025/07/23 01:37:29',
-        '2025-07-23T01:37:29',
-        '2025-07-23 09:37:29+08:00'
+        '2025-07-23T01:37:29+08:00',  // 带时区的北京时间
+        '2025-07-23T01:37:29',       // UTC时间（应该+8小时）
+        '2025-07-23 01:37:29',       // UTC时间（应该+8小时）
+        '2025-07-23T01:37:29.942519', // 带毫秒的UTC时间
+        '2025-07-23 09:37:29+08:00'  // 带时区的北京时间
     ];
 
     console.log('=== 时间转换测试 ===');
+    console.log('当前北京时间:', new Date().toLocaleString('zh-CN', {timeZone: 'Asia/Shanghai'}));
+
     testTimestamps.forEach(timestamp => {
         try {
             let ts;
+            console.log(`\n处理时间戳: ${timestamp}`);
+
             if (timestamp.includes('+08:00') || timestamp.includes('+0800')) {
+                console.log('  -> 检测到时区信息，直接解析');
                 ts = new Date(timestamp);
             } else {
-                let timeStr = timestamp.replace(' ', 'T').replace(/\//g, '-');
-                if (!timeStr.includes('+')) {
-                    timeStr += '+08:00';
+                console.log('  -> 没有时区信息，假设为UTC时间');
+                ts = new Date(timestamp + 'Z'); // 添加Z表示UTC
+
+                if (isNaN(ts.getTime())) {
+                    console.log('  -> UTC解析失败，尝试其他方法');
+                    ts = new Date(timestamp.replace(' ', 'T') + 'Z');
                 }
-                ts = new Date(timeStr);
+            }
+
+            if (isNaN(ts.getTime())) {
+                throw new Error('无法解析时间戳');
             }
 
             const beijingTime = ts.toLocaleString('zh-CN', {
@@ -147,12 +158,14 @@ function testTimeConversion() {
                 hour12: false
             });
 
-            console.log(`${timestamp} -> ${beijingTime}`);
+            console.log(`  -> 结果: ${beijingTime}`);
+            console.log(`  -> UTC时间: ${ts.toISOString()}`);
+
         } catch (e) {
-            console.error(`${timestamp} -> 解析失败:`, e);
+            console.error(`  -> 解析失败:`, e);
         }
     });
-    console.log('=== 测试完成 ===');
+    console.log('\n=== 测试完成 ===');
 }
 
 // 请求去重和频率控制
@@ -489,33 +502,24 @@ function loadSyncLog() {
 
                         console.log('原始时间戳:', log.timestamp);
 
-                        // 强制处理：假设所有时间戳都是北京时间
+                        // 关键修复：正确处理时区转换
                         if (log.timestamp.includes('+08:00') || log.timestamp.includes('+0800')) {
-                            // 已包含时区信息
+                            // 已包含时区信息，直接解析
                             timestamp = new Date(log.timestamp);
                         } else {
-                            // 没有时区信息，强制假设是北京时间
-                            let timeStr = log.timestamp;
+                            // 没有时区信息，这些时间戳实际上是UTC时间，需要转换为北京时间
+                            timestamp = new Date(log.timestamp + 'Z'); // 添加Z表示UTC时间
 
-                            // 标准化格式
-                            if (!timeStr.includes('T')) {
-                                timeStr = timeStr.replace(' ', 'T');
-                            }
+                            // 如果解析失败，尝试其他格式
+                            if (isNaN(timestamp.getTime())) {
+                                // 尝试直接解析
+                                timestamp = new Date(log.timestamp);
 
-                            // 添加北京时区
-                            if (!timeStr.includes('+')) {
-                                timeStr += '+08:00';
-                            }
-
-                            timestamp = new Date(timeStr);
-                        }
-
-                        // 如果解析失败，尝试另一种方法
-                        if (isNaN(timestamp.getTime())) {
-                            // 解析为UTC时间，然后加8小时转为北京时间
-                            timestamp = new Date(log.timestamp);
-                            if (!isNaN(timestamp.getTime())) {
-                                timestamp.setHours(timestamp.getHours() + 8);
+                                // 如果仍然失败，尝试标准化格式
+                                if (isNaN(timestamp.getTime())) {
+                                    let timeStr = log.timestamp.replace(' ', 'T');
+                                    timestamp = new Date(timeStr + 'Z');
+                                }
                             }
                         }
 

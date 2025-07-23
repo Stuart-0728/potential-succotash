@@ -32,7 +32,14 @@ class DatabaseSyncer:
         """记录同步操作"""
         # 使用北京时间
         beijing_time = get_beijing_time()
-        # 使用ISO 8601标准格式，确保时区信息正确
+        # 强制确保时区信息包含在时间戳中
+        if beijing_time.tzinfo is None:
+            # 如果没有时区信息，手动添加
+            import pytz
+            beijing_tz = pytz.timezone('Asia/Shanghai')
+            beijing_time = beijing_tz.localize(beijing_time)
+
+        # 使用ISO 8601格式，确保包含时区信息
         timestamp_str = beijing_time.isoformat()
         log_entry = {
             'timestamp': timestamp_str,
