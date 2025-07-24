@@ -1446,14 +1446,18 @@ a.btn.disabled::before {
     }
     .bottom-area .search-form {
         width: 100%;
+        display: flex;
+        flex-wrap: nowrap;
     }
     .bottom-area .search-form .form-control {
         border-top-right-radius: 0;
         border-bottom-right-radius: 0;
+        flex: 1 1 auto;
     }
     .bottom-area .search-form .btn {
         border-top-left-radius: 0;
         border-bottom-left-radius: 0;
+        flex: 0 0 auto;
     }
 }
 
