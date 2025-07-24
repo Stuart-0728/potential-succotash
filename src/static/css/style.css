@@ -1429,14 +1429,31 @@ a.btn.disabled::before {
     .navbar-collapse {
         display: flex !important;
         flex-direction: column;
-        max-height: calc(100vh - 56px);
+        max-height: 100vh;
         overflow-y: auto;
     }
     .navbar-collapse .navbar-nav {
         order: 1;
     }
-    .navbar-collapse .search-form {
+    .bottom-area {
         order: 2;
+        margin-top: auto;
+        width: 100%;
+        padding: 0.75rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+    .bottom-area .search-form {
+        width: 100%;
+    }
+    .bottom-area .search-form .form-control {
+        border-top-right-radius: 0;
+        border-bottom-right-radius: 0;
+    }
+    .bottom-area .search-form .btn {
+        border-top-left-radius: 0;
+        border-bottom-left-radius: 0;
     }
 }
 
