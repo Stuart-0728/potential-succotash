@@ -1,22 +1,23 @@
 /* 全局样式 */
 :root {
-    --primary-color: #1e88e5;
-    --secondary-color: #42a5f5;
-    --accent-color: #ff9800;
+    /* 全新活力配色 */
+    --primary-color: #ff6b6b;   /* 柔和红橙 */
+    --secondary-color: #5f4b8b; /* 深紫过渡 */
+    --accent-color: #ffd93d;    /* 活力黄色 */
     --success-color: #4caf50;
-    --danger-color: #f44336;
+    --danger-color: #ff4e50;
     --warning-color: #ff9800;
     --info-color: #2196f3;
     --light-color: #f8f9fa;
     --dark-color: #343a40;
     
     /* 渐变色定义 */
-    --gradient-primary: linear-gradient(135deg, #1e88e5, #1565c0);
-    --gradient-secondary: linear-gradient(135deg, #78909c, #546e7a);
+    --gradient-primary: linear-gradient(135deg, #ff6b6b, #f06595);
+    --gradient-secondary: linear-gradient(135deg, #5f4b8b, #3d2c8d);
     --gradient-success: linear-gradient(135deg, #4caf50, #2e7d32);
-    --gradient-danger: linear-gradient(135deg, #f44336, #c62828);
+    --gradient-danger: linear-gradient(135deg, #ff4e50, #c9184a);
     --gradient-warning: linear-gradient(135deg, #ff9800, #ef6c00);
-    --gradient-info: linear-gradient(135deg, #03a9f4, #0277bd);
+    --gradient-info: linear-gradient(135deg, #3bc9db, #228be6);
     --gradient-purple: linear-gradient(135deg, #9c27b0, #7b1fa2);
     --gradient-pink: linear-gradient(135deg, #e91e63, #c2185b);
     --gradient-teal: linear-gradient(135deg, #009688, #00796b);
@@ -67,6 +68,26 @@ body {
     transition: transform 0.3s, box-shadow 0.3s;
     margin-bottom: 20px;
     border: none;
+    perspective: 1000px; /* 提供3D空间感 */
+}
+
+.card::before {
+    /* 伪元素实现柔和光晕 */
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(255,255,255,0.05);
+    border-radius: inherit;
+    opacity: 0;
+    transition: opacity 0.4s ease;
+    pointer-events: none;
+}
+
+.card:hover::before {
+    opacity: 1;
 }
 
 .card:hover {

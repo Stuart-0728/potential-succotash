@@ -100,6 +100,20 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // 特别处理登录按钮
     setupLoginButton();
+
+    // 初始化卡片倾斜动画（VanillaTilt）
+    (function initCardTilt() {
+        const cards = document.querySelectorAll('.card');
+        if (typeof VanillaTilt !== 'undefined' && cards.length) {
+            VanillaTilt.init(cards, {
+                max: 12,       // 最大倾斜角度
+                speed: 400,    // 动画速度
+                glare: true,   // 高光
+                'max-glare': 0.15,
+                perspective: 1000,
+            });
+        }
+    })();
 });
 
 // 统一的加载系统
