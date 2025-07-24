@@ -286,7 +286,8 @@ function setupButtonLoading() {
         if (!button) return;
 
         // 跳过特定按钮 - 更严格的过滤
-        if (button.hasAttribute('data-no-loading') ||
+        if (button.classList.contains('ai-chat-button') ||
+            button.hasAttribute('data-no-loading') ||
             button.getAttribute('data-bs-toggle') === 'modal' ||
             button.getAttribute('data-bs-toggle') === 'dropdown' ||
             button.getAttribute('data-bs-toggle') === 'collapse' ||
