@@ -1426,27 +1426,17 @@ a.btn.disabled::before {
 
 /* 折叠导航(移动端)内搜索框占满宽度 */
 @media (max-width: 991.98px) {
+    .navbar-collapse {
+        display: flex !important;
+        flex-direction: column;
+        max-height: calc(100vh - 56px);
+        overflow-y: auto;
+    }
+    .navbar-collapse .navbar-nav {
+        order: 1;
+    }
     .navbar-collapse .search-form {
-        flex: 0 0 100% !important;
-        margin: 0.75rem 0;
-        display: flex;
-        flex-wrap: nowrap;
-        width: 100%;
-    }
-    .navbar-collapse .search-form .form-control {
-        flex: 1 1 auto;
-        border-top-right-radius: 0;
-        border-bottom-right-radius: 0;
-    }
-    .navbar-collapse .search-form .btn {
-        flex: 0 0 auto;
-        padding: 0 1rem;
-        height: 42px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        border-top-left-radius: 0;
-        border-bottom-left-radius: 0;
+        order: 2;
     }
 }
 
