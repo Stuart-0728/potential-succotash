@@ -1402,3 +1402,23 @@ a.btn.disabled::before {
 .card[data-tilt] {
     will-change: transform;
 }
+
+/* 移动端搜索表单适配 */
+@media (max-width: 767.98px) {
+    .navbar .search-form {
+        flex: 1 1 100%;
+        margin-top: 0.5rem;
+        margin-right: 0 !important;
+    }
+    .navbar .search-form input {
+        width: 100%;
+    }
+}
+
+/* 确保下拉菜单层级高于卡片 */
+.navbar {
+    z-index: 1080;
+}
+.dropdown-menu {
+    z-index: 1081;
+}
