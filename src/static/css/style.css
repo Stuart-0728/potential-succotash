@@ -1427,13 +1427,12 @@ a.btn.disabled::before {
 /* 折叠导航(移动端)内搜索框占满宽度 */
 @media (max-width: 991.98px) {
     .navbar-collapse {
-        display: flex !important;
-        flex-direction: column;
         max-height: 100vh;
         overflow-y: auto;
     }
-    .navbar-collapse .navbar-nav {
-        order: 1;
+    .navbar-collapse.show {
+        display: flex !important;
+        flex-direction: column;
     }
     .bottom-area {
         order: 2;
