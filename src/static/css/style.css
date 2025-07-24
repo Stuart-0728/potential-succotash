@@ -1423,3 +1423,21 @@ a.btn.disabled::before {
 .dropdown-menu {
     z-index: 1081;
 }
+
+/* 导航搜索框对齐 */
+.navbar .search-form .input-group {
+    align-items: center;
+}
+.navbar .search-form .form-control {
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+    min-width: 220px;
+    height: calc(1.5em + 0.75rem + 2px);
+}
+.navbar .search-form .btn {
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+    height: calc(1.5em + 0.75rem + 2px);
+    display: flex;
+    align-items: center;
+}
