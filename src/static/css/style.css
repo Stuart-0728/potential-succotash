@@ -712,6 +712,13 @@ footer {
         overflow-y:auto;
     }
     .ai-chat-input input{font-size: 0.9rem;}
+    .ai-chat-input {
+        gap: 6px;
+        padding: 10px;
+    }
+    .ai-chat-input button {
+        flex: 0 0 52px;
+    }
 }
 
 /* AI聊天加载动画 */
