@@ -1467,6 +1467,10 @@ a.btn.disabled::before {
         border-bottom-left-radius: 0;
         flex: 0 0 auto;
     }
+    .bottom-area .search-form .form-control,
+    .bottom-area .search-form .btn {
+        height: 44px;
+    }
 }
 
 /* 确保下拉菜单层级高于卡片 */
