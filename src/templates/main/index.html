@@ -5,7 +5,7 @@
 {% block content %}
 <!-- 全局通知区域 -->
 {% if public_notifications %}
-<div class="container mt-4">
+<div class="container mt-4" data-aos="fade-down">
     <div class="row">
         <div class="col-12">
             <div class="card border-0 shadow-sm">
@@ -105,7 +105,7 @@
 
 <div class="container py-5">
     <!-- 协会介绍和快速入口 -->
-    <div class="row mb-5">
+    <div class="row mb-5" data-aos="fade-up">
         <div class="col-md-8">
             <div class="card border-0 shadow-sm h-100">
                 <div class="card-body p-4">
@@ -178,13 +178,13 @@
     </div>
 
     <!-- 特色活动 -->
-    <div class="row mb-5">
+    <div class="row mb-5" data-aos="fade-up">
         <div class="col-12">
             <h2 class="mb-4 text-center fw-bold">特色活动</h2>
             <div class="row">
                 {% if featured_activities %}
                     {% for activity in featured_activities %}
-                        <div class="col-md-4 mb-4">
+                        <div class="col-md-4 mb-4" data-aos="zoom-in">
                             <div class="card h-100">
                                 {% if activity.poster_image %}
                                 {% if 'banner' in activity.poster_image %}
@@ -230,13 +230,13 @@
     </div>
 
     <!-- 即将开始的活动 -->
-    <div class="row mb-5">
+    <div class="row mb-5" data-aos="fade-up">
         <div class="col-12">
             <h2 class="mb-4 text-center fw-bold">即将开始</h2>
             <div class="row">
                 {% if upcoming_activities %}
                     {% for activity in upcoming_activities %}
-                        <div class="col-md-4 mb-4">
+                        <div class="col-md-4 mb-4" data-aos="zoom-in">
                             <div class="card h-100">
                                 {% if activity.poster_image %}
                                 {% if 'banner' in activity.poster_image %}
@@ -282,13 +282,13 @@
     </div>
 
     <!-- 热门活动 -->
-    <div class="row">
+    <div class="row" data-aos="fade-up">
         <div class="col-12">
             <h2 class="mb-4 text-center fw-bold">热门活动</h2>
             <div class="row">
                 {% if popular_activities %}
                     {% for activity in popular_activities %}
-                        <div class="col-md-4 mb-4">
+                        <div class="col-md-4 mb-4" data-aos="zoom-in">
                             <div class="card h-100">
                                 {% if activity.poster_image %}
                                 {% if 'banner' in activity.poster_image %}
