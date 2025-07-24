@@ -498,6 +498,15 @@ class AIChatUI {
         // 创建 EventSource 连接
         const role = 'student'; // 默认角色，可扩展
         const eventSource = new EventSource(`/utils/api/ai_chat?message=${encodeURIComponent(userMessage)}&role=${role}&session_id=${this.session.sessionId}`);
+
+        // 超时控制：若15秒内未收到数据则终止并提示
+        const TIMEOUT_MS = 15000;
+        const timeoutHandle = setTimeout(() => {
+            try { eventSource.close(); } catch (e) {}
+            aiMessageDiv.textContent = '响应超时，请稍后再试。';
+            this.disableInput(false);
+            this.inputField.focus();
+        }, TIMEOUT_MS);
         
         // 完整的AI响应文本
         let fullResponse = '';
@@ -556,6 +565,7 @@ class AIChatUI {
         
         // 处理结束
         eventSource.addEventListener('done', () => {
+            clearTimeout(timeoutHandle);
             eventSource.close();
             
             // 存储AI响应到会话
@@ -574,6 +584,7 @@ class AIChatUI {
         
         // 处理错误
         eventSource.onerror = () => {
+            clearTimeout(timeoutHandle);
             eventSource.close();
             
             if (retryCount < MAX_RETRIES && !hasError && !fullResponse) {

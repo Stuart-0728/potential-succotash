@@ -103,9 +103,17 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // 初始化卡片倾斜动画（VanillaTilt）
     (function initCardTilt() {
-        const cards = document.querySelectorAll('.card');
-        if (typeof VanillaTilt !== 'undefined' && cards.length) {
-            VanillaTilt.init(cards, {
+        const allCards = document.querySelectorAll('.card');
+        // 仅对尺寸较小（宽高均 < 600px）的卡片启用倾斜，避免大容器晃动
+        const tiltCards = Array.from(allCards).filter(c => {
+            const rect = c.getBoundingClientRect();
+            return rect.width < 600 && rect.height < 600;
+        });
+
+        if (typeof VanillaTilt !== 'undefined' && tiltCards.length) {
+            // 为符合条件的卡片打标，便于CSS优化
+            tiltCards.forEach(c => c.setAttribute('data-tilt', ''));
+            VanillaTilt.init(tiltCards, {
                 max: 12,       // 最大倾斜角度
                 speed: 400,    // 动画速度
                 glare: true,   // 高光
