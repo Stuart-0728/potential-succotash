@@ -103,6 +103,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // 初始化卡片倾斜动画（VanillaTilt）
     (function initCardTilt() {
+        // 移动端（触控/窄屏）不启用3D倾斜效果
+        const isMobile = window.matchMedia('(max-width: 767px)').matches || window.matchMedia('(pointer:coarse)').matches;
+        if (isMobile) return;
+
         const allCards = document.querySelectorAll('.card');
         // 仅对尺寸较小（宽高均 < 600px）的卡片启用倾斜，避免大容器晃动
         const tiltCards = Array.from(allCards).filter(c => {

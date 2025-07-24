@@ -1404,6 +1404,14 @@ a.btn.disabled::before {
     will-change: transform;
 }
 
+/* 移动端禁用卡片hover效果 */
+@media (max-width: 767.98px) {
+    .card:hover {
+        transform: none;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+    }
+}
+
 /* 移动端搜索表单适配 */
 @media (max-width: 767.98px) {
     .navbar .search-form {
