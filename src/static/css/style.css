@@ -701,19 +701,17 @@ footer {
 /* 确保聊天框在移动设备上也能正常显示 */
 @media (max-width: 576px) {
     .ai-chat-container {
-        width: 90%;
+        width: 90vw;
+        height: 70vh;
         right: 5%;
-        left: 5%;
-        bottom: 80px;
+        left: auto;
+        bottom: 90px; /* 留白避免与浏览器底栏重叠 */
     }
-    
-    .ai-chat-button {
-        bottom: 10px;
-        right: 10px;
-        width: 50px;
-        height: 50px;
-        font-size: 20px;
+    .ai-chat-messages{
+        flex:1;
+        overflow-y:auto;
     }
+    .ai-chat-input input{font-size: 0.9rem;}
 }
 
 /* AI聊天加载动画 */
