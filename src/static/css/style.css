@@ -711,13 +711,17 @@ footer {
         flex:1;
         overflow-y:auto;
     }
-    .ai-chat-input input{font-size: 0.9rem;}
     .ai-chat-input {
+        display: flex;
         gap: 6px;
-        padding: 10px;
+    }
+    .ai-chat-input input {
+        flex: 1 1 auto;
+        min-width: 0;
     }
     .ai-chat-input button {
-        flex: 0 0 52px;
+        flex: 0 0 56px;
+        max-width: 56px;
     }
 }
 
