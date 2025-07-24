@@ -297,6 +297,8 @@ function setupButtonLoading() {
             button.classList.contains('btn-close') ||
             button.classList.contains('btn-outline-secondary') ||
             button.classList.contains('btn-secondary') ||
+            button.classList.contains('btn-light') ||  // 跳过浅色搜索按钮
+            button.closest('.search-form') ||  // 搜索表单按钮
             button.classList.contains('btn-outline-primary') ||
             button.classList.contains('btn-outline-danger') ||
             button.classList.contains('btn-sm') ||

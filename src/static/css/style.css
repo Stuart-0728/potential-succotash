@@ -1204,6 +1204,7 @@ footer {
 .btn-loading-active {
     pointer-events: none;
     opacity: 0.8;
+    min-width: 6rem; /* 根据设计酌情调整 */
 }
 
 /* 旧的btn-loading类保持兼容性 */
