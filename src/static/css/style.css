@@ -1498,3 +1498,13 @@ a.btn.disabled::before {
     display: flex;
     align-items: center;
 }
+
+/* 桌面端导航栏右侧对齐 */
+.navbar .bottom-area {
+    align-items: center;
+}
+
+/* 导航链接防止文字换行 */
+.navbar .nav-item .nav-link {
+    white-space: nowrap;
+}
