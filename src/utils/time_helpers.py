@@ -44,11 +44,15 @@ def localize_time(dt):
 
 def get_localized_now():
     """
-    获取当前时间，统一使用UTC时间
-    此函数适用于需要与数据库比较时间的情况
+    获取当前北京时间，用于与数据库时间比较
+    统一返回北京时间的naive datetime对象
     """
-    # 统一返回UTC时间，不再区分环境
-    return datetime.datetime.utcnow()
+    beijing_tz = pytz.timezone('Asia/Shanghai')
+    utc_now = datetime.datetime.utcnow()
+    utc_now = pytz.utc.localize(utc_now)
+    beijing_now = utc_now.astimezone(beijing_tz)
+    # 返回naive datetime对象，与数据库存储格式一致
+    return beijing_now.replace(tzinfo=None)
 
 def convert_to_utc(dt):
     """
@@ -277,12 +281,83 @@ def safe_less_than_equal(dt1, dt2):
     :param dt2: 第二个datetime对象
     :return: 比较结果 (True/False)
     """
-    # 确保两个时间都是timezone aware的
-    dt1_aware = ensure_timezone_aware(dt1) if dt1 else None
-    dt2_aware = ensure_timezone_aware(dt2) if dt2 else None
-    
-    # 如果任一为None，则无法比较
-    if dt1_aware is None or dt2_aware is None:
+    if dt1 is None or dt2 is None:
         return False
     
-    return dt1_aware <= dt2_aware 
+    # 确保两个时间都是naive datetime
+    if dt1.tzinfo is not None:
+        dt1 = dt1.replace(tzinfo=None)
+    if dt2.tzinfo is not None:
+        dt2 = dt2.replace(tzinfo=None)
+    
+    return dt1 <= dt2
+
+def get_activity_status(activity, current_time=None):
+    """
+    获取活动的实际状态，基于当前时间和活动时间
+    :param activity: 活动对象
+    :param current_time: 当前时间，如果为None则使用当前北京时间
+    :return: 活动状态字符串 ('active', 'completed', 'cancelled', 'upcoming')
+    """
+    if current_time is None:
+        current_time = get_localized_now()
+    
+    # 如果活动被手动设置为已取消，直接返回
+    if activity.status == 'cancelled':
+        return 'cancelled'
+    
+    # 如果活动被手动设置为已完成，直接返回
+    if activity.status == 'completed':
+        return 'completed'
+    
+    # 基于时间判断活动状态
+    if activity.end_time and safe_less_than(activity.end_time, current_time):
+        # 活动已结束
+        return 'completed'
+    elif activity.start_time and safe_greater_than(activity.start_time, current_time):
+        # 活动尚未开始
+        return 'upcoming'
+    else:
+        # 活动正在进行中或即将开始
+        return 'active'
+
+def is_activity_active(activity, current_time=None):
+    """
+    判断活动是否处于活跃状态（可以报名或参与）
+    :param activity: 活动对象
+    :param current_time: 当前时间，如果为None则使用当前北京时间
+    :return: 布尔值
+    """
+    status = get_activity_status(activity, current_time)
+    return status in ['active', 'upcoming']
+
+def is_activity_completed(activity, current_time=None):
+    """
+    判断活动是否已完成
+    :param activity: 活动对象
+    :param current_time: 当前时间，如果为None则使用当前北京时间
+    :return: 布尔值
+    """
+    status = get_activity_status(activity, current_time)
+    return status == 'completed'
+
+def can_register_activity(activity, current_time=None):
+    """
+    判断活动是否可以报名
+    :param activity: 活动对象
+    :param current_time: 当前时间，如果为None则使用当前北京时间
+    :return: 布尔值
+    """
+    if current_time is None:
+        current_time = get_localized_now()
+    
+    # 活动必须是活跃状态
+    if not is_activity_active(activity, current_time):
+        return False
+    
+    # 检查报名截止时间
+    if activity.registration_deadline:
+        if safe_less_than(activity.registration_deadline, current_time):
+            return False
+    
+    return True

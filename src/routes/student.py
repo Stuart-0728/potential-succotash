@@ -10,7 +10,7 @@ from sqlalchemy import func, desc, or_, and_, not_
 from wtforms import StringField, TextAreaField, IntegerField, SelectField, SubmitField, RadioField, BooleanField, HiddenField
 from wtforms.validators import DataRequired, Length, Optional, NumberRange, Email, Regexp
 from flask_wtf import FlaskForm
-from src.utils.time_helpers import get_localized_now, get_beijing_time, ensure_timezone_aware, display_datetime, safe_compare, safe_less_than, safe_greater_than, safe_greater_than_equal, safe_less_than_equal
+from src.utils.time_helpers import get_localized_now, ensure_timezone_aware, display_datetime, safe_compare, safe_less_than, safe_greater_than, safe_greater_than_equal, safe_less_than_equal, get_activity_status, is_activity_completed
 from src.utils import get_compatible_paginate
 from sqlalchemy.orm import joinedload
 import pytz
@@ -45,7 +45,7 @@ def student_required(func):
 def dashboard():
     try:
         # 获取当前时间，确保带有时区信息
-        now = get_beijing_time()
+        now = get_localized_now()
         
         # 获取学生信息
         stmt = db.select(StudentInfo).filter_by(user_id=current_user.id)
@@ -158,15 +158,15 @@ def dashboard():
 def activities():
     """显示学生可参加的活动列表"""
     try:
-        # 获取当前时间
-        now = get_beijing_time()
+        # 获取当前北京时间
+        now = get_localized_now()
         current_status = request.args.get('status', 'active')
         page = request.args.get('page', 1, type=int)
         
         # 基本查询 - 所有活动
         query = db.select(Activity)
 
-        # 根据状态筛选
+        # 根据状态筛选，使用北京时间进行比较
         if current_status == 'active':
             # 活动状态为'active'且未结束
             query = query.filter(Activity.status == 'active')
@@ -218,7 +218,7 @@ def activities():
 def activity_detail(id):
     try:
         activity = db.get_or_404(Activity, id)
-        now = get_beijing_time()
+        now = get_localized_now()
 
         registration = db.session.execute(db.select(Registration).filter_by(user_id=current_user.id, activity_id=id)).scalar_one_or_none()
         has_registered = registration is not None and registration.status in ['registered', 'attended']
@@ -376,10 +376,10 @@ def my_activities():
         page = request.args.get('page', 1, type=int)
         status = request.args.get('status', 'all')
         
-        # 使用带时区的UTC时间，而不是北京时间，保持时区一致性
-        from src.utils.time_helpers import get_localized_now, display_datetime, safe_less_than, safe_greater_than, safe_compare
+        # 使用北京时间进行状态判定
+        from src.utils.time_helpers import get_localized_now, display_datetime, safe_less_than, safe_greater_than, safe_compare, get_activity_status, is_activity_completed
         now = get_localized_now()
-        logger.info(f"my_activities - 当前UTC时间: {now}")
+        logger.info(f"my_activities - 当前北京时间: {now}")
         logger.info(f"my_activities - 用户ID: {current_user.id}, 状态筛选: {status}")
         
         # 使用别名避免表连接问题
@@ -443,7 +443,9 @@ def my_activities():
                               display_datetime=display_datetime,
                               safe_less_than=safe_less_than,
                               safe_greater_than=safe_greater_than,
-                              safe_compare=safe_compare)
+                              safe_compare=safe_compare,
+                              get_activity_status=get_activity_status,
+                              is_activity_completed=is_activity_completed)
     except Exception as e:
         logger.error(f"Error in my_activities: {e}")
         flash('加载我的活动时发生错误', 'danger')
@@ -758,7 +760,7 @@ def get_recommended_activities(user_id, limit=6):
         
         # 根据活动开始时间排序，优先推荐最近的活动
         # 只推荐未结束的活动
-        now = get_beijing_time()
+        now = get_localized_now()
         recommended = recommended.filter(Activity.end_time > now).order_by(Activity.start_time.desc())
         
         return recommended.limit(limit).all()
@@ -778,7 +780,7 @@ def recommend():
     for act in Activity.query.filter(Activity.id.in_(joined_ids)).all():
         tag_ids.update([t.id for t in act.tags])
     # 推荐同标签的其他活动，排除已报名/参加过的
-    now = get_beijing_time()
+    now = get_localized_now()
     if tag_ids:
         recommended = Activity.query.join(Activity.tags).filter(
             Tag.id.in_(tag_ids),
@@ -934,12 +936,7 @@ def checkin():
             'message': '服务器错误，请重试'
         })
 
-# 一个辅助函数，确保时间的时区一致性
-def get_localized_now():
-    """获取本地时间，与数据库中的时间使用相同的时区处理方式"""
-    # 使用utils中的get_beijing_time函数确保时区一致
-    from src.utils.time_helpers import get_beijing_time
-    return get_beijing_time()
+# 注意：get_localized_now函数已在time_helpers中定义，无需重复定义
 
 @student_bp.route('/messages')
 @student_required

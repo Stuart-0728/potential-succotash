@@ -3,7 +3,7 @@ from flask_login import login_required, current_user
 from src.models import db, Activity, ActivityCheckin, Registration, StudentInfo, PointsHistory, User
 from datetime import datetime, timezone, timedelta
 import logging
-from src.utils.time_helpers import get_beijing_time, localize_time, ensure_timezone_aware, normalize_datetime_for_db
+from src.utils.time_helpers import get_localized_now, localize_time, ensure_timezone_aware, normalize_datetime_for_db
 from sqlalchemy import func, select
 
 logger = logging.getLogger(__name__)
@@ -47,7 +47,7 @@ def scan_checkin(activity_id, checkin_key):
         
         # 验证签到密钥是否有效
         valid_key = False
-        now = get_beijing_time()
+        now = get_localized_now()
         
         # 确保checkin_key_expires有时区信息
         expires_time = getattr(activity, 'checkin_key_expires', None)

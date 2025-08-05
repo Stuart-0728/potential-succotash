@@ -27,7 +27,7 @@ from sqlalchemy.orm import joinedload
 from werkzeug.utils import secure_filename
 from src.models import db, User, Role, StudentInfo, Activity, Registration, SystemLog, Tag, Message, Notification, NotificationRead, PointsHistory, ActivityReview, ActivityCheckin, AIChatHistory, AIChatSession, AIUserPreferences, student_tags, activity_tags, Announcement
 from src.routes.utils import admin_required, log_action
-from src.utils.time_helpers import normalize_datetime_for_db, display_datetime, ensure_timezone_aware, get_beijing_time, get_localized_now, safe_less_than, safe_greater_than
+from src.utils.time_helpers import normalize_datetime_for_db, display_datetime, ensure_timezone_aware, get_localized_now, safe_less_than, safe_greater_than, get_activity_status
 from src.forms import ActivityForm  # 添加ActivityForm导入
 from flask_wtf.csrf import generate_csrf, validate_csrf
 from src.utils import get_compatible_paginate
@@ -1120,7 +1120,7 @@ def export_activity_registrations(id):
         log_action('export_registrations', f'导出活动({activity.title})的报名信息')
         
         # 使用北京时间作为文件名
-        beijing_now = get_beijing_time()
+        beijing_now = get_localized_now()
         
         # 返回Excel文件
         return send_file(
@@ -1192,7 +1192,7 @@ def export_students():
         log_action('export_students', '导出所有学生信息')
         
         # 使用北京时间作为文件名
-        beijing_now = get_beijing_time()
+        beijing_now = get_localized_now()
         
         # 返回Excel文件
         return send_file(
@@ -1852,7 +1852,7 @@ def generate_checkin_qrcode(id):
         activity = db.get_or_404(Activity, id)
         
         # 获取当前本地化时间
-        now = get_beijing_time()
+        now = get_localized_now()
         
         # 生成唯一签到密钥，确保时效性和安全性
         checkin_key = hashlib.sha256(f"{activity.id}:{now.timestamp()}:{current_app.config['SECRET_KEY']}".encode()).hexdigest()[:16]
@@ -1930,7 +1930,7 @@ def checkin_modal(id):
         logger.info(f"获取活动信息: id={activity.id}, 标题={activity.title}")
         
         # 获取当前时间
-        now = get_beijing_time()
+        now = get_localized_now()
         logger.info(f"获取当前北京时间: {now}")
         
         # 获取报名人数
@@ -3068,7 +3068,7 @@ def manual_checkin(activity_id):
             was_previously_checked_in = cancel_record is not None
         
         # 设置签到时间
-        registration.check_in_time = get_beijing_time()
+        registration.check_in_time = get_localized_now()
         
         # 更新状态为已参加
         registration.status = 'attended'

@@ -319,7 +319,7 @@ def register_commands(app):
 def register_template_functions(app):
     """注册模板函数"""
     # 从utils.time_helpers导入时间处理函数
-    from src.utils.time_helpers import display_datetime, format_datetime, get_beijing_time
+    from src.utils.time_helpers import display_datetime, format_datetime, get_localized_now
     
     @app.template_filter('datetime')
     def _display_datetime(dt, fmt=None):
@@ -345,7 +345,7 @@ def register_template_functions(app):
     def _now():
         """获取当前时间"""
         # 获取当前中国时区的时间
-        return get_beijing_time()
+        return get_localized_now()
 
 def register_context_processors(app):
     """注册上下文处理器"""
@@ -353,8 +353,8 @@ def register_context_processors(app):
     @app.context_processor
     def inject_now_and_helpers():
         """向模板注入当前时间和助手函数"""
-        from src.utils.time_helpers import get_beijing_time
+        from src.utils.time_helpers import get_localized_now
         return {
-            'now': get_beijing_time,
+            'now': get_localized_now,
             'pytz': pytz
         } 

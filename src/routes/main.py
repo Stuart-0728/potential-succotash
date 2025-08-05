@@ -6,7 +6,7 @@ from sqlalchemy import func, desc, text, and_, or_, case
 from sqlalchemy.orm import joinedload
 from src import db
 from src.models import Activity, Registration, User, Tag, Notification, Announcement
-from src.utils.time_helpers import get_beijing_time, ensure_timezone_aware, get_localized_now, safe_less_than, safe_greater_than, display_datetime
+from src.utils.time_helpers import get_localized_now, ensure_timezone_aware, safe_less_than, safe_greater_than, display_datetime, get_activity_status
 import time
 import traceback
 import pytz
@@ -22,7 +22,7 @@ main_bp = Blueprint('main', __name__)
 def index():
     try:
         # 获取当前北京时间
-        now = get_beijing_time()
+        now = get_localized_now()
         logger.info(f"当前北京时间: {now}")
         
         # 获取静态文件目录
@@ -239,11 +239,11 @@ def activities():
     try:
         # 延迟导入，避免循环导入问题
         from src.models import Activity, Registration
-        from src.utils.time_helpers import get_beijing_time, safe_less_than, safe_greater_than, safe_compare, display_datetime
+        from src.utils.time_helpers import get_localized_now, safe_less_than, safe_greater_than, safe_compare, display_datetime
         from src import db
         
         # 获取当前北京时间
-        now = get_beijing_time()
+        now = get_localized_now()
         
         # 获取分页参数
         page = request.args.get('page', 1, type=int)
@@ -263,11 +263,22 @@ def activities():
                 )
             )
         
-        # 根据状态筛选 - 不比较时间，只使用活动状态
+        # 根据状态筛选 - 使用北京时间进行状态判定
+        from src.utils.time_helpers import get_localized_now
+        now = get_localized_now()
+        
         if status == 'active':
+            # 活动状态为'active'且未结束
             query = query.filter(Activity.status == 'active')
+            query = query.filter(Activity.end_time > now)
         elif status == 'past':
-            query = query.filter(Activity.status == 'completed')
+            # 已结束的活动
+            query = query.filter(
+                or_(
+                    Activity.status == 'completed',
+                    and_(Activity.status == 'active', Activity.end_time <= now)
+                )
+            )
         
         # 排序
         query = query.order_by(Activity.created_at.desc())
@@ -321,7 +332,7 @@ def activity_detail(activity_id):
         # 延迟导入，避免循环导入问题
         from src import db
         from src.models import Activity, Registration, User, Tag
-        from src.utils.time_helpers import get_beijing_time, display_datetime, get_localized_now, safe_less_than, safe_greater_than, safe_compare, ensure_timezone_aware
+        from src.utils.time_helpers import display_datetime, get_localized_now, safe_less_than, safe_greater_than, safe_compare, ensure_timezone_aware
         # 导入FlaskForm创建CSRF令牌
         from flask_wtf import FlaskForm
         
