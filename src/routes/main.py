@@ -396,6 +396,17 @@ def activity_detail(activity_id):
         # 判断当前用户是否为学生
         is_student = current_user.is_authenticated and current_user.is_student
         
+        # 获取天气数据
+        weather_data = None
+        try:
+            from src.utils.weather_api import get_activity_weather
+            if activity.start_time:
+                weather_data = get_activity_weather(activity.start_time)
+                logger.info(f"获取活动天气数据成功: {weather_data.get('description', 'N/A') if weather_data else 'None'}")
+        except Exception as e:
+            logger.warning(f"获取天气数据失败: {e}")
+            weather_data = None
+        
         return render_template('main/activity_detail.html', 
                               activity=activity,
                               registration_count=registration_count,
@@ -409,7 +420,8 @@ def activity_detail(activity_id):
                               now=now,
                               safe_less_than=safe_less_than,
                               safe_greater_than=safe_greater_than,
-                              safe_compare=safe_compare)
+                              safe_compare=safe_compare,
+                              weather_data=weather_data)
     except Exception as e:
         logger.error(f"Error in activity_detail: {str(e)}")
         flash('加载活动详情时发生错误，请稍后再试', 'danger')

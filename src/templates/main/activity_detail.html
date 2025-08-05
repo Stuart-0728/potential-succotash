@@ -120,6 +120,71 @@
         </div>
         
         <div class="col-md-4">
+            <!-- 天气卡片 -->
+            {% if weather_data %}
+            <div class="card mb-4 border-0 shadow-sm">
+                <div class="card-body p-0">
+                    <div class="weather-card {% if weather_data.description %}
+                        {% if '晴' in weather_data.description %}sunny
+                        {% elif '雨' in weather_data.description %}rainy
+                        {% elif '云' in weather_data.description or '阴' in weather_data.description %}cloudy
+                        {% else %}cloudy{% endif %}
+                    {% else %}cloudy{% endif %}">
+                        <div class="weather-main d-flex align-items-start justify-content-between">
+                            <div class="weather-info">
+                                <div class="weather-temp">
+                                    <span class="temp-value">{{ weather_data.temperature }}</span>
+                                    <span class="temp-unit">°C</span>
+                                </div>
+                                <div class="weather-desc">{{ weather_data.description }}</div>
+                                <div class="weather-location">
+                                    <i class="fas fa-map-marker-alt me-1"></i>{{ weather_data.location }}
+                                </div>
+                            </div>
+                            <div class="weather-icon">
+                                <i class="wi {{ weather_data.icon }}"></i>
+                            </div>
+                        </div>
+                        <div class="weather-details mt-4">
+                            <div class="row text-center">
+                                <div class="col-6">
+                                    <div class="weather-detail-item">
+                                        <i class="wi wi-thermometer"></i>
+                                        <div class="small">体感温度</div>
+                                        <div class="fw-bold">{{ weather_data.feels_like }}°C</div>
+                                    </div>
+                                </div>
+                                <div class="col-6">
+                                    <div class="weather-detail-item">
+                                        <i class="wi wi-humidity"></i>
+                                        <div class="small">湿度</div>
+                                        <div class="fw-bold">{{ weather_data.humidity }}%</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="weather-forecast-badge mt-3">
+                            <span class="badge">
+                                <i class="fas fa-calendar-alt me-1"></i>{{ weather_data.forecast_note }}
+                            </span>
+                            {% if weather_data.activity_date %}
+                            <span class="badge ms-2">
+                                <i class="fas fa-clock me-1"></i>{{ weather_data.activity_date }}
+                            </span>
+                            {% endif %}
+                        </div>
+                        {% if weather_data.note %}
+                        <div class="weather-note mt-3">
+                            <small>
+                                <i class="fas fa-info-circle me-1"></i>{{ weather_data.note }}
+                            </small>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+            
             <div class="card mb-4">
                 <div class="card-header">
                     <h5 class="mb-0">活动须知</h5>
