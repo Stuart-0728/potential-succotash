@@ -125,64 +125,98 @@
             </div>
             
             <!-- 天气卡片 -->
-            {% if weather_data %}
-            <div class="card border-0 shadow-sm mb-4">
-                <div class="card-body p-4">
-                    <h5 class="fw-bold mb-3">
-                        <i class="fas fa-cloud-sun text-primary me-2"></i>活动当天天气
-                    </h5>
-                    <div class="weather-card">
-                        <div class="weather-main d-flex align-items-center justify-content-between">
-                            <div class="weather-info">
-                                <div class="weather-temp">
-                                    <span class="temp-value">{{ weather_data.temperature }}</span>
-                                    <span class="temp-unit">°C</span>
-                                </div>
-                                <div class="weather-desc text-muted">{{ weather_data.description }}</div>
-                                <div class="weather-location text-muted small">
-                                    <i class="fas fa-map-marker-alt me-1"></i>{{ weather_data.city }}
-                                </div>
-                            </div>
-                            <div class="weather-icon">
-                                <div class="weather-icon-{{ weather_data.weather_type }}"></div>
-                            </div>
-                        </div>
-                        <div class="weather-details mt-3">
-                            <div class="row text-center">
-                                <div class="col-6">
-                                    <div class="weather-detail-item">
-                                        <i class="fas fa-thermometer-half text-primary"></i>
-                                        <div class="small text-muted">体感温度</div>
-                                        <div class="fw-bold">{{ weather_data.feels_like }}°C</div>
+                    {% if weather_data %}
+                    <div class="card border-0 shadow-sm mb-4">
+                        <div class="card-body p-0">
+                            <div class="weather-card 
+                                {% if 'sunny' in weather_data.icon or 'clear' in weather_data.icon %}
+                                    {% if '01n' in weather_data.icon %}night{% else %}sunny{% endif %}
+                                {% elif 'cloud' in weather_data.icon %}
+                                    cloudy
+                                {% elif 'rain' in weather_data.icon %}
+                                    rainy
+                                {% elif 'snow' in weather_data.icon %}
+                                    snowy
+                                {% elif 'fog' in weather_data.icon or 'mist' in weather_data.icon %}
+                                    foggy
+                                {% elif 'thunderstorm' in weather_data.icon %}
+                                    thunderstorm
+                                {% else %}
+                                    cloudy
+                                {% endif %}">
+                                <div class="weather-main d-flex align-items-start justify-content-between">
+                                    <div class="weather-info">
+                                        <div class="weather-temp">
+                                            <span class="temp-value">{{ weather_data.temperature }}</span>
+                                            <span class="temp-unit">°C</span>
+                                        </div>
+                                        <div class="weather-desc">{{ weather_data.description }}</div>
+                                        <div class="weather-location">
+                                            <i class="fas fa-map-marker-alt me-1"></i>重庆
+                                        </div>
+                                    </div>
+                                    <div class="weather-icon">
+                                        {% if 'sunny' in weather_data.icon or '01d' in weather_data.icon %}
+                                            <i class="wi wi-day-sunny"></i>
+                                        {% elif '01n' in weather_data.icon %}
+                                            <i class="wi wi-night-clear"></i>
+                                        {% elif '02d' in weather_data.icon %}
+                                            <i class="wi wi-day-cloudy"></i>
+                                        {% elif '02n' in weather_data.icon %}
+                                            <i class="wi wi-night-alt-cloudy"></i>
+                                        {% elif '03' in weather_data.icon or '04' in weather_data.icon %}
+                                            <i class="wi wi-cloudy"></i>
+                                        {% elif '09' in weather_data.icon %}
+                                            <i class="wi wi-showers"></i>
+                                        {% elif '10d' in weather_data.icon %}
+                                            <i class="wi wi-day-rain"></i>
+                                        {% elif '10n' in weather_data.icon %}
+                                            <i class="wi wi-night-alt-rain"></i>
+                                        {% elif '11' in weather_data.icon %}
+                                            <i class="wi wi-thunderstorm"></i>
+                                        {% elif '13' in weather_data.icon %}
+                                            <i class="wi wi-snow"></i>
+                                        {% elif '50' in weather_data.icon %}
+                                            <i class="wi wi-fog"></i>
+                                        {% else %}
+                                            <i class="wi wi-day-cloudy"></i>
+                                        {% endif %}
                                     </div>
                                 </div>
-                                <div class="col-6">
-                                    <div class="weather-detail-item">
-                                        <i class="fas fa-tint text-primary"></i>
-                                        <div class="small text-muted">湿度</div>
-                                        <div class="fw-bold">{{ weather_data.humidity }}%</div>
+                                <div class="weather-details mt-4">
+                                    <div class="row text-center">
+                                        <div class="col-6">
+                                            <div class="weather-detail-item">
+                                                <i class="wi wi-thermometer"></i>
+                                                <div class="small">体感温度</div>
+                                                <div class="fw-bold">{{ weather_data.feels_like }}°C</div>
+                                            </div>
+                                        </div>
+                                        <div class="col-6">
+                                            <div class="weather-detail-item">
+                                                <i class="wi wi-humidity"></i>
+                                                <div class="small">湿度</div>
+                                                <div class="fw-bold">{{ weather_data.humidity }}%</div>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
+                                <div class="weather-forecast-badge mt-3">
+                                    <span class="badge">
+                                        <i class="fas fa-calendar-alt me-1"></i>天气预报
+                                    </span>
+                                </div>
+                                {% if weather_data.note %}
+                                <div class="weather-note mt-3">
+                                    <small>
+                                        <i class="fas fa-info-circle me-1"></i>{{ weather_data.note }}
+                                    </small>
+                                </div>
+                                {% endif %}
                             </div>
                         </div>
-                        {% if weather_data.note %}
-                        <div class="weather-note mt-2">
-                            <small class="text-muted">
-                                <i class="fas fa-info-circle me-1"></i>{{ weather_data.note }}
-                            </small>
-                        </div>
-                        {% endif %}
-                        {% if weather_data.is_forecast %}
-                        <div class="weather-forecast-badge mt-2">
-                            <small class="badge bg-info">
-                                <i class="fas fa-calendar-alt me-1"></i>天气预报
-                            </small>
-                        </div>
-                        {% endif %}
                     </div>
-                </div>
-            </div>
-            {% endif %}
+                    {% endif %}
             
             {% if activity.tags %}
             <div class="card border-0 shadow-sm mb-4">
