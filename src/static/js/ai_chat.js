@@ -498,7 +498,7 @@ class AIChatUI {
         // 创建 EventSource 连接
         const role = 'student'; // 默认角色，可扩展
         const eventSource = new EventSource(`/utils/api/ai_chat?message=${encodeURIComponent(userMessage)}&role=${role}&session_id=${this.session.sessionId}`);
-
+        
         // 超时控制：若15秒内未收到数据则终止并提示
         const TIMEOUT_MS = 15000;
         const timeoutHandle = setTimeout(() => {
