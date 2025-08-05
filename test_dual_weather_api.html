@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>双API天气系统测试</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/weather-icons/2.0.12/css/weather-icons.min.css" rel="stylesheet">
+    <style>
+        .weather-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 20px;
+            padding: 24px;
+            color: white;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            transition: all 0.3s ease;
+        }
+
+        .weather-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
+        }
+
+        .weather-main {
+            position: relative;
+            z-index: 2;
+        }
+
+        .weather-temp {
+            display: flex;
+            align-items: baseline;
+            margin-bottom: 12px;
+        }
+
+        .temp-value {
+            font-size: 3rem;
+            font-weight: 300;
+            line-height: 1;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .temp-unit {
+            font-size: 1.4rem;
+            font-weight: 300;
+            margin-left: 6px;
+            opacity: 0.9;
+        }
+
+        .weather-desc {
+            font-size: 1.2rem;
+            margin-bottom: 6px;
+            opacity: 0.95;
+            font-weight: 400;
+        }
+
+        .weather-location {
+            opacity: 0.85;
+            font-size: 0.95rem;
+            font-weight: 300;
+        }
+
+        .weather-icon {
+            width: 90px;
+            height: 90px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 3.5rem;
+            text-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+        }
+
+        .weather-details {
+            position: relative;
+            z-index: 2;
+            background: rgba(255,255,255,0.12);
+            border-radius: 16px;
+            padding: 20px;
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .weather-detail-item {
+            text-align: center;
+        }
+
+        .weather-detail-item i {
+            font-size: 1.4rem;
+            margin-bottom: 8px;
+            opacity: 0.9;
+        }
+
+        .weather-detail-item .small {
+            font-size: 0.85rem;
+            opacity: 0.85;
+            margin-bottom: 4px;
+            font-weight: 300;
+        }
+
+        .weather-detail-item .fw-bold {
+            font-size: 1.1rem;
+            font-weight: 500;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+        }
+
+        .error {
+            background: linear-gradient(135deg, #ff6b6b 0%, #ee5a52 100%);
+        }
+
+        .weather-card.sunny {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        }
+
+        .weather-card.cloudy {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+        }
+
+        .weather-card.rainy {
+            background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+        }
+
+        .api-source-badge {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 3;
+        }
+
+        .api-source-badge .badge {
+            background: rgba(255,255,255,0.2) !important;
+            color: white;
+            border: 1px solid rgba(255,255,255,0.3);
+            backdrop-filter: blur(10px);
+        }
+
+        .amap-source {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+        }
+
+        .openweather-source {
+            background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%);
+        }
+    </style>
+</head>
+<body class="bg-light">
+    <div class="container py-5">
+        <div class="row justify-content-center">
+            <div class="col-md-10">
+                <h2 class="text-center mb-4">🌤️ 双API天气系统测试</h2>
+                
+                <div class="card border-0 shadow-sm mb-4">
+                    <div class="card-body">
+                        <h5 class="card-title">系统说明</h5>
+                        <p class="card-text">
+                            本系统采用<strong>双API备用机制</strong>：
+                        </p>
+                        <ul>
+                            <li><strong>主要API</strong>：高德开放平台 (16322187213696b230c7340477eaba34)</li>
+                            <li><strong>备用API</strong>：OpenWeather (8091ce90ee692da18471b3961900b431)</li>
+                            <li><strong>切换逻辑</strong>：高德API失败时自动切换到OpenWeather API</li>
+                            <li><strong>数据来源标识</strong>：每个天气卡片会显示数据来源</li>
+                        </ul>
+                    </div>
+                </div>
+                
+                <div class="row">
+                    <div class="col-md-4 mb-4">
+                        <h5>高德API测试</h5>
+                        <div id="amap-weather-container">
+                            <div class="weather-card loading">
+                                <div class="loading">
+                                    <div class="spinner-border text-white" role="status">
+                                        <span class="visually-hidden">加载中...</span>
+                                    </div>
+                                    <p class="mt-3 mb-0">正在测试高德API...</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-4 mb-4">
+                        <h5>OpenWeather API测试</h5>
+                        <div id="openweather-weather-container">
+                            <div class="weather-card loading">
+                                <div class="loading">
+                                    <div class="spinner-border text-white" role="status">
+                                        <span class="visually-hidden">加载中...</span>
+                                    </div>
+                                    <p class="mt-3 mb-0">正在测试OpenWeather API...</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-4 mb-4">
+                        <h5>自动备用测试</h5>
+                        <div id="fallback-weather-container">
+                            <div class="weather-card loading">
+                                <div class="loading">
+                                    <div class="spinner-border text-white" role="status">
+                                        <span class="visually-hidden">加载中...</span>
+                                    </div>
+                                    <p class="mt-3 mb-0">正在测试备用机制...</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="text-center">
+                    <button class="btn btn-primary me-2" onclick="testAmapApi()">
+                        <i class="fas fa-sync-alt me-2"></i>测试高德API
+                    </button>
+                    <button class="btn btn-success me-2" onclick="testOpenWeatherApi()">
+                        <i class="fas fa-cloud me-2"></i>测试OpenWeather API
+                    </button>
+                    <button class="btn btn-warning" onclick="testFallbackMechanism()">
+                        <i class="fas fa-shield-alt me-2"></i>测试备用机制
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const AMAP_API_KEY = '16322187213696b230c7340477eaba34';
+        const OPENWEATHER_API_KEY = '8091ce90ee692da18471b3961900b431';
+        const CITY_CODE = '500000'; // 重庆市
+        
+        // 天气图标映射
+        const weatherIconMap = {
+            '晴': 'wi-day-sunny',
+            '少云': 'wi-day-cloudy',
+            '晴间多云': 'wi-day-cloudy',
+            '多云': 'wi-cloudy',
+            '阴': 'wi-cloudy',
+            '阵雨': 'wi-day-showers',
+            '雷阵雨': 'wi-day-thunderstorm',
+            '小雨': 'wi-rain',
+            '中雨': 'wi-rain',
+            '大雨': 'wi-rain',
+            '暴雨': 'wi-rain',
+            '雪': 'wi-snow',
+            '雾': 'wi-fog',
+            '未知': 'wi-na'
+        };
+        
+        const openweatherIconMap = {
+            '01d': 'wi-day-sunny',
+            '01n': 'wi-night-clear',
+            '02d': 'wi-day-cloudy',
+            '02n': 'wi-night-alt-cloudy',
+            '03d': 'wi-cloudy',
+            '03n': 'wi-cloudy',
+            '04d': 'wi-cloudy',
+            '04n': 'wi-cloudy',
+            '09d': 'wi-showers',
+            '09n': 'wi-night-alt-showers',
+            '10d': 'wi-day-rain',
+            '10n': 'wi-night-alt-rain',
+            '11d': 'wi-thunderstorm',
+            '11n': 'wi-thunderstorm',
+            '13d': 'wi-snow',
+            '13n': 'wi-snow',
+            '50d': 'wi-fog',
+            '50n': 'wi-fog'
+        };
+        
+        function getWeatherIcon(weather, isAmap = true) {
+            if (isAmap) {
+                return weatherIconMap[weather] || 'wi-na';
+            } else {
+                return openweatherIconMap[weather] || 'wi-na';
+            }
+        }
+        
+        function getWeatherType(weather) {
+            if (weather.includes('晴') || weather.includes('sunny')) return 'sunny';
+            if (weather.includes('雨') || weather.includes('rain')) return 'rainy';
+            if (weather.includes('云') || weather.includes('阴') || weather.includes('cloud')) return 'cloudy';
+            return 'cloudy';
+        }
+        
+        function renderWeatherCard(container, weatherData, apiSource) {
+            const weatherType = getWeatherType(weatherData.description || weatherData.weather || '');
+            const sourceClass = apiSource === 'amap' ? 'amap-source' : 'openweather-source';
+            const sourceName = apiSource === 'amap' ? '高德开放平台' : 'OpenWeather';
+            
+            container.innerHTML = `
+                <div class="weather-card ${weatherType} ${sourceClass}">
+                    <div class="api-source-badge">
+                        <span class="badge">
+                            <i class="fas fa-${apiSource === 'amap' ? 'map' : 'globe'} me-1"></i>${sourceName}
+                        </span>
+                    </div>
+                    <div class="weather-main d-flex align-items-start justify-content-between">
+                        <div class="weather-info">
+                            <div class="weather-temp">
+                                <span class="temp-value">${weatherData.temperature}</span>
+                                <span class="temp-unit">°C</span>
+                            </div>
+                            <div class="weather-desc">${weatherData.description || weatherData.weather}</div>
+                            <div class="weather-location">
+                                <i class="fas fa-map-marker-alt me-1"></i>${weatherData.location || weatherData.city || '重庆'}
+                            </div>
+                        </div>
+                        <div class="weather-icon">
+                            <i class="wi ${weatherData.icon}"></i>
+                        </div>
+                    </div>
+                    <div class="weather-details mt-4">
+                        <div class="row text-center">
+                            <div class="col-6">
+                                <div class="weather-detail-item">
+                                    <i class="wi wi-thermometer"></i>
+                                    <div class="small">体感温度</div>
+                                    <div class="fw-bold">${weatherData.feels_like || weatherData.temperature}°C</div>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div class="weather-detail-item">
+                                    <i class="wi wi-humidity"></i>
+                                    <div class="small">湿度</div>
+                                    <div class="fw-bold">${weatherData.humidity}%</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mt-3">
+                        <small class="opacity-75">
+                            <i class="fas fa-clock me-1"></i>更新时间: ${new Date().toLocaleString('zh-CN')}
+                        </small>
+                    </div>
+                </div>
+            `;
+        }
+        
+        function renderErrorCard(container, errorMessage, apiSource) {
+            const sourceName = apiSource === 'amap' ? '高德API' : 'OpenWeather API';
+            container.innerHTML = `
+                <div class="weather-card error">
+                    <div class="text-center">
+                        <i class="fas fa-exclamation-triangle fa-3x mb-3"></i>
+                        <h5>${sourceName}获取失败</h5>
+                        <p class="mb-0">错误信息: ${errorMessage}</p>
+                    </div>
+                </div>
+            `;
+        }
+        
+        async function testAmapApi() {
+            const container = document.getElementById('amap-weather-container');
+            
+            container.innerHTML = `
+                <div class="weather-card loading">
+                    <div class="loading">
+                        <div class="spinner-border text-white" role="status">
+                            <span class="visually-hidden">加载中...</span>
+                        </div>
+                        <p class="mt-3 mb-0">正在测试高德API...</p>
+                    </div>
+                </div>
+            `;
+            
+            try {
+                const url = `https://restapi.amap.com/v3/weather/weatherInfo?key=${AMAP_API_KEY}&city=${CITY_CODE}&extensions=base&output=json`;
+                const response = await fetch(url);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP错误: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                
+                if (data.status !== '1') {
+                    throw new Error(`API错误: ${data.info || '未知错误'}`);
+                }
+                
+                const lives = data.lives;
+                if (!lives || lives.length === 0) {
+                    throw new Error('未获取到实况天气数据');
+                }
+                
+                const weather = lives[0];
+                const weatherData = {
+                    temperature: parseInt(weather.temperature),
+                    feels_like: parseInt(weather.temperature),
+                    humidity: parseInt(weather.humidity),
+                    description: weather.weather,
+                    icon: getWeatherIcon(weather.weather, true),
+                    location: weather.city
+                };
+                
+                renderWeatherCard(container, weatherData, 'amap');
+                
+            } catch (error) {
+                console.error('高德API测试失败:', error);
+                renderErrorCard(container, error.message, 'amap');
+            }
+        }
+        
+        async function testOpenWeatherApi() {
+            const container = document.getElementById('openweather-weather-container');
+            
+            container.innerHTML = `
+                <div class="weather-card loading">
+                    <div class="loading">
+                        <div class="spinner-border text-white" role="status">
+                            <span class="visually-hidden">加载中...</span>
+                        </div>
+                        <p class="mt-3 mb-0">正在测试OpenWeather API...</p>
+                    </div>
+                </div>
+            `;
+            
+            try {
+                const url = `https://api.openweathermap.org/data/2.5/weather?q=Chongqing,CN&appid=${OPENWEATHER_API_KEY}&units=metric&lang=zh_cn`;
+                const response = await fetch(url);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP错误: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                
+                const weatherData = {
+                    temperature: Math.round(data.main.temp),
+                    feels_like: Math.round(data.main.feels_like),
+                    humidity: data.main.humidity,
+                    description: data.weather[0].description,
+                    icon: getWeatherIcon(data.weather[0].icon, false),
+                    location: '重庆'
+                };
+                
+                renderWeatherCard(container, weatherData, 'openweather');
+                
+            } catch (error) {
+                console.error('OpenWeather API测试失败:', error);
+                renderErrorCard(container, error.message, 'openweather');
+            }
+        }
+        
+        async function testFallbackMechanism() {
+            const container = document.getElementById('fallback-weather-container');
+            
+            container.innerHTML = `
+                <div class="weather-card loading">
+                    <div class="loading">
+                        <div class="spinner-border text-white" role="status">
+                            <span class="visually-hidden">加载中...</span>
+                        </div>
+                        <p class="mt-3 mb-0">正在测试备用机制...</p>
+                    </div>
+                </div>
+            `;
+            
+            // 首先尝试高德API
+            try {
+                const amapUrl = `https://restapi.amap.com/v3/weather/weatherInfo?key=${AMAP_API_KEY}&city=${CITY_CODE}&extensions=base&output=json`;
+                const amapResponse = await fetch(amapUrl);
+                
+                if (amapResponse.ok) {
+                    const amapData = await amapResponse.json();
+                    if (amapData.status === '1' && amapData.lives && amapData.lives.length > 0) {
+                        const weather = amapData.lives[0];
+                        const weatherData = {
+                            temperature: parseInt(weather.temperature),
+                            feels_like: parseInt(weather.temperature),
+                            humidity: parseInt(weather.humidity),
+                            description: weather.weather,
+                            icon: getWeatherIcon(weather.weather, true),
+                            location: weather.city
+                        };
+                        
+                        renderWeatherCard(container, weatherData, 'amap');
+                        
+                        // 显示成功使用主要API的消息
+                        setTimeout(() => {
+                            const badge = container.querySelector('.api-source-badge .badge');
+                            if (badge) {
+                                badge.innerHTML = '<i class="fas fa-check me-1"></i>主要API成功';
+                            }
+                        }, 1000);
+                        
+                        return;
+                    }
+                }
+                
+                throw new Error('高德API失败，切换到备用API');
+                
+            } catch (error) {
+                console.log('高德API失败，尝试OpenWeather API:', error.message);
+                
+                // 高德API失败，尝试OpenWeather API
+                try {
+                    const openweatherUrl = `https://api.openweathermap.org/data/2.5/weather?q=Chongqing,CN&appid=${OPENWEATHER_API_KEY}&units=metric&lang=zh_cn`;
+                    const openweatherResponse = await fetch(openweatherUrl);
+                    
+                    if (!openweatherResponse.ok) {
+                        throw new Error(`OpenWeather HTTP错误: ${openweatherResponse.status}`);
+                    }
+                    
+                    const openweatherData = await openweatherResponse.json();
+                    
+                    const weatherData = {
+                        temperature: Math.round(openweatherData.main.temp),
+                        feels_like: Math.round(openweatherData.main.feels_like),
+                        humidity: openweatherData.main.humidity,
+                        description: openweatherData.weather[0].description,
+                        icon: getWeatherIcon(openweatherData.weather[0].icon, false),
+                        location: '重庆'
+                    };
+                    
+                    renderWeatherCard(container, weatherData, 'openweather');
+                    
+                    // 显示备用API成功的消息
+                    setTimeout(() => {
+                        const badge = container.querySelector('.api-source-badge .badge');
+                        if (badge) {
+                            badge.innerHTML = '<i class="fas fa-shield-alt me-1"></i>备用API成功';
+                        }
+                    }, 1000);
+                    
+                } catch (fallbackError) {
+                    console.error('备用API也失败:', fallbackError);
+                    renderErrorCard(container, '所有API都失败了', 'fallback');
+                }
+            }
+        }
+        
+        // 页面加载时自动测试所有API
+        document.addEventListener('DOMContentLoaded', function() {
+            testAmapApi();
+            testOpenWeatherApi();
+            testFallbackMechanism();
+        });
+    </script>
+</body>
+</html>

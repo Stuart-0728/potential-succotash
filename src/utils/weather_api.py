@@ -198,9 +198,179 @@ def get_weather_icon(weather_desc):
     """
     return WEATHER_ICON_MAP.get(weather_desc, 'wi-na')
 
+def get_openweather_data(city='Chongqing', date=None):
+    """
+    使用OpenWeather API获取天气数据（备用API）
+    
+    Args:
+        city (str): 城市名称，默认为重庆
+        date (datetime): 指定日期，None表示当前天气
+    
+    Returns:
+        dict: 天气数据字典
+    """
+    try:
+        api_key = Config.OPENWEATHER_API_KEY
+        if not api_key:
+            logger.warning("OpenWeather API密钥未配置")
+            return None
+        
+        now = get_localized_now()
+        
+        # OpenWeatherMap API URL
+        if date and date.date() != now.date():
+            # 获取预报天气（5天预报）
+            url = f"https://api.openweathermap.org/data/2.5/forecast"
+            params = {
+                'q': f'{city},CN',
+                'appid': api_key,
+                'units': 'metric',
+                'lang': 'zh_cn'
+            }
+        else:
+            # 获取当前天气
+            url = f"https://api.openweathermap.org/data/2.5/weather"
+            params = {
+                'q': f'{city},CN',
+                'appid': api_key,
+                'units': 'metric',
+                'lang': 'zh_cn'
+            }
+        
+        logger.info(f"使用OpenWeather API获取{city}的天气数据...")
+        response = requests.get(url, params=params, timeout=10)
+        response.raise_for_status()
+        
+        data = response.json()
+        
+        if date and date.date() != now.date():
+            # 处理预报数据
+            target_date = date.date()
+            for forecast in data.get('list', []):
+                forecast_date = datetime.fromtimestamp(forecast['dt']).date()
+                if forecast_date == target_date:
+                    # 将OpenWeather数据转换为统一格式
+                    weather_info = {
+                        'temperature': round(forecast['main']['temp']),
+                        'feels_like': round(forecast['main']['feels_like']),
+                        'humidity': forecast['main']['humidity'],
+                        'description': forecast['weather'][0]['description'],
+                        'icon': openweather_to_weather_icon(forecast['weather'][0]['icon']),
+                        'location': '重庆',
+                        'province': '重庆市',
+                        'wind_direction': '',
+                        'wind_power': '',
+                        'report_time': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                        'date': date.strftime('%Y-%m-%d'),
+                        'is_forecast': True,
+                        'api_source': 'openweather'
+                    }
+                    logger.info(f"OpenWeather API获取{city}预报天气成功: {weather_info['description']}")
+                    return weather_info
+            
+            logger.warning(f"OpenWeather API未找到{target_date}的天气预报数据")
+            return None
+        else:
+            # 处理当前天气数据
+            weather_info = {
+                'temperature': round(data['main']['temp']),
+                'feels_like': round(data['main']['feels_like']),
+                'humidity': data['main']['humidity'],
+                'description': data['weather'][0]['description'],
+                'icon': openweather_to_weather_icon(data['weather'][0]['icon']),
+                'location': '重庆',
+                'province': '重庆市',
+                'wind_direction': '',
+                'wind_power': '',
+                'report_time': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                'date': now.strftime('%Y-%m-%d'),
+                'is_forecast': False,
+                'api_source': 'openweather'
+            }
+            logger.info(f"OpenWeather API获取{city}当前天气成功: {weather_info['description']}")
+            return weather_info
+            
+    except requests.exceptions.RequestException as e:
+        logger.error(f"OpenWeather API请求失败: {e}")
+        return None
+    except Exception as e:
+        logger.error(f"OpenWeather API获取天气数据时发生错误: {e}")
+        return None
+
+def openweather_to_weather_icon(openweather_icon):
+    """
+    将OpenWeather图标代码转换为Weather Icons类名
+    
+    Args:
+        openweather_icon (str): OpenWeather图标代码（如'01d', '02n'等）
+    
+    Returns:
+        str: Weather Icons类名
+    """
+    icon_map = {
+        '01d': 'wi-day-sunny',      # 晴天
+        '01n': 'wi-night-clear',    # 晴夜
+        '02d': 'wi-day-cloudy',     # 少云
+        '02n': 'wi-night-alt-cloudy',
+        '03d': 'wi-cloudy',         # 多云
+        '03n': 'wi-cloudy',
+        '04d': 'wi-cloudy',         # 阴天
+        '04n': 'wi-cloudy',
+        '09d': 'wi-showers',        # 阵雨
+        '09n': 'wi-night-alt-showers',
+        '10d': 'wi-day-rain',       # 雨
+        '10n': 'wi-night-alt-rain',
+        '11d': 'wi-thunderstorm',   # 雷雨
+        '11n': 'wi-thunderstorm',
+        '13d': 'wi-snow',           # 雪
+        '13n': 'wi-snow',
+        '50d': 'wi-fog',            # 雾
+        '50n': 'wi-fog'
+    }
+    return icon_map.get(openweather_icon, 'wi-na')
+
+def get_weather_data_with_fallback(city_adcode=CHONGQING_ADCODE, extensions='base', activity_date=None):
+    """
+    获取天气数据，高德API失败时自动切换到OpenWeather API
+    
+    Args:
+        city_adcode (str): 城市区域编码，默认为重庆
+        extensions (str): 气象类型，base=实况天气，all=预报天气
+        activity_date (datetime): 活动日期，用于OpenWeather API
+    
+    Returns:
+        dict: 天气数据字典
+    """
+    # 首先尝试高德API
+    logger.info("尝试使用高德API获取天气数据...")
+    weather_data = get_weather_data(city_adcode, extensions)
+    
+    if weather_data:
+        weather_data['api_source'] = 'amap'
+        logger.info("高德API获取天气数据成功")
+        return weather_data
+    
+    # 高德API失败，尝试OpenWeather API
+    logger.warning("高德API失败，尝试使用OpenWeather API作为备用...")
+    
+    # 将高德的extensions参数转换为OpenWeather的日期参数
+    if extensions == 'all' and activity_date:
+        # 预报天气
+        fallback_data = get_openweather_data('Chongqing', activity_date)
+    else:
+        # 实况天气
+        fallback_data = get_openweather_data('Chongqing', None)
+    
+    if fallback_data:
+        logger.info("备用OpenWeather API获取天气数据成功")
+        return fallback_data
+    else:
+        logger.error("所有天气API都失败，无法获取天气数据")
+        return None
+
 def get_activity_weather(activity_start_time):
     """
-    获取活动当天的天气信息
+    获取活动当天的天气信息（带备用API支持）
     
     Args:
         activity_start_time (datetime): 活动开始时间
@@ -220,12 +390,12 @@ def get_activity_weather(activity_start_time):
         # 判断是获取实况还是预报天气
         if activity_date <= current_date:
             # 活动是今天或过去，获取实况天气
-            weather_data = get_weather_data(CHONGQING_ADCODE, 'base')
+            weather_data = get_weather_data_with_fallback(CHONGQING_ADCODE, 'base', None)
             is_forecast = False
             forecast_note = "当日天气"
         else:
             # 活动是未来，获取预报天气
-            weather_data = get_weather_data(CHONGQING_ADCODE, 'all')
+            weather_data = get_weather_data_with_fallback(CHONGQING_ADCODE, 'all', activity_start_time)
             is_forecast = True
             
             # 计算活动距离今天的天数
@@ -243,6 +413,13 @@ def get_activity_weather(activity_start_time):
             weather_data['activity_time'] = activity_start_time.strftime('%H:%M')
             weather_data['is_forecast'] = is_forecast
             weather_data['forecast_note'] = forecast_note
+            
+            # 添加API来源信息到显示中
+            api_source = weather_data.get('api_source', 'unknown')
+            if api_source == 'amap':
+                weather_data['note'] = "数据来源：高德开放平台"
+            elif api_source == 'openweather':
+                weather_data['note'] = "数据来源：OpenWeather（备用）"
             
             return weather_data
         else:
