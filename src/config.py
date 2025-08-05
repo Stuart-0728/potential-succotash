@@ -144,7 +144,11 @@ class Config:
     }
     
     # 时区配置
-    TIMEZONE_NAME = os.environ.get('TIMEZONE_NAME', 'Asia/Shanghai')
+    TIMEZONE_NAME = 'Asia/Shanghai'
+    TIMEZONE = pytz.timezone('Asia/Shanghai')
+    
+    # 天气API配置
+    OPENWEATHER_API_KEY = os.environ.get('OPENWEATHER_API_KEY', 'demo_key')
     
     # 如果使用PostgreSQL，设置时区和连接参数 - 优化连接性能
     if 'postgresql:' in str(SQLALCHEMY_DATABASE_URI):

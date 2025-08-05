@@ -263,6 +263,17 @@ def activity_detail(id):
                 poster_url = url_for('static', filename=f'img/{activity.poster_image}')
             else:
                 poster_url = url_for('static', filename=f'uploads/posters/{activity.poster_image}')
+        
+        # 获取活动当天的天气信息
+        weather_data = None
+        try:
+            from src.utils.weather_api import get_activity_weather
+            if activity.start_time:
+                weather_data = get_activity_weather(activity.start_time)
+                logger.info(f"获取活动天气数据成功: {weather_data.get('description', 'N/A')}")
+        except Exception as e:
+            logger.warning(f"获取天气数据失败: {e}")
+            weather_data = None
 
         return render_template('student/activity_detail.html',
                               form=form,
@@ -289,7 +300,8 @@ def activity_detail(id):
                               safe_greater_than=safe_greater_than,
                               safe_greater_than_equal=safe_greater_than_equal,
                               safe_less_than_equal=safe_less_than_equal,
-                              poster_url=poster_url)
+                              poster_url=poster_url,
+                              weather_data=weather_data)
 
     except Exception as e:
         logger.error(f"加载活动详情出错: {str(e)}", exc_info=True)

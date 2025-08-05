@@ -1667,3 +1667,425 @@ a.btn.disabled::before {
 .navbar .nav-item .nav-link {
     white-space: nowrap;
 }
+
+/* ==================== 天气卡片样式 ==================== */
+.weather-card {
+    background: linear-gradient(135deg, #74b9ff 0%, #0984e3 100%);
+    border-radius: 16px;
+    padding: 20px;
+    color: white;
+    position: relative;
+    overflow: hidden;
+}
+
+.weather-card::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    right: -50%;
+    width: 100%;
+    height: 100%;
+    background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+    border-radius: 50%;
+}
+
+.weather-main {
+    position: relative;
+    z-index: 2;
+}
+
+.weather-temp {
+    display: flex;
+    align-items: baseline;
+    margin-bottom: 8px;
+}
+
+.temp-value {
+    font-size: 2.5rem;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.temp-unit {
+    font-size: 1.2rem;
+    font-weight: 400;
+    margin-left: 4px;
+    opacity: 0.8;
+}
+
+.weather-desc {
+    font-size: 1.1rem;
+    margin-bottom: 4px;
+    opacity: 0.9;
+}
+
+.weather-location {
+    opacity: 0.8;
+    font-size: 0.9rem;
+}
+
+.weather-icon {
+    width: 80px;
+    height: 80px;
+    position: relative;
+}
+
+/* 天气图标样式 */
+.weather-icon > div {
+    width: 100%;
+    height: 100%;
+    position: relative;
+}
+
+/* 晴天图标 */
+.weather-icon-sunny {
+    background: radial-gradient(circle, #ffd700 30%, transparent 31%);
+    position: relative;
+}
+
+.weather-icon-sunny::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 100%;
+    height: 100%;
+    transform: translate(-50%, -50%);
+    background: 
+        linear-gradient(45deg, transparent 40%, #ffd700 40%, #ffd700 60%, transparent 60%),
+        linear-gradient(-45deg, transparent 40%, #ffd700 40%, #ffd700 60%, transparent 60%),
+        linear-gradient(90deg, transparent 40%, #ffd700 40%, #ffd700 60%, transparent 60%),
+        linear-gradient(0deg, transparent 40%, #ffd700 40%, #ffd700 60%, transparent 60%);
+}
+
+/* 多云图标 */
+.weather-icon-cloudy {
+    position: relative;
+}
+
+.weather-icon-cloudy::before {
+    content: '';
+    position: absolute;
+    top: 20%;
+    left: 10%;
+    width: 50%;
+    height: 30%;
+    background: rgba(255,255,255,0.9);
+    border-radius: 25px;
+    box-shadow: 
+        25px 0 0 -5px rgba(255,255,255,0.8),
+        10px 15px 0 -8px rgba(255,255,255,0.9),
+        35px 15px 0 -8px rgba(255,255,255,0.8);
+}
+
+/* 雨天图标 */
+.weather-icon-rainy {
+    position: relative;
+}
+
+.weather-icon-rainy::before {
+    content: '';
+    position: absolute;
+    top: 15%;
+    left: 15%;
+    width: 40%;
+    height: 25%;
+    background: rgba(255,255,255,0.9);
+    border-radius: 20px;
+    box-shadow: 
+        20px 0 0 -3px rgba(255,255,255,0.8),
+        8px 12px 0 -6px rgba(255,255,255,0.9),
+        28px 12px 0 -6px rgba(255,255,255,0.8);
+}
+
+.weather-icon-rainy::after {
+    content: '';
+    position: absolute;
+    top: 45%;
+    left: 20%;
+    width: 2px;
+    height: 15px;
+    background: rgba(255,255,255,0.8);
+    border-radius: 1px;
+    box-shadow: 
+        8px 3px 0 rgba(255,255,255,0.7),
+        16px 0 0 rgba(255,255,255,0.8),
+        24px 3px 0 rgba(255,255,255,0.7),
+        32px 1px 0 rgba(255,255,255,0.8);
+}
+
+/* 部分多云图标 */
+.weather-icon-partly-cloudy {
+    position: relative;
+}
+
+.weather-icon-partly-cloudy::before {
+    content: '';
+    position: absolute;
+    top: 10%;
+    left: 5%;
+    width: 25px;
+    height: 25px;
+    background: radial-gradient(circle, #ffd700 40%, transparent 41%);
+    border-radius: 50%;
+}
+
+.weather-icon-partly-cloudy::after {
+    content: '';
+    position: absolute;
+    top: 35%;
+    left: 25%;
+    width: 35%;
+    height: 20%;
+    background: rgba(255,255,255,0.9);
+    border-radius: 15px;
+    box-shadow: 
+        15px 0 0 -3px rgba(255,255,255,0.8),
+        5px 8px 0 -5px rgba(255,255,255,0.9),
+        20px 8px 0 -5px rgba(255,255,255,0.8);
+}
+
+/* 部分多云夜间图标 */
+.weather-icon-partly-cloudy-night {
+    position: relative;
+}
+
+.weather-icon-partly-cloudy-night::before {
+    content: '';
+    position: absolute;
+    top: 15%;
+    left: 10%;
+    width: 20px;
+    height: 20px;
+    background: #f1c40f;
+    border-radius: 50%;
+    clip-path: polygon(0 0, 70% 0, 100% 30%, 100% 100%, 30% 100%, 0 70%);
+}
+
+.weather-icon-partly-cloudy-night::after {
+    content: '';
+    position: absolute;
+    top: 40%;
+    left: 30%;
+    width: 30%;
+    height: 18%;
+    background: rgba(255,255,255,0.9);
+    border-radius: 12px;
+    box-shadow: 
+        12px 0 0 -2px rgba(255,255,255,0.8),
+        3px 6px 0 -4px rgba(255,255,255,0.9),
+        15px 6px 0 -4px rgba(255,255,255,0.8);
+}
+
+/* 晴夜图标 */
+.weather-icon-clear-night {
+    position: relative;
+}
+
+.weather-icon-clear-night::before {
+    content: '';
+    position: absolute;
+    top: 20%;
+    left: 20%;
+    width: 40px;
+    height: 40px;
+    background: #f1c40f;
+    border-radius: 50%;
+    clip-path: polygon(0 0, 70% 0, 100% 30%, 100% 100%, 30% 100%, 0 70%);
+}
+
+/* 阴天图标 */
+.weather-icon-overcast {
+    position: relative;
+}
+
+.weather-icon-overcast::before {
+    content: '';
+    position: absolute;
+    top: 25%;
+    left: 15%;
+    width: 45%;
+    height: 25%;
+    background: rgba(255,255,255,0.8);
+    border-radius: 20px;
+    box-shadow: 
+        20px 0 0 -3px rgba(255,255,255,0.7),
+        -5px 8px 0 -3px rgba(255,255,255,0.8),
+        15px 8px 0 -3px rgba(255,255,255,0.7),
+        30px 8px 0 -3px rgba(255,255,255,0.6);
+}
+
+/* 雷雨图标 */
+.weather-icon-thunderstorm {
+    position: relative;
+}
+
+.weather-icon-thunderstorm::before {
+    content: '';
+    position: absolute;
+    top: 15%;
+    left: 15%;
+    width: 40%;
+    height: 25%;
+    background: rgba(255,255,255,0.9);
+    border-radius: 20px;
+    box-shadow: 
+        20px 0 0 -3px rgba(255,255,255,0.8),
+        8px 12px 0 -6px rgba(255,255,255,0.9),
+        28px 12px 0 -6px rgba(255,255,255,0.8);
+}
+
+.weather-icon-thunderstorm::after {
+    content: '';
+    position: absolute;
+    top: 45%;
+    left: 35%;
+    width: 0;
+    height: 0;
+    border-left: 8px solid transparent;
+    border-right: 8px solid transparent;
+    border-top: 15px solid #ffd700;
+    transform: rotate(15deg);
+    filter: drop-shadow(2px 2px 0 rgba(255,215,0,0.8));
+}
+
+/* 雪天图标 */
+.weather-icon-snowy {
+    position: relative;
+}
+
+.weather-icon-snowy::before {
+    content: '';
+    position: absolute;
+    top: 15%;
+    left: 15%;
+    width: 40%;
+    height: 25%;
+    background: rgba(255,255,255,0.9);
+    border-radius: 20px;
+    box-shadow: 
+        20px 0 0 -3px rgba(255,255,255,0.8),
+        8px 12px 0 -6px rgba(255,255,255,0.9),
+        28px 12px 0 -6px rgba(255,255,255,0.8);
+}
+
+.weather-icon-snowy::after {
+    content: '❄ ❅ ❄';
+    position: absolute;
+    top: 45%;
+    left: 20%;
+    font-size: 12px;
+    color: rgba(255,255,255,0.9);
+    letter-spacing: 8px;
+    animation: snow-fall 2s ease-in-out infinite;
+}
+
+@keyframes snow-fall {
+    0%, 100% { transform: translateY(0); opacity: 1; }
+    50% { transform: translateY(5px); opacity: 0.7; }
+}
+
+/* 雾天图标 */
+.weather-icon-foggy {
+    position: relative;
+}
+
+.weather-icon-foggy::before {
+    content: '';
+    position: absolute;
+    top: 30%;
+    left: 15%;
+    width: 50%;
+    height: 3px;
+    background: rgba(255,255,255,0.8);
+    border-radius: 2px;
+    box-shadow: 
+        0 8px 0 rgba(255,255,255,0.7),
+        0 16px 0 rgba(255,255,255,0.6),
+        0 24px 0 rgba(255,255,255,0.5);
+}
+
+.weather-icon-foggy::after {
+    content: '';
+    position: absolute;
+    top: 34%;
+    left: 25%;
+    width: 40%;
+    height: 3px;
+    background: rgba(255,255,255,0.6);
+    border-radius: 2px;
+    box-shadow: 
+        0 8px 0 rgba(255,255,255,0.5),
+        0 16px 0 rgba(255,255,255,0.4);
+}
+
+.weather-details {
+    position: relative;
+    z-index: 2;
+    background: rgba(255,255,255,0.1);
+    border-radius: 12px;
+    padding: 15px;
+    backdrop-filter: blur(10px);
+}
+
+.weather-detail-item {
+    text-align: center;
+}
+
+.weather-detail-item i {
+    font-size: 1.2rem;
+    margin-bottom: 5px;
+    opacity: 0.9;
+}
+
+.weather-detail-item .small {
+    font-size: 0.8rem;
+    opacity: 0.8;
+    margin-bottom: 2px;
+}
+
+.weather-detail-item .fw-bold {
+    font-size: 1rem;
+    font-weight: 600;
+}
+
+.weather-note {
+    position: relative;
+    z-index: 2;
+    background: rgba(255,255,255,0.1);
+    border-radius: 8px;
+    padding: 8px 12px;
+    backdrop-filter: blur(5px);
+}
+
+.weather-forecast-badge {
+    position: relative;
+    z-index: 2;
+}
+
+.weather-forecast-badge .badge {
+    background: rgba(255,255,255,0.2) !important;
+    color: white;
+    border: 1px solid rgba(255,255,255,0.3);
+    backdrop-filter: blur(5px);
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+    .weather-card {
+        padding: 15px;
+    }
+    
+    .temp-value {
+        font-size: 2rem;
+    }
+    
+    .weather-icon {
+        width: 60px;
+        height: 60px;
+    }
+    
+    .weather-details {
+        padding: 12px;
+    }
+}
