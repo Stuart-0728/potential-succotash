@@ -33,13 +33,13 @@
                                 <h5 class="mb-1">{{ activity.title if activity else '未知活动' }}</h5>
                                 <small>
                                     {% if registration.status == 'registered' %}
-                                        <span class="badge bg-success">已报名</span>
+                                        <span class="badge bg-primary">已报名</span>
                                     {% elif registration.status == 'attended' %}
-                                        <span class="badge bg-info">已参加</span>
-                                    {% elif registration.status == 'checked_in' %}
-                                        <span class="badge bg-primary">已签到</span>
-                                    {% else %}
+                                        <span class="badge bg-success">已参加</span>
+                                    {% elif registration.status == 'cancelled' %}
                                         <span class="badge bg-secondary">已取消</span>
+                                    {% else %}
+                                        <span class="badge bg-info">{{ registration.status }}</span>
                                     {% endif %}
                                 </small>
                             </div>

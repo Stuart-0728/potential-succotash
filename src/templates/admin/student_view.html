@@ -199,8 +199,8 @@
                                         <td>
                                             {% if reg.status == 'registered' %}
                                                 <span class="badge bg-primary">已报名</span>
-                                            {% elif reg.status == 'checked_in' %}
-                                                <span class="badge bg-success">已签到</span>
+                                            {% elif reg.status == 'attended' %}
+                                                <span class="badge bg-success">已参加</span>
                                             {% elif reg.status == 'cancelled' %}
                                                 <span class="badge bg-secondary">已取消</span>
                                             {% else %}
@@ -237,4 +237,4 @@
     border-color: transparent;
 }
 </style>
-{% endblock %} 
+{% endblock %}
