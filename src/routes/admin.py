@@ -2719,7 +2719,8 @@ def create_message():
             return redirect(url_for('admin.messages'))
         
         # 获取所有学生用户
-        students = User.query.join(Role).filter(Role.name == 'Student').all()
+        students_stmt = db.select(User).join(Role).filter(Role.name == 'Student')
+        students = db.session.execute(students_stmt).scalars().all()
         
         return render_template('admin/message_form.html', 
                               students=students,
