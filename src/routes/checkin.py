@@ -49,13 +49,14 @@ def scan_checkin(activity_id, checkin_key):
         valid_key = False
         now = get_localized_now()
         
-        # 确保checkin_key_expires有时区信息
-        expires_time = getattr(activity, 'checkin_key_expires', None)
-        if expires_time:
-            expires_time = ensure_timezone_aware(expires_time)
+        # 导入安全比较函数
+        from src.utils.time_helpers import safe_greater_than_equal
         
         checkin_key_field = getattr(activity, 'checkin_key', None)
-        if checkin_key_field == checkin_key and expires_time and expires_time >= now:
+        expires_time = getattr(activity, 'checkin_key_expires', None)
+        
+        # 使用安全的时间比较函数
+        if checkin_key_field == checkin_key and expires_time and safe_greater_than_equal(expires_time, now):
             valid_key = True
             
         if not valid_key:
@@ -73,6 +74,9 @@ def scan_checkin(activity_id, checkin_key):
         
         # 如果没有手动开启签到，则验证当前时间是否在活动时间范围内
         if not checkin_enabled:
+            # 导入安全比较函数
+            from src.utils.time_helpers import safe_less_than, safe_greater_than
+            
             # 确保活动时间有时区信息，并且都转换为北京时间进行比较
             start_time = ensure_timezone_aware(activity.start_time) if activity.start_time else now
             end_time = ensure_timezone_aware(activity.end_time) if activity.end_time else now + timedelta(hours=2)
@@ -90,7 +94,8 @@ def scan_checkin(activity_id, checkin_key):
         
             logger.info(f"签到时间检查: 当前北京时间={now}, 活动开始时间={start_time}, 活动结束时间={end_time}")
             
-            if now < start_time_buffer or now > end_time_buffer:
+            # 使用安全的时间比较函数
+            if safe_less_than(now, start_time_buffer) or safe_greater_than(now, end_time_buffer):
                 flash('不在活动签到时间范围内', 'warning')
                 return redirect(url_for('student.activity_detail', id=activity_id))
         else:

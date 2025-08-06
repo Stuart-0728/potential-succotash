@@ -887,10 +887,6 @@ def checkin():
         # 记录签到码和活动的签到码，方便调试
         logger.info(f"签到码比对: 提供的签到码={key}, 活动签到码={activity.checkin_key}, 过期时间={activity.checkin_key_expires}")
         
-        # 确保过期时间比较正确 - 将过期时间转换为带时区的时间
-        from src.utils.time_helpers import ensure_timezone_aware
-        checkin_key_expires = ensure_timezone_aware(activity.checkin_key_expires)
-        
         # 检查签到码是否有效
         if not activity.checkin_key or activity.checkin_key != key:
             logger.warning(f"签到码无效: 提供的={key}, 期望的={activity.checkin_key}")
@@ -899,8 +895,9 @@ def checkin():
                 'message': '签到码无效'
             })
             
-        if checkin_key_expires and now > checkin_key_expires:
-            logger.warning(f"签到码已过期: 当前时间={now}, 过期时间={checkin_key_expires}")
+        # 使用安全的时间比较函数来检查过期时间
+        if activity.checkin_key_expires and safe_greater_than(now, activity.checkin_key_expires):
+            logger.warning(f"签到码已过期: 当前时间={now}, 过期时间={activity.checkin_key_expires}")
             return jsonify({
                 'success': False,
                 'message': '签到码已过期'
