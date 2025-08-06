@@ -2052,7 +2052,7 @@ def toggle_checkin(id):
         if referrer:
             # 修复：检查是否在checkin_modal页面
             if 'checkin-modal' in referrer:
-                return redirect(url_for('admin.checkin_modal_id', id=id))
+                return redirect(url_for('admin.checkin_modal', id=id))
             # 检查是否有其他特殊页面
             elif '/admin/activity/' in referrer and '/view' in referrer:
                 return redirect(url_for('admin.activity_view', id=id))

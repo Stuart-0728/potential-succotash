@@ -187,28 +187,31 @@
 
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        {% if activity.checkin_enabled %}
-        // 加载二维码
-        loadQRCode();
-        
-        // 刷新二维码按钮
-        document.getElementById('refresh-qrcode').addEventListener('click', function() {
-            const container = document.getElementById('qrcode-container');
-            container.innerHTML = `
-                <div class="spinner-border text-primary" role="status">
-                    <span class="visually-hidden">Loading...</span>
-                </div>
-                <p class="mt-2">正在加载二维码...</p>
-            `;
-            loadQRCode();
+        // 添加签到状态切换处理
+        const toggleForms = document.querySelectorAll('form[action*="toggle_checkin"]');
+        toggleForms.forEach(function(form) {
+            form.addEventListener('submit', function(e) {
+                if (!confirm('确定要切换签到状态吗?')) {
+                    e.preventDefault();
+                }
+            });
         });
         
-        // 定时更新服务器时间
-        setInterval(updateServerTime, 1000);
-        
-        // 定时刷新二维码（每5分钟）
-        setInterval(loadQRCode, 5 * 60 * 1000);
-        {% endif %}
+        // 如果存在二维码相关元素，则初始化二维码功能
+        if (document.getElementById('qrcode-container')) {
+            loadQRCode();
+            setInterval(updateServerTime, 1000);
+            setInterval(loadQRCode, 5 * 60 * 1000);
+            
+            var refreshBtn = document.getElementById('refresh-qrcode');
+            if (refreshBtn) {
+                refreshBtn.addEventListener('click', function() {
+                    const container = document.getElementById('qrcode-container');
+                    container.innerHTML = '<div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div><p class="mt-2">正在加载二维码...</p>';
+                    loadQRCode();
+                });
+            }
+        }
     });
     
     function loadQRCode() {
@@ -306,4 +309,4 @@
         }
     }
 </style>
-{% endblock %} 
+{% endblock %}
