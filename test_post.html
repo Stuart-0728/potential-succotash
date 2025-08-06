@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test POST</title>
+</head>
+<body>
+    <h1>Test POST Request</h1>
+    <form action="http://localhost:8082/activity/1/toggle-checkin" method="POST">
+        <input type="hidden" name="csrf_token" value="test_token">
+        <button type="submit">Test Submit</button>
+    </form>
+    
+    <script>
+        document.querySelector('form').addEventListener('submit', function(e) {
+            console.log('Form submitted!');
+            alert('Form is being submitted');
+        });
+    </script>
+</body>
+</html>

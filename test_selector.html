@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Selector</title>
+</head>
+<body>
+    <h1>Test Form Selector</h1>
+    
+    <form action="/admin/activity/1/toggle-checkin" method="POST" data-no-loading="true">
+        <input type="hidden" name="csrf_token" value="test_token">
+        <button type="submit" class="btn btn-success">开启签到</button>
+    </form>
+    
+    <div id="log"></div>
+    
+    <script>
+        function log(message) {
+            document.getElementById('log').innerHTML += '<p>' + message + '</p>';
+        }
+        
+        // 测试选择器
+        const forms = document.querySelectorAll('form[action*="toggle-checkin"]');
+        log('Found ' + forms.length + ' forms with toggle-checkin in action');
+        
+        forms.forEach(function(form, index) {
+            log('Form ' + index + ' action: ' + form.action);
+            
+            form.addEventListener('submit', function(e) {
+                log('Form submit event triggered for form ' + index);
+                if (!confirm('确定要切换签到状态吗?')) {
+                    log('User cancelled the action');
+                    e.preventDefault();
+                } else {
+                    log('User confirmed the action');
+                }
+            });
+        });
+        
+        // 测试按钮点击
+        document.querySelector('button').addEventListener('click', function(e) {
+            log('Button clicked');
+        });
+    </script>
+</body>
+</html>

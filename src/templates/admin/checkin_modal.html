@@ -95,12 +95,12 @@
                                 <div class="card-footer bg-white border-0 pt-0">
                                     <!-- 检查是否已经开启签到，并显示相应的按钮 -->
                                     {% if activity.checkin_enabled %}
-                                    <form action="{{ url_for('admin.toggle_checkin', id=activity.id) }}" method="POST" class="mb-4">
+                                    <form action="{{ url_for('admin.toggle_checkin', id=activity.id) }}" method="POST" class="mb-4" data-no-loading>
                                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                         <button type="submit" class="btn btn-danger">关闭签到</button>
                                     </form>
                                     {% else %}
-                                    <form action="{{ url_for('admin.toggle_checkin', id=activity.id) }}" method="POST" class="mb-4">
+                                    <form action="{{ url_for('admin.toggle_checkin', id=activity.id) }}" method="POST" class="mb-4" data-no-loading>
                                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                         <button type="submit" class="btn btn-success">开启签到</button>
                                     </form>
@@ -187,78 +187,76 @@
 
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        {% if activity.checkin_enabled %}
-        // 加载二维码
-        loadQRCode();
-        
-        // 刷新二维码按钮
-        document.getElementById('refresh-qrcode').addEventListener('click', function() {
-            const container = document.getElementById('qrcode-container');
-            container.innerHTML = `
-                <div class="spinner-border text-primary" role="status">
-                    <span class="visually-hidden">Loading...</span>
-                </div>
-                <p class="mt-2">正在加载二维码...</p>
-            `;
-            loadQRCode();
+        // 重置所有可能处于加载状态的按钮
+        document.querySelectorAll('.btn-loading-active').forEach(function(button) {
+            button.classList.remove('btn-loading-active');
+            button.disabled = false;
+            
+            // 恢复原始文本
+            const originalText = button.getAttribute('data-unified-original-text');
+            if (originalText) {
+                button.innerHTML = originalText;
+                button.removeAttribute('data-unified-original-text');
+                button.removeAttribute('data-unified-original-disabled');
+            }
         });
         
-        // 定时更新服务器时间
-        setInterval(updateServerTime, 1000);
+        {% if activity.checkin_enabled %}
+        loadQRCode();
         
-        // 定时刷新二维码（每5分钟）
+        var refreshBtn = document.getElementById('refresh-qrcode');
+        if (refreshBtn) {
+            refreshBtn.addEventListener('click', function() {
+                const container = document.getElementById('qrcode-container');
+                container.innerHTML = '<div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div><p class="mt-2">正在加载二维码...</p>';
+                loadQRCode();
+            });
+        }
+        
+        setInterval(updateServerTime, 1000);
         setInterval(loadQRCode, 5 * 60 * 1000);
         {% endif %}
     });
     
     function loadQRCode() {
-        fetch('{{ url_for("admin.generate_checkin_qrcode", id=activity.id) }}')
-            .then(response => {
+        var qrcodeUrl = '{{ url_for("admin.generate_checkin_qrcode", id=activity.id) }}';
+        fetch(qrcodeUrl)
+            .then(function(response) {
                 if (!response.ok) {
-                    throw new Error('网络响应错误');
+                    throw new Error('Network response was not ok');
                 }
                 return response.json();
             })
-            .then(data => {
-                if (data.success) {
-                    const container = document.getElementById('qrcode-container');
-                    container.innerHTML = `
-                        <div class="qrcode-wrapper bg-white p-3 d-inline-block rounded shadow-sm">
-                            <img src="${data.qrcode}" class="img-fluid" alt="签到二维码">
-                        </div>
-                        <p class="text-success mt-3">
-                            <i class="fas fa-check-circle me-1"></i> 二维码已生成
-                        </p>
-                    `;
+            .then(function(data) {
+                if (data.success && data.qrcode) {
+                    document.getElementById('qrcode-container').innerHTML = 
+                        '<div class="qrcode-wrapper"><img src="' + data.qrcode + '" alt="签到二维码" class="img-fluid" style="max-width: 300px;"></div>';
                 } else {
-                    console.error('加载二维码失败:', data.message);
-                    const container = document.getElementById('qrcode-container');
-                    container.innerHTML = `
-                        <div class="alert alert-danger">
-                            <i class="fas fa-exclamation-circle me-2"></i>
-                            加载二维码失败，请点击刷新按钮重试
-                        </div>
-                    `;
+                    document.getElementById('qrcode-container').innerHTML = 
+                        '<div class="alert alert-danger">二维码生成失败：' + (data.message || '未知错误') + '</div>';
                 }
             })
-            .catch(error => {
-                console.error('请求二维码出错:', error);
-                const container = document.getElementById('qrcode-container');
-                container.innerHTML = `
-                    <div class="alert alert-danger">
-                        <i class="fas fa-exclamation-circle me-2"></i>
-                        网络错误，请检查连接后重试
-                    </div>
-                `;
+            .catch(function(error) {
+                console.error('Error loading QR code:', error);
+                document.getElementById('qrcode-container').innerHTML = '<div class="alert alert-danger">二维码加载失败，请刷新页面重试</div>';
             });
     }
     
     function updateServerTime() {
-        const now = new Date();
-        now.setTime(now.getTime() + (8 * 60 * 60 * 1000)); // 转为北京时间
-        const serverTimeElement = document.getElementById('server-time');
+        var now = new Date();
+        var timeString = now.toLocaleString('zh-CN', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: false
+        }).replace(/\//g, '年').replace(/,/g, '日 ').replace(/:/g, ':');
+        
+        var serverTimeElement = document.getElementById('server-time');
         if (serverTimeElement) {
-            serverTimeElement.textContent = now.toISOString().replace('T', ' ').substr(0, 19);
+            serverTimeElement.textContent = timeString;
         }
     }
 </script>
@@ -306,4 +304,4 @@
         }
     }
 </style>
-{% endblock %} 
+{% endblock %}

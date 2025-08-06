@@ -327,6 +327,7 @@ function setupButtonLoading() {
         // 跳过特定按钮 - 更严格的过滤
         if (button.classList.contains('ai-chat-button') ||
             button.hasAttribute('data-no-loading') ||
+            button.closest('form[data-no-loading]') ||  // 跳过有data-no-loading属性的表单中的按钮
             button.getAttribute('data-bs-toggle') === 'modal' ||
             button.getAttribute('data-bs-toggle') === 'dropdown' ||
             button.getAttribute('data-bs-toggle') === 'collapse' ||
@@ -350,7 +351,7 @@ function setupButtonLoading() {
             button.textContent.includes('打印') ||
             button.textContent.includes('刷新') ||
             button.textContent.includes('返回') ||
-            button.textContent.includes('关闭') ||
+            (button.textContent.includes('关闭') && !button.textContent.includes('签到')) ||  // 跳过关闭按钮，但不包括签到相关
             button.textContent.includes('取消')) {
             return;
         }
@@ -372,7 +373,8 @@ function setupButtonLoading() {
             button.textContent.includes('确认') ||
             button.textContent.includes('发送') ||
             button.textContent.includes('上传') ||
-            button.textContent.includes('下载');
+            button.textContent.includes('下载') ||
+            button.textContent.includes('签到');  // 添加签到相关按钮
 
         if (!shouldApplyLoading) {
             return;
@@ -388,6 +390,8 @@ function setupButtonLoading() {
         else if (button.textContent.includes('提交')) loadingText = '提交中...';
         else if (button.textContent.includes('确认')) loadingText = '确认中...';
         else if (button.textContent.includes('发送')) loadingText = '发送中...';
+        else if (button.textContent.includes('开启签到')) loadingText = '开启中...';
+        else if (button.textContent.includes('关闭签到')) loadingText = '关闭中...';
         else if (button.textContent.includes('上传')) loadingText = '上传中...';
         else if (button.textContent.includes('下载')) loadingText = '下载中...';
 
