@@ -205,8 +205,21 @@
             }
         });
         
-        if (checkinEnabled) {
+        // 添加签到状态切换处理
+        var toggleForms = document.querySelectorAll('form[action*="toggle_checkin"]');
+        toggleForms.forEach(function(form) {
+            form.addEventListener('submit', function(e) {
+                if (!confirm('确定要切换签到状态吗?')) {
+                    e.preventDefault();
+                }
+            });
+        });
+        
+        // 如果存在二维码相关元素，则初始化二维码功能
+        if (document.getElementById('qrcode-container')) {
             loadQRCode();
+            setInterval(updateServerTime, 1000);
+            setInterval(loadQRCode, 5 * 60 * 1000);
             
             var refreshBtn = document.getElementById('refresh-qrcode');
             if (refreshBtn) {
@@ -216,9 +229,6 @@
                     loadQRCode();
                 });
             }
-            
-            setInterval(updateServerTime, 1000);
-            setInterval(loadQRCode, 5 * 60 * 1000);
         }
     });
     

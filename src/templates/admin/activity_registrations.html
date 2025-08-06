@@ -177,4 +177,36 @@
         </div>
     </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // 为所有状态更新表单添加确认处理
+    const statusForms = document.querySelectorAll('form[action*="update_registration_status"]');
+    statusForms.forEach(function(form) {
+        form.addEventListener('submit', function(e) {
+            const statusInput = form.querySelector('input[name="status"]');
+            if (statusInput) {
+                const status = statusInput.value;
+                let message = '';
+                switch(status) {
+                    case 'attended':
+                        message = '确定要标记为已参加吗？';
+                        break;
+                    case 'cancelled':
+                        message = '确定要标记为已取消吗？';
+                        break;
+                    case 'registered':
+                        message = '确定要恢复为已报名状态吗？';
+                        break;
+                    default:
+                        message = '确定要更新状态吗？';
+                }
+                if (!confirm(message)) {
+                    e.preventDefault();
+                }
+            }
+        });
+    });
+});
+</script>
 {% endblock %}
