@@ -185,10 +185,17 @@
     </div>
 </div>
 
+<!-- 隐藏的数据容器 -->
+<div id="js-data" 
+     data-checkin-enabled="{{ activity.checkin_enabled|lower }}"
+     data-qrcode-api-url="{{ url_for('admin.generate_checkin_qrcode', id=activity.id) }}"
+     style="display: none;"></div>
+
 <script>
-    // 提取Jinja2变量到JavaScript变量
-    var checkinEnabled = {% if activity.checkin_enabled %}true{% else %}false{% endif %};
-    var qrcodeApiUrl = '{{ url_for("admin.generate_checkin_qrcode", id=activity.id) }}';
+    // 从数据容器中获取变量
+    var dataContainer = document.getElementById('js-data');
+    var checkinEnabled = dataContainer.getAttribute('data-checkin-enabled') === 'true';
+    var qrcodeApiUrl = dataContainer.getAttribute('data-qrcode-api-url');
     
     document.addEventListener('DOMContentLoaded', function() {
         // 重置所有可能处于加载状态的按钮
