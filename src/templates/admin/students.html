@@ -76,7 +76,7 @@
                                 <span class="badge bg-primary rounded-pill">{{ student.points or 0 }}</span>
                             </td>
                             <td>
-                                <div class="btn-group">
+                                <div class="btn-group" role="group">
                                     <a href="{{ url_for('admin.student_view', user_id=student.user_id) }}" class="btn btn-sm btn-outline-primary">
                                         <i class="fas fa-eye"></i>
                                     </a>

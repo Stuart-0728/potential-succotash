@@ -81,7 +81,7 @@
                                         <td>{{ tag.activities.count() if tag.activities else 0 }}</td>
                                         <td>{{ display_datetime(tag.created_at) }}</td>
                                         <td>
-                                            <div class="btn-group btn-group-sm">
+                                            <div class="btn-group btn-group-sm" role="group">
                                                 <button type="button" class="btn btn-outline-primary" 
                                                         onclick="editTag('{{ tag.id }}', '{{ tag.name }}', '{{ tag.color }}')">
                                                     <i class="fas fa-edit"></i>

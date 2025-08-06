@@ -17,7 +17,7 @@
             <h5 class="mb-0">为 "{{ activity.title }}" 评分</h5>
         </div>
         <div class="card-body">
-            <form method="POST" action="{{ url_for('student.submit_review', activity_id=activity.id) }}" id="reviewForm">
+            <form method="post" action="{{ url_for('student.submit_review', activity_id=activity.id) }}" id="reviewForm" data-no-loading>
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <div class="mb-4">
                     <label class="form-label">活动体验评分</label>

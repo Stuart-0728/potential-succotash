@@ -79,7 +79,7 @@
                             </td>
                             <td>{{ display_datetime(message.created_at) }}</td>
                             <td>
-                                <div class="btn-group">
+                                <div class="btn-group" role="group">
                                     <a href="{{ url_for('student.view_message', id=message.id) }}" class="btn btn-sm btn-outline-primary">
                                         <i class="fas fa-eye"></i> 查看
                                     </a>
@@ -151,4 +151,4 @@
         </div>
     </div>
 </div>
-{% endblock %} 
+{% endblock %}

@@ -29,7 +29,7 @@
                             <h6 class="mb-0">重置选项</h6>
                         </div>
                         <div class="card-body">
-                            <form method="post" action="{{ url_for('admin.reset_system') }}" id="resetForm">
+                            <form method="post" action="{{ url_for('admin.reset_system') }}" id="resetForm" data-no-loading>
                                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                                 <div class="mb-3">
                                     <div class="form-check">
@@ -145,4 +145,4 @@
         });
     });
 </script>
-{% endblock %} 
+{% endblock %}
