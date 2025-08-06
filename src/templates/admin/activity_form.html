@@ -322,6 +322,67 @@
         }
       });
     }
+    
+    // 表单提交处理
+    const form = document.getElementById('activityForm');
+    const submitBtn = document.getElementById('submitBtn');
+    const submitText = document.getElementById('submitText');
+    
+    if (form && submitBtn) {
+      form.addEventListener('submit', function(e) {
+        console.log('表单提交开始');
+        
+        // 显示加载状态
+        submitBtn.disabled = true;
+        submitText.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>保存中...';
+        
+        console.log('表单正在提交...');
+        
+        // 移除客户端验证，让服务器端处理所有验证
+        // 不再阻止表单提交
+        
+        // 可选：添加简单的非空检查，但不阻止提交
+        const title = form.querySelector('[name="title"]');
+        const description = form.querySelector('[name="description"]');
+        
+        if (title && !title.value.trim()) {
+          console.warn('标题为空');
+        }
+        if (description && !description.value.trim()) {
+          console.warn('描述为空');
+        }
+        
+        console.log('表单继续提交到服务器');
+        // 表单会正常提交到服务器
+      });
+    }
   });
+  
+  <!-- 在表单开始前添加 -->
+  {% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+  {% for category, message in messages %}
+  <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show" role="alert">
+  {{ message }}
+  <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+  </div>
+  {% endfor %}
+  {% endif %}
+  {% endwith %}
+  
+  <!-- 显示表单验证错误 -->
+  {% if form.errors %}
+  <div class="alert alert-danger alert-dismissible fade show" role="alert">
+  <h6>表单验证错误：</h6>
+  <ul class="mb-0">
+  {% for field_name, errors in form.errors.items() %}
+  {% for error in errors %}
+  <li>{{ field_name }}: {{ error }}</li>
+  {% endfor %}
+  {% endfor %}
+  </ul>
+  <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+  </div>
+  {% endif %}
 </script>
 {% endblock %}
