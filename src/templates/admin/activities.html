@@ -345,7 +345,7 @@ document.addEventListener('DOMContentLoaded', function() {
           }
           
           .dropdown-menu.show {
-              position: fixed !important;
+              position: absolute !important;
               z-index: 99999 !important;
               opacity: 1;
               transform: translateY(0) scale(1);
@@ -444,14 +444,14 @@ document.addEventListener('DOMContentLoaded', function() {
         /* 移动端优化 */
         @media (max-width: 768px) {
             .dropdown-menu {
-                position: fixed !important;
-                left: 50% !important;
-                top: 50% !important;
-                transform: translate(-50%, -50%) !important;
-                width: 90vw;
-                max-width: 300px;
+                width: 200px;
+                max-width: 90vw;
                 max-height: 70vh;
                 margin: 0 !important;
+            }
+            
+            .dropdown-menu.show {
+                position: absolute !important;
             }
             
             .action-btn {
