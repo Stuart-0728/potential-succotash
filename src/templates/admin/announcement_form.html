@@ -43,12 +43,41 @@
                     <a href="{{ url_for('admin.announcements') }}" class="btn btn-secondary">
                         <i class="fas fa-arrow-left me-1"></i>返回
                     </a>
-                    <button type="submit" class="btn btn-primary">
-                        <i class="fas fa-save me-1"></i>保存
+                    <button type="submit" class="btn btn-primary" id="submitBtn">
+                        <i class="fas fa-save me-1"></i><span id="submitText">保存</span>
                     </button>
                 </div>
             </form>
         </div>
     </div>
 </div>
-{% endblock %} 
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.querySelector('form');
+    const submitBtn = document.getElementById('submitBtn');
+    const submitText = document.getElementById('submitText');
+    
+    if (form && submitBtn) {
+        form.addEventListener('submit', function(e) {
+            // 验证表单
+            const title = document.getElementById('title').value.trim();
+            const content = document.getElementById('content').value.trim();
+            
+            if (!title || !content) {
+                e.preventDefault();
+                alert('请填写标题和内容');
+                return;
+            }
+            
+            // 显示加载状态
+            submitBtn.disabled = true;
+            submitText.innerHTML = '保存中...';
+            
+            console.log('公告表单正在提交');
+        });
+    }
+});
+</script>
+
+{% endblock %}
