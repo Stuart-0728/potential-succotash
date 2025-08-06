@@ -376,7 +376,7 @@ def get_activity_weather(activity_start_time):
         activity_start_time (datetime): 活动开始时间
     
     Returns:
-        dict: 天气数据字典
+        dict: 天气数据字典，如果超过预报范围则返回None
     """
     if not activity_start_time:
         logger.warning("活动开始时间为空，无法获取天气数据")
@@ -387,19 +387,33 @@ def get_activity_weather(activity_start_time):
         activity_date = activity_start_time.date()
         current_date = now.date()
         
+        # 计算活动距离今天的天数
+        days_diff = (activity_date - current_date).days
+        
+        # 如果活动超过5天，不显示天气信息
+        if days_diff > 5:
+            logger.info(f"活动日期{activity_date}超过5天预报范围，不显示天气信息")
+            return None
+        
+        # 如果活动是过去超过1天的，也不显示天气信息（避免显示不准确的当前天气）
+        if days_diff < -1:
+            logger.info(f"活动日期{activity_date}为过去日期且超过1天，不显示天气信息")
+            return None
+        
         # 判断是获取实况还是预报天气
         if activity_date <= current_date:
-            # 活动是今天或过去，获取实况天气
+            # 活动是今天或昨天，获取实况天气
             weather_data = get_weather_data_with_fallback(CHONGQING_ADCODE, 'base', None)
             is_forecast = False
-            forecast_note = "当日天气"
+            if days_diff == 0:
+                forecast_note = "当日天气"
+            else:
+                forecast_note = "近期天气"
         else:
             # 活动是未来，获取预报天气
             weather_data = get_weather_data_with_fallback(CHONGQING_ADCODE, 'all', activity_start_time)
             is_forecast = True
             
-            # 计算活动距离今天的天数
-            days_diff = (activity_date - current_date).days
             if days_diff == 1:
                 forecast_note = "明日天气预报"
             elif days_diff == 2:
@@ -472,12 +486,10 @@ class WeatherService:
             if days_diff <= 0:
                 return self.get_current_weather()
             
-            # 如果超过5天，返回当前天气作为参考
+            # 如果超过5天，返回None（不显示天气信息）
             if days_diff > 5:
-                weather_data = self.get_current_weather()
-                weather_data['is_forecast'] = False
-                weather_data['note'] = '活动日期较远，显示当前天气供参考'
-                return weather_data
+                logger.info(f"目标日期{target_date_obj}超过5天预报范围，不返回天气数据")
+                return None
             
             # 获取5天预报
             weather_data = get_weather_data(self.city_adcode, 'all')

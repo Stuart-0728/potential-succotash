@@ -18,6 +18,11 @@ logger = logging.getLogger(__name__)
 
 main_bp = Blueprint('main', __name__)
 
+@main_bp.route('/demo/loading')
+def demo_loading():
+    """加载动画演示页面"""
+    return render_template('demo_loading.html')
+
 @main_bp.route('/')
 def index():
     try:
