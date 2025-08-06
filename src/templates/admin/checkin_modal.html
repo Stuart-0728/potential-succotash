@@ -186,6 +186,10 @@
 </div>
 
 <script>
+    // 提取Jinja2变量到JavaScript变量
+    var checkinEnabled = {% if activity.checkin_enabled %}true{% else %}false{% endif %};
+    var qrcodeApiUrl = '{{ url_for("admin.generate_checkin_qrcode", id=activity.id) }}';
+    
     document.addEventListener('DOMContentLoaded', function() {
         // 重置所有可能处于加载状态的按钮
         document.querySelectorAll('.btn-loading-active').forEach(function(button) {
@@ -193,7 +197,7 @@
             button.disabled = false;
             
             // 恢复原始文本
-            const originalText = button.getAttribute('data-unified-original-text');
+            var originalText = button.getAttribute('data-unified-original-text');
             if (originalText) {
                 button.innerHTML = originalText;
                 button.removeAttribute('data-unified-original-text');
@@ -201,26 +205,25 @@
             }
         });
         
-        {% if activity.checkin_enabled %}
-        loadQRCode();
-        
-        var refreshBtn = document.getElementById('refresh-qrcode');
-        if (refreshBtn) {
-            refreshBtn.addEventListener('click', function() {
-                const container = document.getElementById('qrcode-container');
-                container.innerHTML = '<div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div><p class="mt-2">正在加载二维码...</p>';
-                loadQRCode();
-            });
+        if (checkinEnabled) {
+            loadQRCode();
+            
+            var refreshBtn = document.getElementById('refresh-qrcode');
+            if (refreshBtn) {
+                refreshBtn.addEventListener('click', function() {
+                    var container = document.getElementById('qrcode-container');
+                    container.innerHTML = '<div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div><p class="mt-2">正在加载二维码...</p>';
+                    loadQRCode();
+                });
+            }
+            
+            setInterval(updateServerTime, 1000);
+            setInterval(loadQRCode, 5 * 60 * 1000);
         }
-        
-        setInterval(updateServerTime, 1000);
-        setInterval(loadQRCode, 5 * 60 * 1000);
-        {% endif %}
     });
     
     function loadQRCode() {
-        var qrcodeUrl = '{{ url_for("admin.generate_checkin_qrcode", id=activity.id) }}';
-        fetch(qrcodeUrl)
+        fetch(qrcodeApiUrl)
             .then(function(response) {
                 if (!response.ok) {
                     throw new Error('Network response was not ok');
