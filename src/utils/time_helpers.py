@@ -44,15 +44,11 @@ def localize_time(dt):
 
 def get_localized_now():
     """
-    获取当前北京时间，用于与数据库时间比较
-    统一返回北京时间的naive datetime对象
+    获取当前UTC时间，用于与数据库时间比较
+    统一返回UTC时间的naive datetime对象，与数据库存储格式一致
     """
-    beijing_tz = pytz.timezone('Asia/Shanghai')
-    utc_now = datetime.datetime.utcnow()
-    utc_now = pytz.utc.localize(utc_now)
-    beijing_now = utc_now.astimezone(beijing_tz)
-    # 返回naive datetime对象，与数据库存储格式一致
-    return beijing_now.replace(tzinfo=None)
+    # 直接返回UTC时间的naive datetime对象
+    return datetime.datetime.utcnow()
 
 def convert_to_utc(dt):
     """
@@ -192,12 +188,12 @@ def display_datetime(dt, timezone_or_fmt=None, fmt=None):
     except:
         tz = pytz.timezone('Asia/Shanghai')  # 如果时区名称无效，使用默认时区
     
-    # 强制处理: 将数据库中的时间总是视为UTC时间
+    # 处理数据库中的时间: 数据库存储的是UTC时间的naive datetime
     if dt.tzinfo is None:
-        # 没有时区信息，总是假设为UTC时间
+        # 没有时区信息，假设为UTC时间
         dt = pytz.utc.localize(dt)
     else:
-        # 有时区信息，强制转为UTC
+        # 有时区信息，转为UTC
         dt = dt.astimezone(pytz.UTC)
     
     # 转换为北京时间
