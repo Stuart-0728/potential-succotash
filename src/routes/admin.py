@@ -2689,34 +2689,40 @@ def create_message():
         form = FlaskForm()
         
         if request.method == 'POST':
-            receiver_id = request.form.get('receiver_id')
-            subject = request.form.get('subject')
-            content = request.form.get('content')
-            
-            if not receiver_id or not subject or not content:
-                flash('收件人、主题和内容不能为空', 'danger')
-                return redirect(url_for('admin.create_message'))
-            
-            # 验证接收者是否存在
-            receiver = db.session.get(User, receiver_id)
-            if not receiver:
-                flash('收件人不存在', 'danger')
-                return redirect(url_for('admin.create_message'))
-            
-            # 创建消息
-            message = Message(
-                sender_id=current_user.id,
-                receiver_id=receiver_id,
-                subject=subject,
-                content=content
-            )
-            
-            db.session.add(message)
-            db.session.commit()
-            
-            log_action('send_message', f'发送消息给 {receiver.username}: {subject}')
-            flash('消息发送成功', 'success')
-            return redirect(url_for('admin.messages'))
+            logger.info("收到站内信创建POST请求")
+            if form.validate_on_submit():
+                logger.info("CSRF验证通过")
+                receiver_id = request.form.get('receiver_id')
+                subject = request.form.get('subject')
+                content = request.form.get('content')
+                
+                if not receiver_id or not subject or not content:
+                    flash('收件人、主题和内容不能为空', 'danger')
+                    return redirect(url_for('admin.create_message'))
+                
+                # 验证接收者是否存在
+                receiver = db.session.get(User, receiver_id)
+                if not receiver:
+                    flash('收件人不存在', 'danger')
+                    return redirect(url_for('admin.create_message'))
+                
+                # 创建消息
+                message = Message(
+                    sender_id=current_user.id,
+                    receiver_id=receiver_id,
+                    subject=subject,
+                    content=content
+                )
+                
+                db.session.add(message)
+                db.session.commit()
+                
+                log_action('send_message', f'发送消息给 {receiver.username}: {subject}')
+                flash('消息发送成功', 'success')
+                return redirect(url_for('admin.messages'))
+            else:
+                logger.error(f"CSRF验证失败，表单错误: {form.errors}")
+                flash('表单验证失败，请重试', 'danger')
         
         # 获取所有学生用户
         students_stmt = db.select(User).join(Role).filter(Role.name == 'Student')
@@ -3215,33 +3221,43 @@ def announcements():
 @admin_required
 def create_announcement():
     try:
-        if request.method == 'POST':
-            title = request.form.get('title')
-            content = request.form.get('content')
-            status = request.form.get('status', 'published')
-            
-            if not title or not content:
-                flash('标题和内容不能为空', 'danger')
-                return redirect(url_for('admin.create_announcement'))
-            
-            # 创建公告
-            announcement = Announcement(
-                title=title,
-                content=content,
-                status=status,
-                created_by=current_user.id,
-                created_at=datetime.now(),
-                updated_at=datetime.now()
-            )
-            
-            db.session.add(announcement)
-            db.session.commit()
-            
-            log_action('create_announcement', f'创建公告: {title}')
-            flash('公告创建成功', 'success')
-            return redirect(url_for('admin.announcements'))
+        # 创建Flask-WTF表单对象
+        from flask_wtf import FlaskForm
+        form = FlaskForm()
         
-        return render_template('admin/announcement_form.html', title='创建公告')
+        if request.method == 'POST':
+            logger.info("收到公告创建POST请求")
+            if form.validate_on_submit():
+                logger.info("CSRF验证通过")
+                title = request.form.get('title')
+                content = request.form.get('content')
+                status = request.form.get('status', 'published')
+                
+                if not title or not content:
+                    flash('标题和内容不能为空', 'danger')
+                    return redirect(url_for('admin.create_announcement'))
+                
+                # 创建公告
+                announcement = Announcement(
+                    title=title,
+                    content=content,
+                    status=status,
+                    created_by=current_user.id,
+                    created_at=datetime.now(),
+                    updated_at=datetime.now()
+                )
+                
+                db.session.add(announcement)
+                db.session.commit()
+                
+                log_action('create_announcement', f'创建公告: {title}')
+                flash('公告创建成功', 'success')
+                return redirect(url_for('admin.announcements'))
+            else:
+                logger.error(f"CSRF验证失败，表单错误: {form.errors}")
+                flash('表单验证失败，请重试', 'danger')
+        
+        return render_template('admin/announcement_form.html', title='创建公告', form=form)
     except Exception as e:
         logger.error(f"Error in create_announcement: {e}")
         flash('创建公告时出错', 'danger')
@@ -3253,30 +3269,41 @@ def edit_announcement(id):
     try:
         announcement = db.get_or_404(Announcement, id)
         
+        # 创建Flask-WTF表单对象
+        from flask_wtf import FlaskForm
+        form = FlaskForm()
+        
         if request.method == 'POST':
-            title = request.form.get('title')
-            content = request.form.get('content')
-            status = request.form.get('status', 'published')
-            
-            if not title or not content:
-                flash('标题和内容不能为空', 'danger')
-                return redirect(url_for('admin.edit_announcement', id=id))
-            
-            # 更新公告
-            announcement.title = title
-            announcement.content = content
-            announcement.status = status
-            announcement.updated_at = datetime.now()
-            
-            db.session.commit()
-            
-            log_action('edit_announcement', f'编辑公告: {title}')
-            flash('公告更新成功', 'success')
-            return redirect(url_for('admin.announcements'))
+            logger.info("收到公告编辑POST请求")
+            if form.validate_on_submit():
+                logger.info("CSRF验证通过")
+                title = request.form.get('title')
+                content = request.form.get('content')
+                status = request.form.get('status', 'published')
+                
+                if not title or not content:
+                    flash('标题和内容不能为空', 'danger')
+                    return redirect(url_for('admin.edit_announcement', id=id))
+                
+                # 更新公告
+                announcement.title = title
+                announcement.content = content
+                announcement.status = status
+                announcement.updated_at = datetime.now()
+                
+                db.session.commit()
+                
+                log_action('edit_announcement', f'编辑公告: {title}')
+                flash('公告更新成功', 'success')
+                return redirect(url_for('admin.announcements'))
+            else:
+                logger.error(f"CSRF验证失败，表单错误: {form.errors}")
+                flash('表单验证失败，请重试', 'danger')
         
         return render_template('admin/announcement_form.html', 
                               announcement=announcement,
-                              title='编辑公告')
+                              title='编辑公告',
+                              form=form)
     except Exception as e:
         logger.error(f"Error in edit_announcement: {e}")
         flash('编辑公告时出错', 'danger')

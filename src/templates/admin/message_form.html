@@ -17,7 +17,7 @@
             <h4 class="mb-0">{{ title }}</h4>
         </div>
         <div class="card-body">
-            <form method="post">
+            <form method="post" data-no-loading>
                 {{ form.hidden_tag() }}
                 <div class="mb-3">
                     <label for="receiver_id" class="form-label">收件人 <span class="text-danger">*</span></label>
@@ -65,6 +65,8 @@ document.addEventListener('DOMContentLoaded', function() {
     
     if (form && submitBtn) {
         form.addEventListener('submit', function(e) {
+            console.log('站内信表单正在提交');
+            
             // 验证表单
             const receiverId = document.getElementById('receiver_id').value;
             const subject = document.getElementById('subject').value.trim();
@@ -80,7 +82,7 @@ document.addEventListener('DOMContentLoaded', function() {
             submitBtn.disabled = true;
             submitText.innerHTML = '发送中...';
             
-            console.log('表单正在提交');
+            console.log('站内信表单验证通过，正在提交');
         });
     }
 });

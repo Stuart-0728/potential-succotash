@@ -17,7 +17,8 @@
             <h4 class="mb-0">{{ title }}</h4>
         </div>
         <div class="card-body">
-            <form method="post" enctype="multipart/form-data">
+            <form method="post" enctype="multipart/form-data" data-no-loading>
+                {{ form.hidden_tag() }}
                 <div class="mb-3">
                     <label for="title" class="form-label">公告标题 <span class="text-danger">*</span></label>
                     <input type="text" class="form-control" id="title" name="title" required 
@@ -60,6 +61,8 @@ document.addEventListener('DOMContentLoaded', function() {
     
     if (form && submitBtn) {
         form.addEventListener('submit', function(e) {
+            console.log('公告表单正在提交');
+            
             // 验证表单
             const title = document.getElementById('title').value.trim();
             const content = document.getElementById('content').value.trim();
@@ -74,7 +77,7 @@ document.addEventListener('DOMContentLoaded', function() {
             submitBtn.disabled = true;
             submitText.innerHTML = '保存中...';
             
-            console.log('公告表单正在提交');
+            console.log('公告表单验证通过，正在提交');
         });
     }
 });
