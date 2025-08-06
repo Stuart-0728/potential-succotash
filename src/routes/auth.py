@@ -312,7 +312,7 @@ def setup_admin():
         flash('管理员账户创建成功！请登录。', 'success')
         return redirect(url_for('auth.login'))
     
-    return render_template('auth/setup_admin.html', form=form)
+    return render_template('auth/admin_signup.html', form=form)
 
 @auth_bp.route('/select-tags', methods=['GET', 'POST'])
 @login_required

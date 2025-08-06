@@ -49,7 +49,7 @@
             </ul>
         </div>
         <div class="card-body p-0">
-            <div class="table-responsive position-relative" style="overflow-x: auto; overflow-y: visible;">
+            <div class="table-responsive" style="overflow-x: auto; overflow-y: visible;">
                 <table class="table table-hover align-middle mb-0">
                     <thead class="table-light">
                         <tr>
@@ -91,11 +91,11 @@
                                 {% endif %}
                             </td>
                             <td>
-                                <div class="dropdown position-static">
-                                    <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" id="actionMenu{{ activity.id }}" data-bs-toggle="dropdown" aria-expanded="false" data-no-loading="true" data-no-global-loading="true">
+                                <div class="dropdown">
+                                    <button class="btn btn-sm btn-outline-secondary dropdown-toggle action-btn" type="button" id="actionMenu{{ activity.id }}" data-bs-toggle="dropdown" aria-expanded="false" data-no-loading="true" data-no-global-loading="true">
                                         操作
                                     </button>
-                                    <ul class="dropdown-menu dropdown-menu-end shadow-sm" aria-labelledby="actionMenu{{ activity.id }}" style="min-width: 220px; z-index: 1050;">
+                                    <ul class="dropdown-menu dropdown-menu-end shadow" aria-labelledby="actionMenu{{ activity.id }}" style="min-width: 220px;">
                                         <li>
                                             <a class="dropdown-item" href="{{ url_for('admin.edit_activity', id=activity.id) }}" data-no-loading="true">
                                                 <i class="fas fa-edit text-primary me-2"></i>编辑活动
@@ -319,99 +319,226 @@ document.addEventListener('DOMContentLoaded', function() {
             box-shadow: none;
         }
         
-        /* 修复下拉菜单样式 */
-        .dropdown-menu {
-            max-height: 80vh;
-            overflow-y: auto;
-            min-width: 220px;
-            z-index: 1050;
-            position: absolute;
+        /* 优化下拉菜单样式 */
+          .table-responsive {
+              overflow-x: auto !important;
+              overflow-y: visible !important;
+          }
+          
+          .dropdown {
+              position: relative;
+          }
+          
+          .dropdown-menu {
+              border: 1px solid rgba(0,0,0,.15);
+              border-radius: 0.5rem;
+              box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+              min-width: 220px;
+              z-index: 99999 !important;
+              max-height: 400px;
+              overflow-y: auto;
+              position: absolute !important;
+              will-change: transform, opacity;
+              opacity: 0;
+              transform: translateY(-10px) scale(0.95);
+              transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+          }
+          
+          .dropdown-menu.show {
+              position: fixed !important;
+              z-index: 99999 !important;
+              opacity: 1;
+              transform: translateY(0) scale(1);
+          }
+          
+          .dropdown-item {
+              transition: all 0.2s ease !important;
+              border-radius: 4px;
+              margin: 2px 4px;
+          }
+          
+          .dropdown-item:hover {
+              background-color: #f8f9fa !important;
+              transform: translateX(4px) !important;
+              color: #495057 !important;
+          }
+        
+
+        
+        /* 简洁美观的操作按钮样式 */
+          .action-btn {
+              background: #6366f1 !important;
+              border: 1px solid #4f46e5 !important;
+              color: white !important;
+              font-weight: 500;
+              min-width: 80px;
+              padding: 8px 16px !important;
+              border-radius: 6px !important;
+              font-size: 0.875rem;
+              transition: all 0.2s ease !important;
+          }
+          
+          .action-btn:hover {
+              background: #4f46e5 !important;
+              border-color: #3730a3 !important;
+              color: white !important;
+          }
+          
+          .action-btn:focus {
+              background: #4f46e5 !important;
+              border-color: #3730a3 !important;
+              color: white !important;
+              outline: none !important;
+              box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2) !important;
+          }
+          
+          .action-btn[aria-expanded="true"],
+          .dropdown.show .action-btn {
+              background: #3730a3 !important;
+              border-color: #312e81 !important;
+              color: white !important;
+          }
+        
+        /* 完全移除下拉箭头 */
+          .action-btn.dropdown-toggle::after {
+              display: none !important;
+          }
+          
+
+        
+        /* 下拉菜单项样式优化 */
+          .dropdown-item {
+              padding: 0.5rem 1rem;
+              border-radius: 0.25rem;
+              margin: 0.1rem 0.5rem;
+              transition: none !important;
+              transform: none !important;
+              animation: none !important;
+          }
+          
+          .dropdown-item:hover {
+              background-color: #f8f9fa;
+              transition: none !important;
+              transform: none !important;
+              animation: none !important;
+          }
+          
+          .dropdown-item:active {
+              background-color: #e9ecef;
+              transition: none !important;
+              transform: none !important;
+              animation: none !important;
+          }
+          
+          .dropdown-item i {
+              transition: none !important;
+              transform: none !important;
+              animation: none !important;
+          }
+        
+        .dropdown-divider {
+            margin: 0.5rem 0;
+            border-color: #e9ecef;
         }
         
-        /* 确保菜单不会被截断 */
-        .table-responsive {
-            overflow: visible;
-        }
-        
-        /* 确保按钮和菜单对齐 */
-        .dropdown {
-            position: relative;
-        }
-        
-        /* 修复在移动设备上的显示 */
+        /* 移动端优化 */
         @media (max-width: 768px) {
             .dropdown-menu {
-                position: fixed;
+                position: fixed !important;
                 left: 50% !important;
-                transform: translateX(-50%);
-                top: 30% !important;
-                width: 90%;
+                top: 50% !important;
+                transform: translate(-50%, -50%) !important;
+                width: 90vw;
                 max-width: 300px;
+                max-height: 70vh;
+                margin: 0 !important;
+            }
+            
+            .action-btn {
+                min-width: 60px;
+                font-size: 0.875rem;
+                padding: 6px 12px !important;
+                transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+                transform: translateY(0) !important;
+                will-change: transform, box-shadow !important;
+            }
+            
+            .action-btn:hover {
+                transform: translateY(-1px) !important;
+            }
+            
+            .action-btn:active {
+                transform: translateY(0) scale(0.98) !important;
             }
         }
         
-        /* 修复操作按钮的悬停效果 */
-        .btn-outline-secondary {
-            transition: all 0.2s ease-in-out;
-            border-color: #ced4da;
+        /* 确保表格行悬停效果不影响下拉菜单 */
+        .table-hover tbody tr:hover {
+            background-color: rgba(0,0,0,.075);
         }
         
-        .btn-outline-secondary:hover, 
-        .btn-outline-secondary:focus, 
-        .btn-outline-secondary:active,
-        .btn-outline-secondary[aria-expanded="true"] {
-            background-color: #6c757d;
-            color: white;
-            border-color: #6c757d;
-            box-shadow: 0 0 0 0.25rem rgba(108, 117, 125, 0.25);
-            z-index: 1051 !important;
-        }
-        
-        /* 确保按钮点击后保持高亮状态 */
-        .dropdown.show .btn-outline-secondary {
-            background-color: #6c757d;
-            color: white;
-            border-color: #6c757d;
-            z-index: 1051 !important;
-        }
-        
-        /* 修复按钮和下拉菜单的层级关系 */
-        .dropdown-toggle::after {
-            vertical-align: middle;
+        .table-hover tbody tr:hover .dropdown.show {
+            background-color: transparent;
         }
     `;
     document.head.appendChild(style);
     
-    // 修复下拉菜单位置
-    document.querySelectorAll('.dropdown-toggle').forEach(button => {
-        button.addEventListener('click', function() {
-            // 添加高亮效果
-            this.classList.add('active');
-            
-            setTimeout(() => {
-                const menu = this.nextElementSibling;
-                if (menu && menu.classList.contains('dropdown-menu')) {
-                    // 确保菜单在视口内
-                    const rect = menu.getBoundingClientRect();
-                    if (rect.right > window.innerWidth) {
-                        menu.style.right = '0';
-                        menu.style.left = 'auto';
-                    }
-                    
-                    // 确保菜单不会被截断
-                    if (rect.bottom > window.innerHeight) {
-                        menu.style.maxHeight = (window.innerHeight - rect.top - 20) + 'px';
-                    }
+    // 优化下拉菜单交互
+    document.querySelectorAll('.dropdown').forEach(dropdown => {
+        dropdown.addEventListener('show.bs.dropdown', function(e) {
+            const menu = this.querySelector('.dropdown-menu');
+            const button = this.querySelector('.dropdown-toggle');
+            if (menu && button) {
+                // 将菜单移动到body下，避免被表格容器遮挡
+                document.body.appendChild(menu);
+                
+                // 获取按钮位置
+                const rect = button.getBoundingClientRect();
+                
+                // 设置菜单位置
+                menu.style.position = 'fixed';
+                menu.style.top = (rect.bottom) + 'px';
+                menu.style.left = (rect.right - 220) + 'px'; // 220px是菜单宽度
+                menu.style.zIndex = '99999';
+                
+                // 检查是否超出视口
+                const viewportHeight = window.innerHeight;
+                
+                if (rect.bottom + 400 > viewportHeight) {
+                    menu.style.top = (rect.top - 400) + 'px';
                 }
-            }, 10);
-        });
-        
-        // 监听下拉菜单关闭事件
-        document.addEventListener('click', function(e) {
-            if (!button.contains(e.target) && !button.nextElementSibling.contains(e.target)) {
-                button.classList.remove('active');
+                
+                if (rect.right - 220 < 0) {
+                    menu.style.left = rect.left + 'px';
+                }
             }
         });
+        
+        dropdown.addEventListener('hide.bs.dropdown', function(e) {
+            const menu = this.querySelector('.dropdown-menu');
+            if (menu && menu.parentNode === document.body) {
+                // 将菜单移回原位置
+                this.appendChild(menu);
+                // 重置样式
+                menu.style.position = '';
+                menu.style.top = '';
+                menu.style.left = '';
+                menu.style.zIndex = '';
+            }
+        });
+    });
+    
+    // 添加键盘导航支持
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            // 关闭所有打开的下拉菜单
+            document.querySelectorAll('.dropdown-menu.show').forEach(menu => {
+                const button = menu.previousElementSibling;
+                if (button && button.classList.contains('dropdown-toggle')) {
+                    bootstrap.Dropdown.getInstance(button)?.hide();
+                }
+            });
+        }
     });
 });
 

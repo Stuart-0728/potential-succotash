@@ -226,12 +226,12 @@ class DevelopmentConfig(Config):
     
     # 设置SQLite数据库路径
     SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or \
-        'sqlite:////instance/cqnu_association_dev.db'
+        f'sqlite:///{DB_PATH}'
 
 class TestingConfig(Config):
     """测试环境配置"""
     TESTING = True
-    SQLALCHEMY_DATABASE_URI = 'sqlite:////instance/cqnu_association_test.db'
+    SQLALCHEMY_DATABASE_URI = f'sqlite:///{os.path.join(INSTANCE_PATH, "cqnu_association_test.db")}'
     WTF_CSRF_ENABLED = False  # 测试环境禁用CSRF验证
     
 class ProductionConfig(Config):
@@ -276,4 +276,4 @@ config = {
     'production': ProductionConfig,
     
     'default': DevelopmentConfig
-} 
+}

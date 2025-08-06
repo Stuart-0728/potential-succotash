@@ -5,7 +5,7 @@ import logging
 from sqlalchemy import func, desc, text, and_, or_, case
 from sqlalchemy.orm import joinedload
 from src import db
-from src.models import Activity, Registration, User, Tag, Notification, Announcement
+from src.models import Activity, Registration, User, Tag, Notification, Announcement, Role
 from src.utils.time_helpers import get_localized_now, ensure_timezone_aware, safe_less_than, safe_greater_than, display_datetime, get_activity_status
 import time
 import traceback
@@ -21,6 +21,15 @@ main_bp = Blueprint('main', __name__)
 @main_bp.route('/')
 def index():
     try:
+        # 检查是否存在管理员账户，如果没有则重定向到设置页面
+        admin_role = db.session.execute(db.select(Role).filter_by(name='Admin')).scalar_one_or_none()
+        if admin_role:
+            admin_exists = db.session.execute(db.select(User).filter_by(role_id=admin_role.id)).scalar_one_or_none()
+            if not admin_exists:
+                return redirect(url_for('auth.setup_admin'))
+        else:
+            return redirect(url_for('auth.setup_admin'))
+        
         # 获取当前北京时间
         now = get_localized_now()
         logger.info(f"当前北京时间: {now}")
