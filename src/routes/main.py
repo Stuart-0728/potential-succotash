@@ -18,6 +18,12 @@ logger = logging.getLogger(__name__)
 
 main_bp = Blueprint('main', __name__)
 
+# 测试加载动画路由
+@main_bp.route('/test-loading')
+def test_loading():
+    """测试加载动画页面"""
+    return render_template('test_loading.html')
+
 @main_bp.route('/demo/loading')
 def demo_loading():
     """加载动画演示页面"""

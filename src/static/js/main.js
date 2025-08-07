@@ -241,12 +241,53 @@ function createGlobalLoading() {
     window.showLoading = window.LoadingManager.show.bind(window.LoadingManager);
     window.hideLoading = window.LoadingManager.hide.bind(window.LoadingManager);
     
-    // 页面事件监听
-    window.addEventListener('load', () => window.LoadingManager.hide());
+    // 页面事件监听 - 优化云端环境加载体验
+    window.addEventListener('load', () => {
+        // 页面加载完成后立即隐藏加载动画
+        window.LoadingManager.hide();
+    });
+    
+    // DOMContentLoaded事件 - 确保DOM加载完成后也隐藏加载动画
+    document.addEventListener('DOMContentLoaded', () => {
+        // 延迟一点时间确保页面渲染完成
+        setTimeout(() => {
+            window.LoadingManager.hide();
+        }, 100);
+    });
 
     document.addEventListener('visibilitychange', function() {
         if (document.visibilityState === 'visible') {
             setTimeout(() => window.LoadingManager.hide(), 500);
+        }
+    });
+    
+    // 为所有链接添加全局加载动画监听
+    document.addEventListener('click', function(e) {
+        const link = e.target.closest('a');
+        if (!link) return;
+        
+        const href = link.getAttribute('href');
+        // 检查是否需要显示全局加载动画
+        if (href && 
+            !href.startsWith('#') && 
+            !href.startsWith('javascript:') && 
+            !href.startsWith('mailto:') && 
+            !href.startsWith('tel:') && 
+            !href.includes('download') && 
+            !link.hasAttribute('data-no-global-loading') && 
+            !link.hasAttribute('data-bs-toggle') && 
+            !link.classList.contains('btn') && // 按钮链接已在其他地方处理
+            link.getAttribute('target') !== '_blank') {
+            
+            // 显示全局加载动画
+            window.LoadingManager.show('页面加载中...', false);
+            
+            // 云端环境优化：确保加载动画显示足够长时间
+            setTimeout(() => {
+                if (window.LoadingManager) {
+                    window.LoadingManager.hide();
+                }
+            }, 6000); // 6秒后强制隐藏
         }
     });
 }
@@ -1386,9 +1427,19 @@ function setupLoadingButtons() {
                     // 添加属性防止全局加载动画
                     this.setAttribute('data-no-global-loading', 'true');
                     
-                    // 为大页面跳转显示全局加载动画
-                    if (this.getAttribute('href').includes('/admin/')) {
-                        window.showLoading('页面加载中...');
+                    // 为页面跳转显示全局加载动画
+                    const href = this.getAttribute('href');
+                    if (href && !href.startsWith('#') && !href.startsWith('javascript:') && 
+                        !href.includes('download') && !this.hasAttribute('data-no-global-loading')) {
+                        // 显示全局加载动画，特别针对云端环境的加载延迟
+                        window.showLoading('页面加载中...', false); // 不自动隐藏
+                        
+                        // 云端环境优化：延长显示时间，确保用户能看到加载动画
+                        setTimeout(() => {
+                            if (window.LoadingManager) {
+                                window.LoadingManager.hide();
+                            }
+                        }, 5000); // 5秒后强制隐藏，适应云端加载时间
                     }
                     
                     // 添加页面卸载事件监听，确保在页面跳转前保持按钮状态
