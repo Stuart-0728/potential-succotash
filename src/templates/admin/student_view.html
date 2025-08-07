@@ -78,7 +78,7 @@
                     <h5 class="mb-0">学生兴趣标签</h5>
                 </div>
                 <div class="card-body">
-                    <form method="post" action="{{ url_for('admin.update_student_tags', id=student.id) }}">
+                    <form method="post" action="{{ url_for('admin.update_student_tags', id=student.id) }}" data-no-global-loading="true">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <div class="mb-3">
                             <label class="form-label">选择标签</label>

@@ -1,8 +1,8 @@
 /* 全局样式 */
 :root {
     /* 全新活力配色 */
-    --primary-color: #ff6b6b;   /* 柔和红橙 */
-    --secondary-color: #5f4b8b; /* 深紫过渡 */
+    --primary-color: #0d6efd;   /* Bootstrap蓝色 */
+    --secondary-color: #6c757d; /* Bootstrap灰色 */
     --accent-color: #ffd93d;    /* 活力黄色 */
     --success-color: #4caf50;
     --danger-color: #ff4e50;
@@ -12,8 +12,8 @@
     --dark-color: #343a40;
     
     /* 渐变色定义 */
-    --gradient-primary: linear-gradient(135deg, #ff6b6b, #f06595);
-    --gradient-secondary: linear-gradient(135deg, #5f4b8b, #3d2c8d);
+    --gradient-primary: linear-gradient(135deg, #0d6efd, #0b5ed7);
+    --gradient-secondary: linear-gradient(135deg, #6c757d, #5c636a);
     --gradient-success: linear-gradient(135deg, #4caf50, #2e7d32);
     --gradient-danger: linear-gradient(135deg, #ff4e50, #c9184a);
     --gradient-warning: linear-gradient(135deg, #ff9800, #ef6c00);

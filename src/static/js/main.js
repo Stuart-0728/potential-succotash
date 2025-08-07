@@ -368,7 +368,9 @@ function setupButtonLoading() {
         // 跳过特定按钮 - 更严格的过滤
         if (button.classList.contains('ai-chat-button') ||
             button.hasAttribute('data-no-loading') ||
-            button.closest('form[data-no-loading]') ||  // 跳过有data-no-loading属性的表单中的按钮
+            button.hasAttribute('data-no-global-loading') ||
+            button.closest('form[data-no-loading]') ||
+            button.closest('form[data-no-global-loading]') ||  // 跳过有data-no-global-loading属性的表单中的按钮
             button.getAttribute('data-bs-toggle') === 'modal' ||
             button.getAttribute('data-bs-toggle') === 'dropdown' ||
             button.getAttribute('data-bs-toggle') === 'collapse' ||
