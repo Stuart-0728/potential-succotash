@@ -18,7 +18,7 @@
                     <h5 class="mb-0">添加标签</h5>
                 </div>
                 <div class="card-body">
-                    <form method="POST" action="{{ url_for('admin.create_tag') }}" class="needs-validation" novalidate>
+                    <form method="POST" action="{{ url_for('admin.create_tag') }}" class="needs-validation" data-no-loading novalidate>
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <div class="mb-3">
                             <label for="tagName" class="form-label">标签名称</label>
@@ -114,7 +114,7 @@
                 <h5 class="modal-title">编辑标签</h5>
                 <button type="button" class="btn-close close-modal" data-bs-dismiss="modal"></button>
             </div>
-            <form method="POST" id="editTagForm" class="needs-validation" novalidate>
+            <form method="POST" id="editTagForm" class="needs-validation" data-no-loading novalidate>
                 <div class="modal-body">
                     <input type="hidden" id="editTagId" name="tag_id">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
