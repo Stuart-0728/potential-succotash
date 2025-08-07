@@ -145,7 +145,7 @@
 </div>
 
 <!-- 删除标签的隐藏表单 -->
-<form id="deleteTagForm" method="POST" style="display: none;">
+<form id="deleteTagForm" method="POST" data-no-loading style="display: none;">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 </form>
 {% endblock %}
