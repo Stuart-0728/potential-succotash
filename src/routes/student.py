@@ -440,17 +440,9 @@ def my_activities():
                 else_=3
             )
             
-            # 时间排序：进行中按结束时间升序，即将开始按开始时间升序，已结束按结束时间降序
-            time_sort = case(
-                # 进行中的活动按结束时间升序（最快结束的在前）
-                (and_(ActivityAlias.start_time <= now, ActivityAlias.end_time > now), ActivityAlias.end_time),
-                # 即将开始的活动按开始时间升序（最快开始的在前）
-                (ActivityAlias.start_time > now, ActivityAlias.start_time),
-                # 已结束的活动按结束时间降序（最近结束的在前）
-                else_=ActivityAlias.end_time.desc()
-            )
-            
-            order_by_clause = [status_priority, time_sort]
+            # 简化排序逻辑，避免在CASE中使用DESC
+            # 先按状态优先级排序，再按开始时间排序
+            order_by_clause = [status_priority, ActivityAlias.start_time.desc()]
             logger.info(f"my_activities - 按照距离当前时间最近的活动排序")
             registrations = query.order_by(*order_by_clause).paginate(page=page, per_page=10)
             logger.info(f"my_activities - 分页后有 {len(registrations.items)} 条记录, 总页数: {registrations.pages}")
