@@ -3074,6 +3074,9 @@ def manual_checkin(activity_id):
             
             was_previously_checked_in = cancel_record is not None
         
+        # 记录原始状态
+        original_status = registration.status
+        
         # 设置签到时间
         registration.check_in_time = get_localized_now()
         
@@ -3088,7 +3091,7 @@ def manual_checkin(activity_id):
             if was_previously_checked_in:
                 add_points(student_info.id, points, f"重新参与活动：{activity.title}", activity.id)
             # 如果是首次签到，也添加积分
-            elif registration.status != 'attended':
+            elif original_status != 'attended':
                 add_points(student_info.id, points, f"参与活动：{activity.title}", activity.id)
         
         db.session.commit()

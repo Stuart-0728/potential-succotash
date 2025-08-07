@@ -101,7 +101,7 @@
                     <h5 class="mb-0">积分调整</h5>
                 </div>
                 <div class="card-body">
-                    <form method="post" action="{{ url_for('admin.adjust_student_points', id=student.id) }}">
+                    <form method="post" action="{{ url_for('admin.adjust_student_points', id=student.id) }}" data-no-global-loading="true">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <div class="mb-3">
                             <label for="points" class="form-label">积分值</label>
@@ -112,7 +112,7 @@
                             <label for="reason" class="form-label">调整原因</label>
                             <textarea class="form-control" id="reason" name="reason" rows="3" required></textarea>
                         </div>
-                        <button type="submit" class="btn btn-primary">提交调整</button>
+                        <button type="submit" class="btn btn-primary" data-no-global-loading="true">提交调整</button>
                     </form>
                 </div>
             </div>
@@ -187,7 +187,13 @@
                                 <tbody>
                                     {% for reg in registrations %}
                                     <tr>
-                                        <td>{{ reg.activity_title }}</td>
+                                        <td>
+                                            {% if reg.activity %}
+                                                <a href="{{ url_for('admin.activity_view', id=reg.activity.id) }}">{{ reg.activity.title }}</a>
+                                            {% else %}
+                                                <span class="text-muted">活动已删除</span>
+                                            {% endif %}
+                                        </td>
                                         <td>{{ display_datetime(reg.register_time) }}</td>
                                         <td>
                                             {% if reg.check_in_time %}
