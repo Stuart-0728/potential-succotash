@@ -714,40 +714,19 @@ function loadSyncLog() {
                     const statusClass = log.status === '成功' ? 'text-success' :
                                        log.status === '失败' ? 'text-danger' : 'text-warning';
 
-                    // 强制北京时间显示 - 简化且更可靠的方法
+                    // 修复时间显示问题 - 正确处理北京时间
                     let beijingTime;
                     try {
-                        let timestamp;
-
-
-
-                        // 关键修复：正确处理时区转换
-                        if (log.timestamp.includes('+08:00') || log.timestamp.includes('+0800')) {
-                            // 已包含时区信息，直接解析
-                            timestamp = new Date(log.timestamp);
-                        } else {
-                            // 没有时区信息，这些时间戳实际上是UTC时间，需要转换为北京时间
-                            timestamp = new Date(log.timestamp + 'Z'); // 添加Z表示UTC时间
-
-                            // 如果解析失败，尝试其他格式
-                            if (isNaN(timestamp.getTime())) {
-                                // 尝试直接解析
-                                timestamp = new Date(log.timestamp);
-
-                                // 如果仍然失败，尝试标准化格式
-                                if (isNaN(timestamp.getTime())) {
-                                    let timeStr = log.timestamp.replace(' ', 'T');
-                                    timestamp = new Date(timeStr + 'Z');
-                                }
-                            }
-                        }
-
-                        // 最终验证
+                        // 后端已经生成了包含时区信息的ISO格式时间戳
+                        // 直接解析即可，浏览器会自动处理时区转换
+                        let timestamp = new Date(log.timestamp);
+                        
+                        // 验证时间戳是否有效
                         if (isNaN(timestamp.getTime())) {
                             throw new Error('无法解析时间戳');
                         }
 
-                        // 强制显示为北京时间
+                        // 显示为北京时间格式
                         beijingTime = timestamp.toLocaleString('zh-CN', {
                             timeZone: 'Asia/Shanghai',
                             year: 'numeric',
