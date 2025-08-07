@@ -56,7 +56,7 @@
                                         </div>
                                         <div class="ms-3">
                                             <p class="text-muted mb-0">签到人数</p>
-                                            <p class="mb-0 fw-medium">{{ checkin_count }}</p>
+                                            <p class="mb-0 fw-medium checkin-count">{{ checkin_count }}</p>
                                         </div>
                                     </div>
                                     <div class="d-flex mb-3">
@@ -95,14 +95,14 @@
                                 <div class="card-footer bg-white border-0 pt-0">
                                     <!-- 检查是否已经开启签到，并显示相应的按钮 -->
                                     {% if activity.checkin_enabled %}
-                                    <form action="{{ url_for('admin.toggle_checkin', id=activity.id) }}" method="POST" class="mb-4" data-no-loading>
+                                    <form action="{{ url_for('admin.toggle_checkin', id=activity.id) }}" method="POST" class="mb-4" data-no-global-loading>
                                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                                        <button type="submit" class="btn btn-danger">关闭签到</button>
+                                        <button type="submit" class="btn btn-danger" data-no-global-loading="true">关闭签到</button>
                                     </form>
                                     {% else %}
-                                    <form action="{{ url_for('admin.toggle_checkin', id=activity.id) }}" method="POST" class="mb-4" data-no-loading>
+                                    <form action="{{ url_for('admin.toggle_checkin', id=activity.id) }}" method="POST" class="mb-4" data-no-global-loading>
                                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                                        <button type="submit" class="btn btn-success">开启签到</button>
+                                        <button type="submit" class="btn btn-success" data-no-global-loading="true">开启签到</button>
                                     </form>
                                     {% endif %}
                                 </div>
@@ -140,8 +140,14 @@
                     </div>
                     
                     <div class="card border-0 shadow-sm mt-4">
-                        <div class="card-header bg-white border-0">
-                            <h5 class="mb-0 fw-semibold">签到记录</h5>
+                        <div class="card-header bg-white border-0 d-flex justify-content-between align-items-center">
+                            <div>
+                                <h5 class="mb-0 fw-semibold">签到记录</h5>
+                                <small class="text-muted">最后刷新：<span id="last-refresh-time">{{ now.strftime('%H:%M:%S') }}</span></small>
+                            </div>
+                            <button id="manual-refresh-btn" class="btn btn-outline-primary btn-sm">
+                                <i class="fas fa-sync-alt me-1"></i> 刷新
+                            </button>
                         </div>
                         <div class="card-body">
                             <div class="table-responsive">
@@ -237,6 +243,17 @@
                 });
             }
         }
+        
+        // 添加签到记录列表的自动刷新功能
+        setInterval(refreshCheckinList, 10000); // 每10秒刷新一次签到记录
+        
+        // 添加手动刷新按钮事件
+        var manualRefreshBtn = document.getElementById('manual-refresh-btn');
+        if (manualRefreshBtn) {
+            manualRefreshBtn.addEventListener('click', function() {
+                refreshCheckinList();
+            });
+        }
     });
     
     function loadQRCode() {
@@ -278,6 +295,51 @@
         if (serverTimeElement) {
             serverTimeElement.textContent = timeString;
         }
+    }
+    
+    function refreshCheckinList() {
+        // 获取当前页面URL并刷新签到记录部分
+        fetch(window.location.href, {
+            method: 'GET',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(function(response) {
+            if (!response.ok) {
+                throw new Error('Network response was not ok');
+            }
+            return response.text();
+        })
+        .then(function(html) {
+            // 创建临时DOM来解析返回的HTML
+            var tempDiv = document.createElement('div');
+            tempDiv.innerHTML = html;
+            
+            // 更新签到记录表格
+            var newTableBody = tempDiv.querySelector('tbody');
+            var currentTableBody = document.querySelector('tbody');
+            if (newTableBody && currentTableBody) {
+                currentTableBody.innerHTML = newTableBody.innerHTML;
+            }
+            
+            // 更新签到人数统计
+            var newCheckinCount = tempDiv.querySelector('.checkin-count');
+            var currentCheckinCount = document.querySelector('.checkin-count');
+            if (newCheckinCount && currentCheckinCount) {
+                currentCheckinCount.textContent = newCheckinCount.textContent;
+            }
+            
+            // 更新最后刷新时间
+            var lastRefreshElement = document.getElementById('last-refresh-time');
+            if (lastRefreshElement) {
+                var now = new Date();
+                lastRefreshElement.textContent = now.toLocaleTimeString('zh-CN');
+            }
+        })
+        .catch(function(error) {
+            console.error('Error refreshing checkin list:', error);
+        });
     }
 </script>
 {% endblock %}

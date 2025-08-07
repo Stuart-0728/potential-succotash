@@ -311,9 +311,9 @@
                         {% endif %}
                         
                         {% if activity.status == 'active' %}
-                        <form id="toggle-checkin-form" action="{{ url_for('admin.toggle_checkin', id=activity.id) }}" method="post">
+                        <form id="toggle-checkin-form" action="{{ url_for('admin.toggle_checkin', id=activity.id) }}" method="post" data-no-global-loading>
                             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                            <button type="submit" id="toggle-checkin-btn" class="btn btn-{% if activity.checkin_enabled %}danger{% else %}success{% endif %} w-100">
+                            <button type="submit" id="toggle-checkin-btn" class="btn btn-{% if activity.checkin_enabled %}danger{% else %}success{% endif %} w-100" data-no-global-loading="true">
                                 <i class="fas fa-{% if activity.checkin_enabled %}times{% else %}check{% endif %} me-2"></i>
                                 {% if activity.checkin_enabled %}关闭{% else %}开启{% endif %}签到
                             </button>
@@ -349,15 +349,21 @@
 </div>
 
 <script>
+    // 预定义URL和CSRF令牌
+    const changeStatusUrl = '{{ url_for('admin.change_activity_status', id=activity.id) }}';
+    const manualCheckinUrl = '{{ url_for('admin.manual_checkin', activity_id=activity.id) }}';
+    const cancelCheckinUrl = '{{ url_for('admin.cancel_checkin', activity_id=activity.id) }}';
+    const csrfToken = '{{ csrf_token() }}';
+    
     function changeStatus(status) {
         if (confirm('确定要将活动状态更改为: ' + status + '?')) {
-            fetch('{{ url_for('admin.change_activity_status', id=activity.id) }}', {
+            fetch(changeStatusUrl, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/x-www-form-urlencoded',
-                    'X-CSRFToken': '{{ csrf_token() }}'
+                    'X-CSRFToken': csrfToken
                 },
-                body: 'status=' + status + '&csrf_token={{ csrf_token() }}'
+                body: 'status=' + status + '&csrf_token=' + csrfToken
             })
             .then(response => response.json())
             .then(data => {
@@ -435,13 +441,13 @@
             btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>';
             btn.disabled = true;
             
-            fetch('{{ url_for('admin.manual_checkin', activity_id=activity.id) }}', {
+            fetch(manualCheckinUrl, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/x-www-form-urlencoded',
-                    'X-CSRFToken': '{{ csrf_token() }}'
+                    'X-CSRFToken': csrfToken
                 },
-                body: 'registration_id=' + registrationId + '&csrf_token={{ csrf_token() }}'
+                body: 'registration_id=' + registrationId + '&csrf_token=' + csrfToken
             })
             .then(response => {
                 if (response.ok) {
@@ -471,13 +477,13 @@
             btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>';
             btn.disabled = true;
             
-            fetch('{{ url_for('admin.cancel_checkin', activity_id=activity.id) }}', {
+            fetch(cancelCheckinUrl, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/x-www-form-urlencoded',
-                    'X-CSRFToken': '{{ csrf_token() }}'
+                    'X-CSRFToken': csrfToken
                 },
-                body: 'registration_id=' + registrationId + '&csrf_token={{ csrf_token() }}'
+                body: 'registration_id=' + registrationId + '&csrf_token=' + csrfToken
             })
             .then(response => {
                 if (response.ok) {
