@@ -19,7 +19,7 @@
             <div class="mb-4">
                 <form method="GET" action="{{ url_for('main.search') }}" class="d-flex">
                     <input type="text" name="q" class="form-control me-2" value="{{ query }}" placeholder="搜索活动、地点...">
-                    <button type="submit" class="btn btn-primary">搜索</button>
+                    <button type="submit" class="btn btn-primary" data-no-loading>搜索</button>
                 </form>
             </div>
 
