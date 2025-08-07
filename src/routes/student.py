@@ -422,15 +422,41 @@ def my_activities():
         if not any(status == s for s in ['active', 'completed']):
             query = query.join(ActivityAlias, ActivityAlias.id == Registration.activity_id)
         
-                    # 执行查询并分页 - 按开始时间排序（降序，最近的活动在前面）
+        # 执行查询并分页 - 按距离当前时间最近的活动排序
         try:
-            order_by_clause = ActivityAlias.start_time.desc()
-            logger.info(f"my_activities - 按照活动开始时间降序排序")
-            registrations = query.order_by(order_by_clause).paginate(page=page, per_page=10)
+            # 使用复杂排序逻辑：
+            # 1. 进行中的活动（开始时间 <= 当前时间 < 结束时间）按结束时间升序
+            # 2. 即将开始的活动（开始时间 > 当前时间）按开始时间升序
+            # 3. 已结束的活动（结束时间 <= 当前时间）按结束时间降序
+            from sqlalchemy import case
+            
+            # 定义活动状态的排序优先级
+            status_priority = case(
+                # 进行中的活动优先级最高（1）
+                (and_(ActivityAlias.start_time <= now, ActivityAlias.end_time > now), 1),
+                # 即将开始的活动优先级次之（2）
+                (ActivityAlias.start_time > now, 2),
+                # 已结束的活动优先级最低（3）
+                else_=3
+            )
+            
+            # 时间排序：进行中按结束时间升序，即将开始按开始时间升序，已结束按结束时间降序
+            time_sort = case(
+                # 进行中的活动按结束时间升序（最快结束的在前）
+                (and_(ActivityAlias.start_time <= now, ActivityAlias.end_time > now), ActivityAlias.end_time),
+                # 即将开始的活动按开始时间升序（最快开始的在前）
+                (ActivityAlias.start_time > now, ActivityAlias.start_time),
+                # 已结束的活动按结束时间降序（最近结束的在前）
+                else_=ActivityAlias.end_time.desc()
+            )
+            
+            order_by_clause = [status_priority, time_sort]
+            logger.info(f"my_activities - 按照距离当前时间最近的活动排序")
+            registrations = query.order_by(*order_by_clause).paginate(page=page, per_page=10)
             logger.info(f"my_activities - 分页后有 {len(registrations.items)} 条记录, 总页数: {registrations.pages}")
         except Exception as e:
             logger.error(f"分页查询出错: {e}")
-            # 尝试使用兼容方法
+            # 尝试使用兼容方法，回退到简单的时间排序
             from src.utils import get_compatible_paginate
             registrations = get_compatible_paginate(db, query.order_by(ActivityAlias.start_time.desc()), page=page, per_page=10, error_out=False)
             logger.info(f"使用兼容分页方法后有 {len(registrations.items)} 条记录")
