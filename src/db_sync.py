@@ -41,7 +41,7 @@ class BackupStatus:
             'total_tables': 0,
             'completed_tables': 0,
             'total_rows': 0,
-            'start_time': datetime.now(),
+            'start_time': get_beijing_time(),
             'end_time': None,
             'error': None,
             'details': [],
@@ -68,7 +68,7 @@ class BackupStatus:
             self.tasks[task_id].update({
                 'status': 'completed' if success else 'failed',
                 'progress': 100 if success else self.tasks[task_id]['progress'],
-                'end_time': datetime.now(),
+                'end_time': get_beijing_time(),
                 'error': error
             })
 
@@ -78,7 +78,7 @@ class BackupStatus:
 
     def cleanup_old_tasks(self, max_age_hours=24):
         """清理旧任务"""
-        cutoff = datetime.now() - timedelta(hours=max_age_hours)
+        cutoff = get_beijing_time() - timedelta(hours=max_age_hours)
         to_remove = []
         for task_id, task in self.tasks.items():
             if task['start_time'] < cutoff:
@@ -185,6 +185,17 @@ class DatabaseSyncer:
             return None
 
         # 转换为前端友好的格式
+        def format_time_with_timezone(dt):
+            """确保时间包含时区信息"""
+            if dt is None:
+                return None
+            # 如果没有时区信息，手动添加北京时区
+            if dt.tzinfo is None:
+                import pytz
+                beijing_tz = pytz.timezone('Asia/Shanghai')
+                dt = beijing_tz.localize(dt)
+            return dt.isoformat()
+        
         status_data = {
             'id': task['id'],
             'status': task['status'],
@@ -194,8 +205,8 @@ class DatabaseSyncer:
             'total_tables': task['total_tables'],
             'total_rows': task['total_rows'],
             'error': task['error'],
-            'start_time': task['start_time'].isoformat() if task['start_time'] else None,
-            'end_time': task['end_time'].isoformat() if task['end_time'] else None
+            'start_time': format_time_with_timezone(task['start_time']),
+            'end_time': format_time_with_timezone(task['end_time'])
         }
 
         logger.info(f"返回任务状态: {status_data}")
