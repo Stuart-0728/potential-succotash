@@ -27,7 +27,7 @@
                             <h6 class="mb-0">创建新备份</h6>
                         </div>
                         <div class="card-body">
-                            <form method="post" action="{{ url_for('admin.create_backup') }}" id="createBackupForm">
+                            <form method="post" action="{{ url_for('admin.create_backup') }}" id="createBackupForm" data-no-loading>
                                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                 <div class="mb-3">
                                     <label for="backup_name" class="form-label">备份名称</label>
@@ -83,7 +83,7 @@
                             <h6 class="mb-0">导入备份</h6>
                         </div>
                         <div class="card-body">
-                            <form method="post" action="{{ url_for('admin.import_backup') }}" enctype="multipart/form-data" id="importBackupForm">
+                            <form method="post" action="{{ url_for('admin.import_backup') }}" enctype="multipart/form-data" id="importBackupForm" data-no-loading>
                                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                 <div class="mb-3">
                                     <label for="backup_file" class="form-label">选择备份文件</label>
