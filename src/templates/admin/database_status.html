@@ -80,6 +80,9 @@
                                 <button class="btn btn-warning" onclick="restoreFromBackup()" id="restoreFromBackupBtn" data-no-loading="true">
                                     <i class="fas fa-brain me-2"></i>智能数据库迁移
                                 </button>
+                                <button class="btn btn-danger" onclick="forceFullRestore()" id="forceFullRestoreBtn" data-no-loading="true">
+                                    <i class="fas fa-exclamation-triangle me-2"></i>强制完整恢复
+                                </button>
                                 <button class="btn btn-outline-warning btn-sm" onclick="showAdvancedRestore()" data-no-loading="true">
                                     <i class="fas fa-cogs me-1"></i>高级恢复选项
                                 </button>
@@ -646,6 +649,101 @@ function restoreFromBackup() {
             showError('服务器响应格式错误，请检查服务器状态');
         } else {
             showError('恢复操作失败: ' + error.message);
+        }
+
+        // 超时后刷新同步日志，可能操作已完成
+        setTimeout(() => {
+            loadSyncLog();
+        }, 5000);
+    })
+    .finally(() => {
+        clearTimeout(timeoutId);
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+    });
+}
+
+// 强制完整恢复（适用于Render数据库重置后）
+function forceFullRestore() {
+    const confirmMessage = `⚠️ 强制完整恢复 - Render数据库重置专用
+
+🔄 完整恢复策略：
+• 适用场景：Render免费数据库每月重置后
+• 恢复范围：所有表的完整数据
+• 处理方式：清空现有数据，完整导入备份
+• 外键处理：临时禁用约束，按依赖顺序恢复
+
+📊 恢复内容包括：
+✅ 基础配置：角色、标签
+✅ 用户数据：所有用户（智能处理管理员）
+✅ 业务数据：活动、报名、签到记录
+✅ 关联数据：标签关联、用户关联
+✅ 系统数据：消息、通知、日志等
+
+⚠️ 重要警告：
+• 此操作会清空并重建所有表数据
+• 仅适用于全新的Render数据库
+• 如果当前数据库有重要数据，请使用"智能数据库迁移"
+• 操作不可逆，请确保备份数据库数据完整
+
+确定要执行强制完整恢复吗？`;
+
+    if (!confirm(confirmMessage)) {
+        return;
+    }
+
+    const btn = document.getElementById('forceFullRestoreBtn');
+    const originalText = btn.innerHTML;
+
+    // 获取CSRF token
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+
+    if (!csrfToken) {
+        showError('无法获取CSRF token');
+        return;
+    }
+
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>强制恢复中...';
+    btn.disabled = true;
+
+    // 设置超时（10分钟）
+    const timeoutId = setTimeout(() => {
+        showError('强制完整恢复超时，但操作可能仍在后台进行');
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+    }, 600000);
+
+    fetch('/admin/api/force-full-restore', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken
+        }
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        return response.json();
+    })
+    .then(data => {
+        if (data.success) {
+            showSuccess(data.message || '强制完整恢复成功！所有数据已从备份数据库恢复。');
+            // 刷新页面状态
+            setTimeout(() => {
+                checkDatabaseStatus();
+                loadSyncLog();
+            }, 2000);
+        } else {
+            showError('强制完整恢复失败: ' + (data.message || '未知错误'));
+        }
+    })
+    .catch(error => {
+        console.error('强制完整恢复失败:', error);
+        if (error.message.includes('timeout') || error.message.includes('fetch')) {
+            showError('网络超时，但强制完整恢复可能仍在进行中，请查看同步日志');
+        } else {
+            showError('强制完整恢复失败: ' + error.message);
         }
 
         // 超时后刷新同步日志，可能操作已完成

@@ -3538,6 +3538,37 @@ def api_restore_from_backup():
             'message': str(e)
         }), 500
 
+@admin_bp.route('/api/force-full-restore', methods=['POST'])
+@login_required
+@admin_required
+def api_force_full_restore():
+    """强制完整恢复API（适用于Render数据库重置后）"""
+    try:
+        from src.db_sync import DatabaseSyncer
+
+        syncer = DatabaseSyncer()
+        # 使用强制完整恢复方法
+        success = syncer.force_full_restore_from_clawcloud()
+
+        if success:
+            log_action('强制完整恢复', f'成功从ClawCloud强制完整恢复所有数据', current_user.id)
+            return jsonify({
+                'success': True,
+                'message': '所有数据已从ClawCloud成功恢复！适用于Render数据库重置后的完整恢复。'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': '强制完整恢复失败，请查看同步日志了解详情'
+            }), 500
+
+    except Exception as e:
+        logger.error(f"强制完整恢复失败: {e}")
+        return jsonify({
+            'success': False,
+            'message': f'强制完整恢复失败: {str(e)}'
+        }), 500
+
 @admin_bp.route('/api/sync-log')
 @login_required
 @admin_required

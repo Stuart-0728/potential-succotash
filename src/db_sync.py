@@ -566,23 +566,35 @@ class DatabaseSyncer:
             return False
         """
 
-    def safe_restore_from_clawcloud(self):
-        """智能一键恢复 - 新版本2025-07-23"""
-        if not self.dual_db.is_dual_db_enabled():
-            self.log_sync_action("智能恢复", "失败", "双数据库未配置")
+    def safe_restore_from_clawcloud(self, force_full_restore=False):
+        """智能一键恢复 - 改进版本2025-08-26
+        
+        Args:
+            force_full_restore (bool): 强制执行完整恢复，忽略数据库状态检测
+        """
+        # 放宽双数据库检查 - 只要有备份数据库就可以恢复
+        if not self.dual_db.backup_db_url:
+            self.log_sync_action("智能恢复", "失败", "备份数据库未配置")
+            return False
+            
+        if not self.dual_db.primary_db_url:
+            self.log_sync_action("智能恢复", "失败", "主数据库未配置")
             return False
 
         try:
             import time
             start_time = time.time()
-            max_duration = 180  # 最大3分钟执行时间
+            max_duration = 300  # 增加到5分钟执行时间
 
-            self.log_sync_action("开始智能恢复", "进行中", "新版本2025-07-23 - 智能检测数据库状态")
+            if force_full_restore:
+                self.log_sync_action("开始强制完整恢复", "进行中", "Render数据库重置后完整恢复模式")
+            else:
+                self.log_sync_action("开始智能恢复", "进行中", "智能检测数据库状态")
 
             # 测试数据库连接
             from sqlalchemy import create_engine, text
-            primary_engine = create_engine(self.dual_db.primary_db_url, connect_args={'connect_timeout': 10})
-            backup_engine = create_engine(self.dual_db.backup_db_url, connect_args={'connect_timeout': 10})
+            primary_engine = create_engine(self.dual_db.primary_db_url, connect_args={'connect_timeout': 15})
+            backup_engine = create_engine(self.dual_db.backup_db_url, connect_args={'connect_timeout': 15})
 
             # 测试连接
             with primary_engine.connect() as conn:
@@ -592,38 +604,45 @@ class DatabaseSyncer:
 
             self.log_sync_action("数据库连接", "成功", "主数据库和备份数据库连接正常")
 
-            # 智能迁移策略 - 检测数据库状态并选择合适的策略
+            # 智能迁移策略
             restored_tables = 0
             total_rows = 0
 
             with backup_engine.connect() as backup_conn, primary_engine.connect() as primary_conn:
-                # 检测数据库状态
-                is_new_deployment = self._check_if_new_deployment(primary_conn)
-
-                if is_new_deployment:
-                    self.log_sync_action("数据库检测", "成功", "检测到新部署数据库，使用完整迁移策略")
-                    # 新部署：使用完整迁移
+                if force_full_restore:
+                    self.log_sync_action("恢复策略", "强制完整", "执行强制完整恢复，适用于Render数据库重置")
                     success, rows = self._perform_full_migration(backup_conn, primary_conn, start_time, max_duration)
                     restored_tables = success
                     total_rows = rows
                 else:
-                    self.log_sync_action("数据库检测", "成功", "检测到有业务数据，使用安全同步策略")
-                    # 有业务数据：使用安全的增量同步
-                    success, rows = self._perform_incremental_sync(backup_conn, primary_conn, start_time, max_duration)
-                    restored_tables = success
-                    total_rows = rows
+                    # 检测数据库状态
+                    is_new_deployment = self._check_if_new_deployment(primary_conn)
+
+                    if is_new_deployment:
+                        self.log_sync_action("数据库检测", "新部署", "检测到新部署数据库，使用完整迁移策略")
+                        success, rows = self._perform_full_migration(backup_conn, primary_conn, start_time, max_duration)
+                        restored_tables = success
+                        total_rows = rows
+                    else:
+                        self.log_sync_action("数据库检测", "有数据", "检测到有业务数据，使用安全同步策略")
+                        success, rows = self._perform_incremental_sync(backup_conn, primary_conn, start_time, max_duration)
+                        restored_tables = success
+                        total_rows = rows
 
             if restored_tables > 0:
-                self.log_sync_action("智能恢复", "成功",
+                recovery_type = "强制完整恢复" if force_full_restore else "智能恢复"
+                self.log_sync_action(recovery_type, "成功",
                                    f"恢复了 {restored_tables} 个表，共 {total_rows} 行数据")
                 return True
             else:
-                self.log_sync_action("智能恢复", "失败", "没有成功恢复任何表")
+                recovery_type = "强制完整恢复" if force_full_restore else "智能恢复"
+                self.log_sync_action(recovery_type, "失败", "没有成功恢复任何表")
                 return False
 
         except Exception as e:
-            self.log_sync_action("智能恢复", "失败", str(e))
-            logger.error(f"智能恢复失败: {e}")
+            recovery_type = "强制完整恢复" if force_full_restore else "智能恢复"
+            self.log_sync_action(recovery_type, "失败", str(e))
+            logger.error(f"{recovery_type}失败: {e}")
             return False
 
     def _restore_table_safe(self, backup_conn, primary_conn, table_name, start_time, max_duration):
@@ -897,65 +916,121 @@ class DatabaseSyncer:
             self.log_sync_action("数据库检测", "失败", f"检测失败: {str(e)}")
             return False  # 出错时假设不是新部署，使用安全策略
 
+    def force_full_restore_from_clawcloud(self):
+        """强制完整恢复 - 专为Render数据库重置设计"""
+        return self.safe_restore_from_clawcloud(force_full_restore=True)
+
     def _perform_full_migration(self, backup_conn, primary_conn, start_time, max_duration):
-        """执行完整迁移（适用于新部署数据库，智能处理已存在的管理员）"""
+        """执行完整迁移（适用于Render数据库重置后的完整恢复）"""
         try:
             import time
             from sqlalchemy import text
 
-            # 定义迁移策略：配置数据用UPSERT，业务数据用INSERT
-            migration_plan = {
-                'roles': 'upsert',        # 角色：可能已存在Admin等，用UPSERT
-                'tags': 'insert',         # 标签：直接插入
-                'users': 'smart',         # 用户：智能处理，避免管理员冲突
-                'activities': 'insert',   # 活动：直接插入
-                'activity_tags': 'insert', # 关联：直接插入
-                'registrations': 'insert', # 报名：直接插入
-                'checkin_records': 'insert' # 签到：直接插入
-            }
+            # 完整的表迁移计划 - 按依赖顺序排列
+            migration_plan = [
+                # 第一阶段：基础配置表（无外键依赖）
+                ('roles', 'upsert'),           # 角色：可能已存在Admin等，用UPSERT
+                ('tags', 'clear_insert'),      # 标签：清空后插入
+                
+                # 第二阶段：用户表（智能处理）
+                ('users', 'smart'),            # 用户：智能处理，避免管理员冲突
+                
+                # 第三阶段：业务核心表
+                ('activities', 'clear_insert'), # 活动：清空后插入
+                
+                # 第四阶段：关联表（有外键依赖）
+                ('activity_tags', 'clear_insert'),     # 活动标签关联
+                ('user_tags', 'clear_insert'),         # 用户标签关联
+                ('registrations', 'clear_insert'),     # 活动报名
+                ('checkin_records', 'clear_insert'),   # 签到记录
+                
+                # 第五阶段：系统表
+                ('system_logs', 'append'),             # 系统日志：追加模式
+                ('ai_chat_session', 'clear_insert'),   # AI聊天会话
+                ('ai_chat_message', 'clear_insert'),   # AI聊天消息
+                ('ai_user_preferences', 'clear_insert'), # AI用户偏好
+                
+                # 第六阶段：其他业务表
+                ('messages', 'clear_insert'),          # 消息
+                ('notifications', 'clear_insert'),     # 通知
+                ('notification_read', 'clear_insert'), # 通知已读
+                ('student_info', 'clear_insert'),      # 学生信息
+                ('student_tags', 'clear_insert'),      # 学生标签
+                ('points_history', 'clear_insert'),    # 积分历史
+                ('announcements', 'clear_insert'),     # 公告
+            ]
 
             restored_count = 0
             total_rows = 0
 
-            for table_name, strategy in migration_plan.items():
-                if time.time() - start_time > max_duration:
-                    self.log_sync_action("迁移超时", "警告", f"已运行{max_duration}秒，停止迁移")
-                    break
+            # 临时禁用外键约束检查
+            try:
+                primary_conn.execute(text('SET session_replication_role = replica'))
+                primary_conn.commit()
+                self.log_sync_action("外键约束", "禁用", "临时禁用外键约束检查")
+            except Exception as e:
+                self.log_sync_action("外键约束", "警告", f"无法禁用外键约束: {str(e)}")
 
+            try:
+                for table_name, strategy in migration_plan:
+                    if time.time() - start_time > max_duration:
+                        self.log_sync_action("迁移超时", "警告", f"已运行{max_duration}秒，停止迁移")
+                        break
+
+                    try:
+                        # 检查表是否存在
+                        check_sql = text(f"SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = '{table_name}')")
+                        backup_exists = backup_conn.execute(check_sql).scalar()
+                        primary_exists = primary_conn.execute(check_sql).scalar()
+
+                        if not backup_exists:
+                            self.log_sync_action(f"跳过 {table_name}", "跳过", "备份数据库中表不存在")
+                            continue
+                            
+                        if not primary_exists:
+                            self.log_sync_action(f"跳过 {table_name}", "跳过", "主数据库中表不存在")
+                            continue
+
+                        # 获取备份数据
+                        backup_result = backup_conn.execute(text(f'SELECT * FROM "{table_name}"'))
+                        backup_rows = backup_result.fetchall()
+
+                        if not backup_rows:
+                            self.log_sync_action(f"跳过 {table_name}", "跳过", "备份数据为空")
+                            continue
+
+                        # 根据策略执行迁移
+                        if strategy == 'upsert':
+                            success, rows = self._migrate_table_upsert(primary_conn, table_name, backup_rows, backup_result.keys())
+                        elif strategy == 'smart':
+                            success, rows = self._migrate_users_smart(primary_conn, backup_conn, backup_rows, backup_result.keys())
+                        elif strategy == 'clear_insert':
+                            success, rows = self._migrate_table_clear_insert(primary_conn, table_name, backup_rows, backup_result.keys())
+                        elif strategy == 'append':
+                            success, rows = self._migrate_table_append(primary_conn, table_name, backup_rows, backup_result.keys())
+                        else:  # insert
+                            success, rows = self._migrate_table_insert(primary_conn, table_name, backup_rows, backup_result.keys())
+
+                        if success:
+                            restored_count += 1
+                            total_rows += rows
+                            self.log_sync_action(f"完整迁移 {table_name}", "成功", f"迁移了 {rows} 行数据")
+                        else:
+                            self.log_sync_action(f"完整迁移 {table_name}", "失败", "迁移失败")
+
+                    except Exception as e:
+                        self.log_sync_action(f"完整迁移 {table_name}", "失败", str(e))
+                        # 继续处理下一个表，不中断整个过程
+                        continue
+
+            finally:
+                # 重新启用外键约束检查
                 try:
-                    # 检查表是否存在
-                    check_sql = text(f"SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = '{table_name}')")
-                    backup_exists = backup_conn.execute(check_sql).scalar()
-                    primary_exists = primary_conn.execute(check_sql).scalar()
-
-                    if not backup_exists or not primary_exists:
-                        self.log_sync_action(f"跳过 {table_name}", "跳过", "表不存在")
-                        continue
-
-                    # 获取备份数据
-                    backup_result = backup_conn.execute(text(f'SELECT * FROM "{table_name}"'))
-                    backup_rows = backup_result.fetchall()
-
-                    if not backup_rows:
-                        self.log_sync_action(f"跳过 {table_name}", "跳过", "备份数据为空")
-                        continue
-
-                    # 根据策略执行迁移
-                    if strategy == 'upsert':
-                        success, rows = self._migrate_table_upsert(primary_conn, table_name, backup_rows, backup_result.keys())
-                    elif strategy == 'smart':
-                        success, rows = self._migrate_users_smart(primary_conn, backup_conn, backup_rows, backup_result.keys())
-                    else:  # insert
-                        success, rows = self._migrate_table_insert(primary_conn, table_name, backup_rows, backup_result.keys())
-
-                    if success:
-                        restored_count += 1
-                        total_rows += rows
-                        self.log_sync_action(f"完整迁移 {table_name}", "成功", f"迁移了 {rows} 行数据")
-
+                    primary_conn.execute(text('SET session_replication_role = DEFAULT'))
+                    primary_conn.commit()
+                    self.log_sync_action("外键约束", "恢复", "重新启用外键约束检查")
                 except Exception as e:
-                    self.log_sync_action(f"完整迁移 {table_name}", "失败", str(e))
-                    continue
+                    self.log_sync_action("外键约束", "警告", f"无法恢复外键约束: {str(e)}")
 
             return restored_count, total_rows
 
@@ -1049,6 +1124,84 @@ class DatabaseSyncer:
 
         except Exception as e:
             self.log_sync_action(f"INSERT迁移 {table_name}", "失败", str(e))
+            return False, 0
+    
+    def _migrate_table_clear_insert(self, primary_conn, table_name, backup_rows, columns):
+        """清空表后插入数据（适用于完整恢复）"""
+        try:
+            from sqlalchemy import text
+            
+            # 先清空表
+            primary_conn.execute(text(f'DELETE FROM "{table_name}"'))
+            
+            # 重置自增序列（如果存在）
+            try:
+                primary_conn.execute(text(f'ALTER SEQUENCE IF EXISTS {table_name}_id_seq RESTART WITH 1'))
+            except:
+                pass  # 忽略序列不存在的错误
+            
+            # 批量插入数据
+            for row in backup_rows:
+                column_names = ', '.join([f'"{col}"' for col in columns])
+                placeholders = ', '.join([f':{col}' for col in columns])
+                insert_sql = text(f'INSERT INTO "{table_name}" ({column_names}) VALUES ({placeholders})')
+
+                params = {}
+                for i, col in enumerate(columns):
+                    params[col] = row[i] if i < len(row) else None
+
+                primary_conn.execute(insert_sql, params)
+            
+            primary_conn.commit()
+            return True, len(backup_rows)
+            
+        except Exception as e:
+            primary_conn.rollback()
+            self.log_sync_action(f"清空插入迁移 {table_name}", "失败", str(e))
+            return False, 0
+    
+    def _migrate_table_append(self, primary_conn, table_name, backup_rows, columns):
+        """追加模式迁移（适用于日志表等）"""
+        try:
+            from sqlalchemy import text
+            
+            # 获取主表现有的最大ID（如果有ID列）
+            max_id = 0
+            try:
+                result = primary_conn.execute(text(f'SELECT COALESCE(MAX(id), 0) FROM "{table_name}"'))
+                max_id = result.scalar() or 0
+            except:
+                pass  # 忽略没有ID列的情况
+            
+            # 插入数据，调整ID避免冲突
+            inserted_count = 0
+            for row in backup_rows:
+                column_names = ', '.join([f'"{col}"' for col in columns])
+                placeholders = ', '.join([f':{col}' for col in columns])
+                insert_sql = text(f'INSERT INTO "{table_name}" ({column_names}) VALUES ({placeholders})')
+
+                params = {}
+                for i, col in enumerate(columns):
+                    value = row[i] if i < len(row) else None
+                    # 如果是ID列且值可能冲突，则调整
+                    if col == 'id' and value and value <= max_id:
+                        value = max_id + inserted_count + 1
+                    params[col] = value
+
+                try:
+                    primary_conn.execute(insert_sql, params)
+                    inserted_count += 1
+                except Exception as row_error:
+                    # 跳过重复或冲突的记录
+                    self.log_sync_action(f"跳过 {table_name} 重复记录", "警告", str(row_error))
+                    continue
+            
+            primary_conn.commit()
+            return True, inserted_count
+            
+        except Exception as e:
+            primary_conn.rollback()
+            self.log_sync_action(f"追加迁移 {table_name}", "失败", str(e))
             return False, 0
 
     def _perform_incremental_sync(self, backup_conn, primary_conn, start_time, max_duration):
