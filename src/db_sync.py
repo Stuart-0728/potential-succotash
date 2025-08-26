@@ -341,9 +341,9 @@ class DatabaseSyncer:
             with primary_engine.connect() as primary_conn, backup_engine.connect() as backup_conn:
                 # 禁用外键约束检查（PostgreSQL）
                 try:
-                    backup_conn.execute(text('SET session_replication_role = replica'))
-                    backup_conn.commit()
-                    self.log_sync_action("禁用外键约束", "成功", "临时禁用外键约束检查")
+                    if 'postgresql' in self.dual_db.backup_db_url:
+                        backup_conn.execute(text('SET session_replication_role = replica'))
+                        self.log_sync_action("禁用外键约束", "成功", "临时禁用外键约束检查")
                 except Exception as e:
                     self.log_sync_action("禁用外键约束", "警告", f"无法禁用外键约束: {str(e)}")
 
@@ -411,17 +411,17 @@ class DatabaseSyncer:
 
                     # 重新启用外键约束检查
                     try:
-                        backup_conn.execute(text('SET session_replication_role = DEFAULT'))
-                        backup_conn.commit()
-                        self.log_sync_action("恢复外键约束", "成功", "重新启用外键约束检查")
+                        if 'postgresql' in self.dual_db.backup_db_url:
+                            backup_conn.execute(text('SET session_replication_role = DEFAULT'))
+                            self.log_sync_action("恢复外键约束", "成功", "重新启用外键约束检查")
                     except Exception as e:
                         self.log_sync_action("恢复外键约束", "警告", f"无法恢复外键约束: {str(e)}")
 
                 except Exception as e:
                     # 确保恢复外键约束
                     try:
-                        backup_conn.execute(text('SET session_replication_role = DEFAULT'))
-                        backup_conn.commit()
+                        if 'postgresql' in self.dual_db.backup_db_url:
+                            backup_conn.execute(text('SET session_replication_role = DEFAULT'))
                     except:
                         pass
 
@@ -965,9 +965,9 @@ class DatabaseSyncer:
 
             # 临时禁用外键约束检查
             try:
-                primary_conn.execute(text('SET session_replication_role = replica'))
-                primary_conn.commit()
-                self.log_sync_action("外键约束", "禁用", "临时禁用外键约束检查")
+                if 'postgresql' in self.dual_db.primary_db_url:
+                    primary_conn.execute(text('SET session_replication_role = replica'))
+                    self.log_sync_action("外键约束", "禁用", "临时禁用外键约束检查")
             except Exception as e:
                 self.log_sync_action("外键约束", "警告", f"无法禁用外键约束: {str(e)}")
 
@@ -1026,9 +1026,9 @@ class DatabaseSyncer:
             finally:
                 # 重新启用外键约束检查
                 try:
-                    primary_conn.execute(text('SET session_replication_role = DEFAULT'))
-                    primary_conn.commit()
-                    self.log_sync_action("外键约束", "恢复", "重新启用外键约束检查")
+                    if 'postgresql' in self.dual_db.primary_db_url:
+                        primary_conn.execute(text('SET session_replication_role = DEFAULT'))
+                        self.log_sync_action("外键约束", "恢复", "重新启用外键约束检查")
                 except Exception as e:
                     self.log_sync_action("外键约束", "警告", f"无法恢复外键约束: {str(e)}")
 

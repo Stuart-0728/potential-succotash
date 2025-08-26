@@ -32,6 +32,21 @@ class DualDatabaseConfig:
         # 初始化数据库连接
         self._init_connections()
     
+    def _get_connect_args(self, db_url, timeout=10):
+        """根据数据库类型获取连接参数"""
+        if db_url and db_url.startswith('sqlite'):
+            # SQLite 不支持这些PostgreSQL特有的参数
+            return {}
+        else:
+            # PostgreSQL 连接参数
+            return {
+                'connect_timeout': timeout,
+                'keepalives': 1,
+                'keepalives_idle': 30,
+                'keepalives_interval': 10,
+                'keepalives_count': 5,
+            }
+    
     def _init_connections(self):
         """初始化数据库连接"""
         try:
@@ -43,13 +58,7 @@ class DualDatabaseConfig:
                     pool_timeout=30,
                     pool_recycle=1800,
                     pool_pre_ping=True,
-                    connect_args={
-                        'connect_timeout': 10,
-                        'keepalives': 1,
-                        'keepalives_idle': 30,
-                        'keepalives_interval': 10,
-                        'keepalives_count': 5,
-                    }
+                    connect_args=self._get_connect_args(self.primary_db_url, 10)
                 )
                 self.primary_session_factory = sessionmaker(bind=self.primary_engine)
                 logger.info("主数据库连接初始化成功")
@@ -62,13 +71,7 @@ class DualDatabaseConfig:
                     pool_timeout=30,
                     pool_recycle=1800,
                     pool_pre_ping=True,
-                    connect_args={
-                        'connect_timeout': 15,
-                        'keepalives': 1,
-                        'keepalives_idle': 30,
-                        'keepalives_interval': 10,
-                        'keepalives_count': 5,
-                    }
+                    connect_args=self._get_connect_args(self.backup_db_url, 15)
                 )
                 self.backup_session_factory = sessionmaker(bind=self.backup_engine)
                 logger.info("备份数据库连接初始化成功")
