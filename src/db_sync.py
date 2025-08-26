@@ -239,7 +239,8 @@ class DatabaseSyncer:
                 return
 
             # 创建独立的数据库连接
-            engine = create_engine(database_url, connect_args={'connect_timeout': 10})
+            connect_args = {'connect_timeout': 10} if 'postgresql' in database_url else {}
+            engine = create_engine(database_url, connect_args=connect_args)
 
             with engine.connect() as conn:
                 # 检查system_logs表是否存在
@@ -300,8 +301,10 @@ class DatabaseSyncer:
             # 测试数据库连接
             try:
                 from sqlalchemy import create_engine, text
-                primary_engine = create_engine(self.dual_db.primary_db_url, connect_args={'connect_timeout': 10})
-                backup_engine = create_engine(self.dual_db.backup_db_url, connect_args={'connect_timeout': 10})
+                primary_connect_args = {'connect_timeout': 10} if 'postgresql' in self.dual_db.primary_db_url else {}
+                backup_connect_args = {'connect_timeout': 10} if 'postgresql' in self.dual_db.backup_db_url else {}
+                primary_engine = create_engine(self.dual_db.primary_db_url, connect_args=primary_connect_args)
+                backup_engine = create_engine(self.dual_db.backup_db_url, connect_args=backup_connect_args)
 
                 # 测试连接
                 with primary_engine.connect() as conn:
@@ -470,8 +473,10 @@ class DatabaseSyncer:
             # 测试数据库连接
             try:
                 from sqlalchemy import create_engine, text
-                primary_engine = create_engine(self.dual_db.primary_db_url, connect_args={'connect_timeout': 10})
-                backup_engine = create_engine(self.dual_db.backup_db_url, connect_args={'connect_timeout': 10})
+                primary_connect_args = {'connect_timeout': 10} if 'postgresql' in self.dual_db.primary_db_url else {}
+                backup_connect_args = {'connect_timeout': 10} if 'postgresql' in self.dual_db.backup_db_url else {}
+                primary_engine = create_engine(self.dual_db.primary_db_url, connect_args=primary_connect_args)
+                backup_engine = create_engine(self.dual_db.backup_db_url, connect_args=backup_connect_args)
 
                 # 测试连接
                 with primary_engine.connect() as conn:
@@ -593,8 +598,13 @@ class DatabaseSyncer:
 
             # 测试数据库连接
             from sqlalchemy import create_engine, text
-            primary_engine = create_engine(self.dual_db.primary_db_url, connect_args={'connect_timeout': 15})
-            backup_engine = create_engine(self.dual_db.backup_db_url, connect_args={'connect_timeout': 15})
+            
+            # 根据数据库类型设置连接参数
+            primary_connect_args = {'connect_timeout': 15} if 'postgresql' in self.dual_db.primary_db_url else {}
+            backup_connect_args = {'connect_timeout': 15} if 'postgresql' in self.dual_db.backup_db_url else {}
+            
+            primary_engine = create_engine(self.dual_db.primary_db_url, connect_args=primary_connect_args)
+            backup_engine = create_engine(self.dual_db.backup_db_url, connect_args=backup_connect_args)
 
             # 测试连接
             with primary_engine.connect() as conn:
