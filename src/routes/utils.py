@@ -107,7 +107,13 @@ def log_action(action, details=None, user_id=None):
         )
         
         db.session.add(log)
-        db.session.commit()
+        try:
+            db.session.commit()
+        except Exception as e:
+            logger.error(f"记录系统日志失败，已回滚: {e}", exc_info=True)
+            db.session.rollback()
+            return
+        
         logger.info(f"Action logged: {action} by user {user_id}")
     except Exception as e:
         logger.error(f"Error logging action: {e}")
@@ -711,7 +717,7 @@ def utils_ai_chat_clear_history():
 
 # 添加缺失的add_points函数
 def add_points(user_id, points, reason, activity_id=None):
-    """给学生添加积分并记录积分历史
+    """为学生添加积分并记录积分历史
     
     Args:
         user_id: 学生用户ID

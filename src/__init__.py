@@ -174,7 +174,13 @@ def create_app(config_name=None):
             # 注释掉以下两行，因为它们是为本地SQLite设计的，在连接PostgreSQL时会引发问题
             # from scripts.ensure_db_structure import ensure_db_structure
             # ensure_db_structure()
-            app.logger.info("已跳过SQLite数据库结构检查，因为当前使用PostgreSQL数据库")
+            # 改为仅执行"序列健康检查"（对PostgreSQL安全）
+            try:
+                from scripts.ensure_db_structure import ensure_db_structure
+                ensure_db_structure(app, db)
+                app.logger.info("已执行数据库结构与序列健康检查")
+            except Exception as inner_e:
+                app.logger.warning(f"执行序列健康检查时出现问题: {inner_e}")
         except ImportError:
             app.logger.warning("未找到确保数据库结构的脚本，跳过初始化")
         except Exception as e:
@@ -357,4 +363,4 @@ def register_context_processors(app):
         return {
             'now': get_localized_now,
             'pytz': pytz
-        } 
+        }

@@ -210,7 +210,12 @@ def login():
                     ip_address=request.remote_addr
                 )
                 db.session.add(log)
-                db.session.commit()
+                # 安全提交：失败时回滚并不中断登录流程
+                try:
+                    db.session.commit()
+                except Exception as e:
+                    logger.error(f"记录系统日志失败，已回滚: {e}", exc_info=True)
+                    db.session.rollback()
                 
                 # 检查next参数是否安全，避免重定向循环
                 next_page = request.form.get('next')

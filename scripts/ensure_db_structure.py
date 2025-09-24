@@ -72,6 +72,27 @@ def ensure_db_structure(app=None, db=None):
             db.create_all()
             logger.info("数据库表初始化完成")
             
+            # 针对PostgreSQL：校正关键表的序列到当前最大ID，防止主键冲突
+            try:
+                db_uri = app.config.get('SQLALCHEMY_DATABASE_URI', '')
+                if db_uri and 'postgresql' in db_uri:
+                    logger.info("检测到PostgreSQL，开始校正关键表序列")
+                    seq_fix_sql = [
+                        # system_logs
+                        text("SELECT setval('public.system_logs_id_seq', GREATEST((SELECT COALESCE(MAX(id), 0) FROM public.system_logs), 0)+1, false)")
+                    ]
+                    for stmt in seq_fix_sql:
+                        try:
+                            db.session.execute(stmt)
+                            db.session.commit()
+                        except Exception as inner_e:
+                            logger.warning(f"尝试校正序列失败: {inner_e}")
+                            db.session.rollback()
+                    logger.info("序列校正完成")
+            except Exception as e:
+                logger.warning(f"序列校正过程出现问题: {e}")
+                db.session.rollback()
+            
             # 检查是否需要添加特定列
             inspector = inspect(db.engine)
             
@@ -248,4 +269,4 @@ def ensure_db_structure(app=None, db=None):
 if __name__ == "__main__":
     # 当直接运行此脚本时的代码
     print("此脚本设计为从应用程序导入，而不是直接运行")
-    sys.exit(1) 
+    sys.exit(1)
