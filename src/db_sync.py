@@ -11,7 +11,7 @@ import threading
 import time
 import uuid
 from datetime import datetime, timedelta
-from sqlalchemy import create_engine, text, MetaData, Table
+from sqlalchemy import create_engine, text, MetaData, Table, inspect
 from sqlalchemy.orm import sessionmaker
 import psycopg2
 from psycopg2.extras import RealDictCursor
@@ -96,6 +96,31 @@ class DatabaseSyncer:
         self.dual_db = dual_db
         self.sync_log = []
     
+    def _table_exists(self, conn, table_name: str) -> bool:
+        """跨数据库检查表是否存在，兼容SQLite和PostgreSQL"""
+        try:
+            inspector = inspect(conn)
+            return bool(inspector.has_table(table_name))
+        except Exception as e:
+            # 避免 PostgreSQL 事务处于 aborted 状态导致后续查询被忽略
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+            try:
+                # 回退方案：根据方言执行原生SQL
+                dialect = getattr(conn, 'dialect', None)
+                dialect_name = getattr(dialect, 'name', '') if dialect else ''
+                if dialect_name == 'sqlite':
+                    result = conn.execute(text("SELECT name FROM sqlite_master WHERE type='table' AND name = :name"), {"name": table_name}).fetchone()
+                    return result is not None
+                else:
+                    result = conn.execute(text("SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = :name)"), {"name": table_name}).scalar()
+                    return bool(result)
+            except Exception as e2:
+                logger.warning(f"表存在性检查失败: {table_name}: {e2}")
+                return False
+
     def log_sync_action(self, action, status, details=None):
         """记录同步操作"""
         # 使用北京时间
@@ -243,18 +268,11 @@ class DatabaseSyncer:
             engine = create_engine(database_url, connect_args=connect_args)
 
             with engine.connect() as conn:
-                # 检查system_logs表是否存在
-                check_table_sql = text("""
-                    SELECT EXISTS (
-                        SELECT FROM information_schema.tables
-                        WHERE table_name = 'system_logs'
-                    )
-                """)
-
-                if not conn.execute(check_table_sql).scalar():
+                # 检查system_logs表是否存在（跨数据库兼容）
+                if not self._table_exists(conn, 'system_logs'):
                     logger.warning("system_logs表不存在，跳过日志记录")
                     return
-
+                
                 # 插入系统日志
                 insert_sql = text("""
                     INSERT INTO system_logs (action, details, user_id, created_at)
@@ -369,10 +387,9 @@ class DatabaseSyncer:
                         try:
                             self.log_sync_action(f"同步表 {table_name} ({index}/{total_tables})", "开始")
 
-                            # 检查表是否存在
-                            check_sql = text(f"SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = '{table_name}')")
-                            primary_exists = primary_conn.execute(check_sql).scalar()
-                            backup_exists = backup_conn.execute(check_sql).scalar()
+                            # 检查表是否存在（兼容SQLite/PostgreSQL）
+                            primary_exists = self._table_exists(primary_conn, table_name)
+                            backup_exists = self._table_exists(backup_conn, table_name)
 
                             if not primary_exists:
                                 self.log_sync_action(f"跳过表 {table_name}", "跳过", "主数据库中不存在")
@@ -382,13 +399,22 @@ class DatabaseSyncer:
                                 self.log_sync_action(f"跳过表 {table_name}", "跳过", "备份数据库中不存在")
                                 continue
 
-                            # 清空备份表（使用TRUNCATE CASCADE处理外键约束）
+                            # 清空备份表（根据方言选择策略）
                             try:
-                                backup_conn.execute(text(f'TRUNCATE TABLE "{table_name}" CASCADE'))
-                            except Exception as truncate_error:
-                                # 如果TRUNCATE失败，尝试DELETE
-                                self.log_sync_action(f"TRUNCATE {table_name} 失败，尝试DELETE", "警告", str(truncate_error))
+                                dialect_name = getattr(backup_conn, 'dialect', None).name if hasattr(backup_conn, 'dialect') else ''
+                            except Exception:
+                                dialect_name = ''
+
+                            if dialect_name == 'sqlite':
+                                # SQLite 不支持 TRUNCATE，直接使用 DELETE
                                 backup_conn.execute(text(f'DELETE FROM "{table_name}"'))
+                            else:
+                                # 非SQLite优先尝试TRUNCATE，失败回退DELETE
+                                try:
+                                    backup_conn.execute(text(f'TRUNCATE TABLE "{table_name}" CASCADE'))
+                                except Exception as truncate_error:
+                                    self.log_sync_action(f"TRUNCATE {table_name} 失败，尝试DELETE", "警告", str(truncate_error))
+                                    backup_conn.execute(text(f'DELETE FROM "{table_name}"'))
 
                             # 获取主表数据
                             result = primary_conn.execute(text(f'SELECT * FROM "{table_name}"'))
@@ -512,10 +538,9 @@ class DatabaseSyncer:
                     try:
                         self.log_sync_action(f"恢复表 {table_name}", "开始")
 
-                        # 检查表是否存在
-                        check_sql = text(f"SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = '{table_name}')")
-                        backup_exists = backup_conn.execute(check_sql).scalar()
-                        primary_exists = primary_conn.execute(check_sql).scalar()
+                        # 检查表是否存在（跨数据库兼容）
+                        backup_exists = self._table_exists(backup_conn, table_name)
+                        primary_exists = self._table_exists(primary_conn, table_name)
 
                         if not backup_exists:
                             self.log_sync_action(f"跳过表 {table_name}", "跳过", "备份数据库中不存在")
@@ -525,14 +550,25 @@ class DatabaseSyncer:
                             self.log_sync_action(f"跳过表 {table_name}", "跳过", "主数据库中不存在")
                             continue
 
-                        # 清空主表（使用TRUNCATE CASCADE处理外键约束）
+                        # 清空主表（使用方言感知策略）
                         try:
-                            primary_conn.execute(text(f'TRUNCATE TABLE "{table_name}" CASCADE'))
-                        except Exception as truncate_error:
-                            # 如果TRUNCATE失败，尝试DELETE
-                            self.log_sync_action(f"TRUNCATE {table_name} 失败，尝试DELETE", "警告", str(truncate_error))
-                            primary_conn.execute(text(f'DELETE FROM "{table_name}"'))
-                        primary_conn.commit()
+                            dialect_name = getattr(getattr(primary_conn, 'dialect', None), 'name', '')
+                            if dialect_name == 'sqlite':
+                                primary_conn.execute(text(f'DELETE FROM "{table_name}"'))
+                            else:
+                                try:
+                                    primary_conn.execute(text(f'TRUNCATE TABLE "{table_name}" CASCADE'))
+                                except Exception as truncate_error:
+                                    self.log_sync_action(f"TRUNCATE {table_name} 失败，尝试DELETE", "警告", str(truncate_error))
+                                    primary_conn.execute(text(f'DELETE FROM "{table_name}"'))
+                            primary_conn.commit()
+                        except Exception as clear_err:
+                            self.log_sync_action(f"清空 {table_name}", "失败", str(clear_err))
+                            try:
+                                primary_conn.rollback()
+                            except Exception:
+                                pass
+                            continue
 
                         # 获取备份表数据
                         result = backup_conn.execute(text(f'SELECT * FROM "{table_name}"'))
@@ -553,6 +589,15 @@ class DatabaseSyncer:
 
                     except Exception as e:
                         self.log_sync_action(f"恢复表 {table_name}", "失败", str(e))
+                        # 出错后回滚以清除事务错误状态，避免后续命令被忽略
+                        try:
+                            primary_conn.rollback()
+                        except Exception:
+                            pass
+                        try:
+                            backup_conn.rollback()
+                        except Exception:
+                            pass
                         # 继续处理下一个表，不中断整个过程
                         continue
 
@@ -665,7 +710,6 @@ class DatabaseSyncer:
             self.log_sync_action(f"安全恢复 {table_name}", "开始")
 
             # 检查表是否存在
-            check_sql = text(f"SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = '{table_name}')")
             if not backup_conn.execute(check_sql).scalar() or not primary_conn.execute(check_sql).scalar():
                 self.log_sync_action(f"跳过 {table_name}", "跳过", "表不存在")
                 return False, 0
@@ -712,7 +756,6 @@ class DatabaseSyncer:
             self.log_sync_action(f"智能恢复 {table_name}", "开始")
 
             # 检查表是否存在
-            check_sql = text(f"SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = '{table_name}')")
             if not backup_conn.execute(check_sql).scalar() or not primary_conn.execute(check_sql).scalar():
                 self.log_sync_action(f"跳过 {table_name}", "跳过", "表不存在")
                 return False, 0
@@ -773,7 +816,6 @@ class DatabaseSyncer:
             self.log_sync_action(f"增量恢复 {table_name}", "开始")
 
             # 检查表是否存在
-            check_sql = text(f"SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = '{table_name}')")
             if not backup_conn.execute(check_sql).scalar() or not primary_conn.execute(check_sql).scalar():
                 self.log_sync_action(f"跳过 {table_name}", "跳过", "表不存在")
                 return False, 0
@@ -821,9 +863,10 @@ class DatabaseSyncer:
 
             self.log_sync_action(f"完整恢复 {table_name}", "开始")
 
-            # 检查表是否存在
-            check_sql = text(f"SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = '{table_name}')")
-            if not backup_conn.execute(check_sql).scalar() or not primary_conn.execute(check_sql).scalar():
+            # 检查表是否存在（跨数据库兼容）
+            backup_exists = self._table_exists(backup_conn, table_name)
+            primary_exists = self._table_exists(primary_conn, table_name)
+            if not backup_exists or not primary_exists:
                 self.log_sync_action(f"跳过 {table_name}", "跳过", "表不存在")
                 return False, 0
 
@@ -859,6 +902,15 @@ class DatabaseSyncer:
 
         except Exception as e:
             self.log_sync_action(f"完整恢复 {table_name}", "失败", str(e))
+            # 出错后回滚以清除事务错误状态，避免后续命令被忽略
+            try:
+                primary_conn.rollback()
+            except Exception:
+                pass
+            try:
+                backup_conn.rollback()
+            except Exception:
+                pass
             return False, 0
 
     def _check_if_new_deployment(self, primary_conn):
@@ -870,8 +922,7 @@ class DatabaseSyncer:
 
             # 1. 检查活动数据（最重要的业务指标）
             try:
-                check_sql = text("SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'activities')")
-                if primary_conn.execute(check_sql).scalar():
+                if self._table_exists(primary_conn, 'activities'):
                     count_sql = text('SELECT COUNT(*) FROM "activities"')
                     activities_count = primary_conn.execute(count_sql).scalar()
 
@@ -883,8 +934,7 @@ class DatabaseSyncer:
 
             # 2. 检查用户数量（排除基础管理员）
             try:
-                check_sql = text("SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'users')")
-                if primary_conn.execute(check_sql).scalar():
+                if self._table_exists(primary_conn, 'users'):
                     count_sql = text('SELECT COUNT(*) FROM "users"')
                     users_count = primary_conn.execute(count_sql).scalar()
 
@@ -903,8 +953,7 @@ class DatabaseSyncer:
 
             for table_name in business_tables:
                 try:
-                    check_sql = text(f"SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = '{table_name}')")
-                    if primary_conn.execute(check_sql).scalar():
+                    if self._table_exists(primary_conn, table_name):
                         count_sql = text(f'SELECT COUNT(*) FROM "{table_name}"')
                         count = primary_conn.execute(count_sql).scalar()
 
@@ -923,7 +972,7 @@ class DatabaseSyncer:
             return True
 
         except Exception as e:
-            self.log_sync_action("数据库检测", "失败", f"检测失败: {str(e)}")
+            self.log_sync_action("数据库检测", "失败", f"检测失败: {e}")
             return False  # 出错时假设不是新部署，使用安全策略
 
     def force_full_restore_from_clawcloud(self):
@@ -980,7 +1029,6 @@ class DatabaseSyncer:
                     self.log_sync_action("外键约束", "禁用", "临时禁用外键约束检查")
             except Exception as e:
                 self.log_sync_action("外键约束", "警告", f"无法禁用外键约束: {str(e)}")
-
             try:
                 for table_name, strategy in migration_plan:
                     if time.time() - start_time > max_duration:
@@ -988,10 +1036,9 @@ class DatabaseSyncer:
                         break
 
                     try:
-                        # 检查表是否存在
-                        check_sql = text(f"SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = '{table_name}')")
-                        backup_exists = backup_conn.execute(check_sql).scalar()
-                        primary_exists = primary_conn.execute(check_sql).scalar()
+                        # 检查表是否存在（跨数据库兼容）
+                        backup_exists = self._table_exists(backup_conn, table_name)
+                        primary_exists = self._table_exists(primary_conn, table_name)
 
                         if not backup_exists:
                             self.log_sync_action(f"跳过 {table_name}", "跳过", "备份数据库中表不存在")
@@ -1030,6 +1077,15 @@ class DatabaseSyncer:
 
                     except Exception as e:
                         self.log_sync_action(f"完整迁移 {table_name}", "失败", str(e))
+                        # 出错后回滚以清除事务错误状态，避免后续命令被忽略
+                        try:
+                            primary_conn.rollback()
+                        except Exception:
+                            pass
+                        try:
+                            backup_conn.rollback()
+                        except Exception:
+                            pass
                         # 继续处理下一个表，不中断整个过程
                         continue
 
@@ -1041,6 +1097,10 @@ class DatabaseSyncer:
                         self.log_sync_action("外键约束", "恢复", "重新启用外键约束检查")
                 except Exception as e:
                     self.log_sync_action("外键约束", "警告", f"无法恢复外键约束: {str(e)}")
+                    try:
+                        primary_conn.rollback()
+                    except Exception:
+                        pass
 
             return restored_count, total_rows
 
